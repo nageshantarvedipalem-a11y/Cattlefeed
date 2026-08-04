@@ -102,12 +102,15 @@ See [docs/FOLDER_STRUCTURE.md](docs/FOLDER_STRUCTURE.md) for complete directory 
 | 14 | Dashboard Graphs | ✅ Complete |
 | 15 | WhatsApp Integration | ✅ Complete |
 
-## Deployment (Hostinger VPS)
+## Deployment
 
-- Full VPS guide: [docs/HOSTINGER_DEPLOYMENT.md](docs/HOSTINGER_DEPLOYMENT.md)
-- **CI/CD pipeline setup: [docs/CI_CD_SETUP.md](docs/CI_CD_SETUP.md)**
+| Hosting type | Guide |
+|--------------|-------|
+| **Web Hosting + CI/CD** (your plan) | [docs/GITHUB_ACTIONS_HOSTINGER.md](docs/GITHUB_ACTIONS_HOSTINGER.md) |
+| Web Hosting manual | [docs/HOSTINGER_WEB_HOSTING.md](docs/HOSTINGER_WEB_HOSTING.md) |
+| VPS | [docs/HOSTINGER_DEPLOYMENT.md](docs/HOSTINGER_DEPLOYMENT.md) |
 
-After CI/CD is configured, every `git push` to `main` auto-deploys to your VPS.
+**Auto-deploy:** Push to `main` → GitHub Actions builds `frontend/dist` → FTP upload to Hostinger `public_html`.
 
 ## Security
 

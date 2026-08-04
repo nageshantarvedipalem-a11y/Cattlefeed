@@ -1,5 +1,46 @@
+# =============================================================================
+# Cattle Feed ERP — Root .gitignore
+# =============================================================================
+
+# Dependencies
 node_modules/
 .npm-cache/
+
+# Environment & secrets (NEVER commit)
 .env
-.DS_Store
+.env.*
+!.env.example
+!.env.production.example
+
+# Build outputs (generated in CI — do not commit)
+frontend/dist/
+deploy/hostinger-public_html/assets/
+deploy/hostinger-public_html/index.html
+deploy/hostinger-public_html/favicon.svg
+deploy/hostinger-public_html/icons.svg
+
+# Logs
 *.log
+backend/logs/*.log
+!backend/logs/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# FTP deploy state (created on server by CI, not in repo)
+.ftp-deploy-sync-state.json
+
+# Uploads & temp
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Coverage / test artifacts
+coverage/
+.nyc_output/

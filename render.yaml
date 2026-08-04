@@ -1,0 +1,42 @@
+# Render.com blueprint — free Node.js backend (no VPS needed)
+# Docs: https://render.com/docs
+#
+# 1. Go to https://dashboard.render.com
+# 2. New → Blueprint → connect GitHub repo Cattlefeed
+# 3. Or manually: New → Web Service → root directory: backend
+
+services:
+  - type: web
+    name: cattlefeed-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/cattlefeed/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5001
+      - key: API_PROJECT_SLUG
+        value: cattlefeed
+      - key: API_VERSION
+        value: v1
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: 3306
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 24h
+      - key: CORS_ORIGIN
+        value: https://lightsteelblue-bison-593262.hostingersite.com
+      - key: APP_NAME
+        value: Cattle Feed ERP

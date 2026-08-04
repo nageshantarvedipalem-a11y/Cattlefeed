@@ -1,10 +1,18 @@
+# =============================================================================
+# CI — Pull Request & main branch quality checks (no deploy)
+# =============================================================================
+
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - '.github/workflows/ci.yml'
 
 jobs:
   backend:
@@ -15,49 +23,38 @@ jobs:
         working-directory: backend
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Verify server starts
-        run: node --check src/server.js
+      - run: npm ci
+      - run: node --check src/server.js
 
   frontend:
-    name: Frontend build
+    name: Frontend lint & build
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: frontend
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Build
+      - run: npm ci
+      - run: npm run lint
+      - name: Test production build
         env:
-          VITE_API_BASE_URL: /api/cattlefeed/v1
+          VITE_API_BASE_URL: https://example.com/api/cattlefeed/v1
           VITE_APP_NAME: Cattle Feed ERP
           VITE_API_PROJECT: cattlefeed
         run: npm run build

@@ -1,46 +1,160 @@
-name: CD — Deploy to Hostinger VPS
+# =============================================================================
+# Hostinger Shared Hosting — Frontend CI/CD (FTP)
+# =============================================================================
+# Triggers : push to main (frontend changes), manual dispatch
+# Builds   : frontend/ (Vite + React + Tailwind)
+# Deploys  : frontend/dist/ → Hostinger public_html via FTP/FTPS
+# Secrets  : FTP_* , VITE_API_BASE_URL , SITE_URL (see docs/GITHUB_ACTIONS_HOSTINGER.md)
+# =============================================================================
+
+name: Deploy Frontend to Hostinger
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
+  push:
     branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy.yml'
+      - 'deploy/hostinger-public_html/.htaccess'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (build only, no FTP upload)'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
-  group: deploy-production
+  group: hostinger-frontend-deploy
   cancel-in-progress: true
 
+env:
+  NODE_VERSION: '20'
+  WORKING_DIRECTORY: frontend
+
 jobs:
-  deploy:
-    name: Deploy to VPS
+  build-and-deploy:
+    name: Build & Deploy to Hostinger
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    timeout-minutes: 15
     environment: production
 
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          script_stop: true
-          command_timeout: 15m
-          script: |
-            set -e
-            APP_DIR="${{ secrets.VPS_APP_DIR || '/var/www/cattlefeed' }}"
-            cd "$APP_DIR"
-            bash deploy/deploy.sh
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Health check
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
         run: |
-          HEALTH_URL="${{ secrets.DEPLOY_HEALTH_URL }}"
-          if [ -n "$HEALTH_URL" ]; then
-            echo "Checking $HEALTH_URL"
-            curl -fsSL "$HEALTH_URL" | head -c 500
-            echo ""
-          else
-            echo "DEPLOY_HEALTH_URL not set — skipping health check"
+          echo "::group::npm ci"
+          npm ci
+          echo "::endgroup::"
+
+      - name: Lint frontend
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |
+          echo "::group::npm run lint"
+          npm run lint
+          echo "::endgroup::"
+
+      - name: Build production bundle
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_APP_NAME: Cattle Feed ERP
+          VITE_API_PROJECT: cattlefeed
+        run: |
+          echo "::group::npm run build"
+          if [ -z "$VITE_API_BASE_URL" ]; then
+            echo "::error::VITE_API_BASE_URL secret is not set. Add it in GitHub → Settings → Secrets."
+            exit 1
           fi
+          npm run build
+          echo "::endgroup::"
+          echo "Build output:"
+          ls -lah dist/
+          du -sh dist/
+
+      - name: Verify dist folder
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |
+          if [ ! -f dist/index.html ]; then
+            echo "::error::dist/index.html not found — build failed"
+            exit 1
+          fi
+          if [ ! -d dist/assets ]; then
+            echo "::error::dist/assets not found — build incomplete"
+            exit 1
+          fi
+          echo "✅ Build verified: index.html + assets present"
+          if [ -f dist/.htaccess ]; then
+            echo "✅ .htaccess included (from frontend/public/)"
+          else
+            echo "::warning::.htaccess missing — SPA routing may fail on refresh"
+          fi
+
+      - name: Deploy to Hostinger FTP
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: ${{ secrets.FTP_PORT || 21 }}
+          protocol: ${{ secrets.FTP_PROTOCOL || 'ftps' }}
+          local-dir: ./frontend/dist/
+          server-dir: ${{ secrets.REMOTE_DIR }}
+          dangerous-clean-slate: false
+          log-level: verbose
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/.DS_Store
+
+      - name: Skip FTP (dry run)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
+        run: echo "Dry run — skipping FTP upload"
+
+      - name: Verify live site
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+        run: |
+          if [ -z "$SITE_URL" ]; then
+            echo "SITE_URL secret not set — skipping verification"
+            exit 0
+          fi
+          echo "::group::Health check"
+          echo "Checking $SITE_URL"
+          HTTP_CODE=$(curl -s -o /tmp/site.html -w "%{http_code}" --max-time 30 -L "$SITE_URL")
+          echo "HTTP status: $HTTP_CODE"
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 400 ]; then
+            echo "::error::Site returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+          if ! grep -qi "<html" /tmp/site.html; then
+            echo "::error::Response does not look like HTML"
+            exit 1
+          fi
+          echo "✅ Site is reachable"
+          echo "::endgroup::"
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          echo "## Deployment Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Item | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Branch | \`${{ github.ref_name }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Commit | \`${{ github.sha }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Node | ${{ env.NODE_VERSION }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build dir | \`frontend/dist/\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Trigger | \`${{ github.event_name }}\` |" >> "$GITHUB_STEP_SUMMARY"
