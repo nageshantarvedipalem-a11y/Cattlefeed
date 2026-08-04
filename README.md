@@ -102,6 +102,13 @@ See [docs/FOLDER_STRUCTURE.md](docs/FOLDER_STRUCTURE.md) for complete directory 
 | 14 | Dashboard Graphs | ✅ Complete |
 | 15 | WhatsApp Integration | ✅ Complete |
 
+## Deployment (Hostinger VPS)
+
+- Full VPS guide: [docs/HOSTINGER_DEPLOYMENT.md](docs/HOSTINGER_DEPLOYMENT.md)
+- **CI/CD pipeline setup: [docs/CI_CD_SETUP.md](docs/CI_CD_SETUP.md)**
+
+After CI/CD is configured, every `git push` to `main` auto-deploys to your VPS.
+
 ## Security
 
 - Helmet security headers
