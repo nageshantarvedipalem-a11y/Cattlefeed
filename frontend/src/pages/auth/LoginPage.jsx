@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import {
   FiArrowRight,
@@ -24,11 +25,27 @@ const features = [
 const LoginPage = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [dbOfflineMessage, setDbOfflineMessage] = useState('');
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm();
+
+  useEffect(() => {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/cattlefeed/v1';
+    fetch(`${baseUrl}/health`)
+      .then((res) => res.json())
+      .then((payload) => {
+        if (payload?.data?.database === 'offline') {
+          setDbOfflineMessage(
+            payload.data.databaseError
+              || 'Database is temporarily unavailable. Please wait a few minutes and try again.'
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const onSubmit = async (data) => {
     try {
@@ -105,6 +122,17 @@ const LoginPage = () => {
                 Manage sales, stock and accounts for your feed business
               </p>
             </div>
+
+            {dbOfflineMessage && (
+              <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <p className="font-semibold">System temporarily unavailable</p>
+                <p className="mt-1 text-xs leading-relaxed text-amber-800">
+                  {dbOfflineMessage.includes('max_connections')
+                    ? 'The database connection limit was reached. Wait 30–60 minutes, then refresh and try again. Do not run the local backend against the production database while waiting.'
+                    : dbOfflineMessage}
+                </p>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
               <div>
