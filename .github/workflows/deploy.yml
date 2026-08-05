@@ -2,8 +2,13 @@
 # Hostinger Shared Hosting — Frontend CI/CD (FTP)
 # =============================================================================
 # Triggers : push to main, manual dispatch
-# Deploys  : frontend/dist/ → Hostinger public_html via FTP/FTPS
-# Secrets  : FTP_* , VITE_API_BASE_URL , SITE_URL
+# Deploys  : frontend/dist/ → FRONTEND site public_html via FTP/FTPS
+#
+# TWO HOSTINGER SITES (do not mix credentials):
+#   Frontend  lightsteelblue-bison-593262.hostingersite.com  ← THIS workflow
+#   Backend   yellow-cobra-125039.hostingersite.com          ← Node.js Git in hPanel (NOT FTP here)
+#
+# Secrets  : FTP_* (frontend site only), VITE_API_BASE_URL, SITE_URL, REMOTE_DIR
 # =============================================================================
 
 name: Deploy Frontend to Hostinger
@@ -74,6 +79,22 @@ jobs:
           test -d dist/assets
           grep -q 'assets/index-' dist/index.html
           echo "Built bundle: $(grep -o 'assets/index-[^\"]*\\.js' dist/index.html | head -1)"
+
+      - name: Validate frontend FTP credentials
+        run: |
+          SERVER="${{ secrets.FTP_SERVER }}"
+          USER="${{ secrets.FTP_USERNAME }}"
+          if [ -z "$SERVER" ] || [ -z "$USER" ] || [ -z "${{ secrets.FTP_PASSWORD }}" ]; then
+            echo "::error::FTP_SERVER, FTP_USERNAME, and FTP_PASSWORD must be set."
+            exit 1
+          fi
+          if echo "$SERVER$USER" | grep -qi 'yellow-cobra'; then
+            echo "::error::These look like BACKEND (yellow-cobra) FTP credentials."
+            echo "::error::This workflow deploys the FRONTEND site (lightsteelblue) only."
+            echo "::error::In GitHub Secrets, use FTP from: Websites → lightsteelblue → FTP Accounts"
+            exit 1
+          fi
+          echo "Using frontend FTP host (masked by GitHub)"
 
       - name: Prepare FTP server path
         run: |

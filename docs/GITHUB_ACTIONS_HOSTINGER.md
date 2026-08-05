@@ -53,10 +53,22 @@ GitHub Actions: deploy.yml
 
 ---
 
-## Step 1 — Configure Hostinger FTP
+## Two Hostinger servers — use the correct credentials
+
+| Site | Domain | Deploy method | GitHub secrets |
+|------|--------|---------------|----------------|
+| **Frontend** | `lightsteelblue-bison-593262.hostingersite.com` | **This workflow** (FTP) | `FTP_*`, `REMOTE_DIR`, `SITE_URL` |
+| **Backend** | `yellow-cobra-125039.hostingersite.com` | hPanel → Node.js Web App → Git redeploy | **Not used here** — no backend FTP in Actions |
+
+> **530 Login incorrect** almost always means `FTP_SERVER` / `FTP_USERNAME` / `FTP_PASSWORD` are from the **wrong site**. Open hPanel → **Websites → lightsteelblue-bison-593262 → FTP Accounts** and copy those credentials into GitHub Secrets — not the yellow-cobra backend site.
+
+---
+
+## Step 1 — Configure Hostinger FTP (frontend site only)
 
 1. Log in to **[hpanel.hostinger.com](https://hpanel.hostinger.com)**
-2. Go to **Websites → Manage → FTP Accounts**
+2. Open **Websites → lightsteelblue-bison-593262.hostingersite.com → Manage → FTP Accounts**
+   - Do **not** use FTP from the yellow-cobra (backend) website
 3. Create or note an FTP account:
    - **FTP Host:** e.g. `ftp.lightsteelblue-bison-593262.hostingersite.com` or IP
    - **Username:** e.g. `u289260512.youruser`
@@ -78,8 +90,8 @@ Click **New repository secret** for each:
 
 | Secret | Required | Example |
 |--------|----------|---------|
-| `FTP_SERVER` | Yes | `ftp.lightsteelblue-bison-593262.hostingersite.com` |
-| `FTP_USERNAME` | Yes | `u289260512.deploy` |
+| `FTP_SERVER` | Yes | `82.25.125.53` or `ftp.lightsteelblue-bison-593262.hostingersite.com` |
+| `FTP_USERNAME` | Yes | `u289260512.lightsteelblue-bison-593262.hostingersite.com` |
 | `FTP_PASSWORD` | Yes | your FTP password |
 | `FTP_PORT` | No | `21` (default) |
 | `FTP_PROTOCOL` | No | `ftps` (recommended) or `ftp` |
@@ -180,11 +192,13 @@ Handled by `.gitignore` + FTP exclude list:
 
 ---
 
-## Backend (separate)
+## Backend (separate server — not FTP deploy)
 
-This workflow deploys **frontend only**. Backend runs on **Render.com** (see `docs/HOSTINGER_WEB_HOSTING.md`).
+This workflow deploys **frontend only** to **lightsteelblue**.
 
-Ensure Render `CORS_ORIGIN` matches your Hostinger domain.
+The **backend** runs on **yellow-cobra-125039.hostingersite.com** via **Hostinger Node.js Web App** (GitHub connect in hPanel). Redeploy backend there after pushing backend changes — do not put yellow-cobra FTP credentials in `FTP_*` secrets.
+
+Ensure backend `CORS_ORIGIN` matches the frontend domain.
 
 ---
 
