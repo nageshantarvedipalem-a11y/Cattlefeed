@@ -154,9 +154,7 @@ Render auto-deploys when you push to `main` (enable in Render → Settings → A
 
 ## Upgrade path (later)
 
-When you need faster API (no sleep) or full control:
-- Upgrade to **Hostinger VPS** → use `docs/HOSTINGER_DEPLOYMENT.md`
-- Or upgrade Render to paid plan
+When you need faster API or more control, upgrade Hostinger plan or use a dedicated Node.js host. See [HOSTINGER_FULL_DEPLOY.md](HOSTINGER_FULL_DEPLOY.md).
 
 ---
 

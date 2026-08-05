@@ -10,7 +10,7 @@ Production-ready Billing, Inventory, Ledger & Accounting Management System for c
 | Backend | Node.js, Express.js |
 | Database | MySQL 8.0+ |
 | Auth | JWT, bcrypt |
-| Hosting | Hostinger VPS |
+| Hosting | Hostinger Business (Web Hosting + Node.js) |
 
 ## Phase 1 — Complete ✓
 
@@ -104,13 +104,13 @@ See [docs/FOLDER_STRUCTURE.md](docs/FOLDER_STRUCTURE.md) for complete directory 
 
 ## Deployment
 
-| Hosting type | Guide |
-|--------------|-------|
-| **Web Hosting + CI/CD** (your plan) | [docs/GITHUB_ACTIONS_HOSTINGER.md](docs/GITHUB_ACTIONS_HOSTINGER.md) |
-| Web Hosting manual | [docs/HOSTINGER_WEB_HOSTING.md](docs/HOSTINGER_WEB_HOSTING.md) |
-| VPS | [docs/HOSTINGER_DEPLOYMENT.md](docs/HOSTINGER_DEPLOYMENT.md) |
+| Guide | Purpose |
+|-------|---------|
+| [docs/HOSTINGER_FULL_DEPLOY.md](docs/HOSTINGER_FULL_DEPLOY.md) | Full setup — frontend + backend on Hostinger |
+| [docs/GITHUB_ACTIONS_HOSTINGER.md](docs/GITHUB_ACTIONS_HOSTINGER.md) | GitHub Secrets & auto FTP deploy |
+| [docs/HOSTINGER_WEB_HOSTING.md](docs/HOSTINGER_WEB_HOSTING.md) | Manual upload fallback |
 
-**Auto-deploy:** Push to `main` → GitHub Actions builds `frontend/dist` → FTP upload to Hostinger `public_html`.
+**Auto-deploy:** Push to `main` → GitHub Actions uploads frontend to `public_html`; Hostinger Node.js redeploys backend (if Git connected).
 
 ## Security
 
@@ -126,4 +126,3 @@ See [docs/FOLDER_STRUCTURE.md](docs/FOLDER_STRUCTURE.md) for complete directory 
 ## License
 
 Proprietary — All rights reserved.
-# Cattlefeed

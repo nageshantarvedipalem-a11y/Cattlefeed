@@ -5,6 +5,7 @@
 # Dependencies
 node_modules/
 .npm-cache/
+.tmp-recording/
 
 # Environment & secrets (NEVER commit)
 .env
@@ -12,12 +13,11 @@ node_modules/
 !.env.example
 !.env.production.example
 
-# Build outputs (generated in CI — do not commit)
+# Build outputs (generated in CI / build script — do not commit)
 frontend/dist/
-deploy/hostinger-public_html/assets/
-deploy/hostinger-public_html/index.html
-deploy/hostinger-public_html/favicon.svg
-deploy/hostinger-public_html/icons.svg
+deploy/hostinger-upload.zip
+deploy/hostinger-public_html/*
+!deploy/hostinger-public_html/.htaccess
 
 # Logs
 *.log
