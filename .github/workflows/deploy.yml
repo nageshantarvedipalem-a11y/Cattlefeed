@@ -12,10 +12,6 @@ name: Deploy Frontend to Hostinger
 on:
   push:
     branches: [main]
-    paths:
-      - 'frontend/**'
-      - '.github/workflows/deploy.yml'
-      - 'deploy/hostinger-public_html/.htaccess'
   workflow_dispatch:
     inputs:
       dry_run:
