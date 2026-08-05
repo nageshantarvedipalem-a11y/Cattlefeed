@@ -4,8 +4,7 @@ import toast from 'react-hot-toast';
 import billingService from '../../services/billingService';
 import whatsappService from '../../services/whatsappService';
 import { formatCurrency, formatPaymentStatus } from '../../utils/format';
-import { downloadBlob, getExportFilename } from '../../utils/download';
-import { printInvoicePdf } from '../../utils/printInvoice';
+import { printInvoicePdf, downloadInvoicePdf } from '../../utils/printInvoice';
 import LoadingSpinner from '../common/LoadingSpinner';
 import InvoiceModal from './InvoiceModal';
 
@@ -127,8 +126,8 @@ const PreviousBillsPanel = () => {
 
   const handleDownload = async (sale) => {
     try {
-      const response = await billingService.downloadInvoice(sale.id, false);
-      downloadBlob(response.data, getExportFilename(response, `${sale.invoiceNumber}.pdf`));
+      await downloadInvoicePdf(sale.id);
+      toast.success('Choose "Save as PDF" in the print dialog to download');
     } catch {
       toast.error('Failed to download bill');
     }

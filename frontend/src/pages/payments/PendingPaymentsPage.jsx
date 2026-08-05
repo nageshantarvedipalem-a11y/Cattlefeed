@@ -192,7 +192,7 @@ const PendingPaymentsPage = () => {
 
   const handlePrintBill = async (saleId, invoiceNumber) => {
     try {
-      const response = await billingService.downloadInvoice(saleId, true);
+      const response = await billingService.downloadInvoice(saleId, 'thermal');
       downloadBlob(response.data, getExportFilename(response, `${invoiceNumber}.pdf`));
     } catch {
       toast.error('Failed to download bill');

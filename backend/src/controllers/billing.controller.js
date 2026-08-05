@@ -33,8 +33,17 @@ export const createSale = asyncHandler(async (req, res) => {
 });
 
 export const downloadInvoice = asyncHandler(async (req, res) => {
-  const thermal = req.query.format === 'thermal';
-  const result = await billingService.downloadInvoicePdf(req.params.id, thermal);
+  const format = req.query.format || 'standard';
+
+  if (format === 'html') {
+    const result = await billingService.getInvoiceHtml(req.params.id);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Disposition', `inline; filename="${result.filename}"`);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.send(result.html);
+  }
+
+  const result = await billingService.downloadInvoicePdf(req.params.id, format === 'thermal');
   res.setHeader('Content-Type', result.contentType);
   res.setHeader('Content-Disposition', `inline; filename="${result.filename}"`);
   res.setHeader('Cache-Control', 'no-store');

@@ -2,10 +2,7 @@ import { Link } from 'react-router-dom';
 import { FiCheckCircle, FiMessageCircle, FiPrinter } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { formatCurrency, formatPaymentStatus } from '../../utils/format';
-import { downloadBlob } from '../../utils/download';
-import { printInvoicePdf } from '../../utils/printInvoice';
-import { parseApiErrorMessage } from '../../utils/apiError';
-import billingService from '../../services/billingService';
+import { printInvoicePdf, downloadInvoicePdf } from '../../utils/printInvoice';
 
 const PosBillSuccessModal = ({
   sale,
@@ -18,11 +15,10 @@ const PosBillSuccessModal = ({
 
   const handleDownload = async () => {
     try {
-      const response = await billingService.downloadInvoice(sale.id, false);
-      downloadBlob(response.data, `${sale.invoiceNumber}.pdf`);
+      await downloadInvoicePdf(sale.id);
+      toast.success('Choose "Save as PDF" in the print dialog to download');
     } catch (error) {
-      const message = await parseApiErrorMessage(error, 'Failed to download invoice PDF');
-      toast.error(message);
+      toast.error(error.message || 'Failed to download invoice');
     }
   };
 

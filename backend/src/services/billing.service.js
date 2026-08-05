@@ -34,6 +34,7 @@ import {
 } from '../repositories/customer.repository.js';
 import { getNextInvoiceNumber, getCompanySettings } from '../repositories/settings.repository.js';
 import { buildInvoicePdf, buildThermalInvoicePdf } from '../helpers/invoicePdf.helper.js';
+import { buildInvoiceHtml } from '../helpers/invoiceHtml.helper.js';
 import { logActivity } from '../repositories/activityLog.repository.js';
 import whatsappService from './whatsapp.service.js';
 import { AppError } from '../utils/apiResponse.js';
@@ -381,6 +382,15 @@ export class BillingService {
     } finally {
       connection.release();
     }
+  }
+
+  async getInvoiceHtml(saleId) {
+    const { sale } = await this.getSaleById(saleId);
+    const company = await getCompanySettings();
+    return {
+      html: buildInvoiceHtml(sale, company),
+      filename: `${sale.invoiceNumber}.html`,
+    };
   }
 
   async downloadInvoicePdf(saleId, thermal = false) {
