@@ -95,12 +95,16 @@ jobs:
             **/.DS_Store
 
       - name: Verify live site updated
-        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.dry_run != true) && secrets.SITE_URL != '' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
         env:
           SITE_URL: ${{ secrets.SITE_URL }}
         working-directory: ${{ env.WORKING_DIRECTORY }}
         continue-on-error: true
         run: |
+          if [ -z "$SITE_URL" ]; then
+            echo "SITE_URL secret not set — skipping live verification"
+            exit 0
+          fi
           BUILT=$(grep -o 'assets/index-[^\"]*\\.js' dist/index.html | head -1)
           echo "Deployed bundle should be: $BUILT"
           sleep 15
@@ -110,8 +114,7 @@ jobs:
             echo "✅ Live site matches deployed build"
           else
             echo "::warning::Live site still shows old bundle."
-            echo "::warning::Fix GitHub secret REMOTE_DIR — try: /public_html"
-            echo "::warning::Or: /domains/lightsteelblue-bison-593262.hostingersite.com/public_html"
+            echo "::warning::Fix GitHub secret REMOTE_DIR — use only: /public_html"
           fi
 
       - name: Skip FTP (dry run)
