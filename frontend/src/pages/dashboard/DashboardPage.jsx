@@ -1,21 +1,27 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Bar,
-  BarChart,
   CartesianGrid,
-  ComposedChart,
+  Cell,
   Legend,
   Line,
   LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
+  Scatter,
+  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
+  ZAxis,
 } from 'recharts';
 import {
   FiActivity,
   FiAlertTriangle,
+  FiArrowRight,
+  FiBox,
+  FiCreditCard,
   FiDollarSign,
   FiPackage,
   FiShoppingCart,
@@ -26,14 +32,17 @@ import toast from 'react-hot-toast';
 import dashboardService from '../../services/dashboardService';
 import { useAuth } from '../../context/AuthContext';
 import { formatCurrency } from '../../utils/format';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { getCached } from '../../utils/apiCache';
+import DashboardChartCard from '../../components/dashboard/DashboardChartCard';
+import DashboardStatCard from '../../components/dashboard/DashboardStatCard';
+import DashboardSummaryCard from '../../components/dashboard/DashboardSummaryCard';
 
 const formatAction = (action) => action.replace(/_/g, ' ');
 
 const statusBadge = {
-  paid: 'bg-emerald-100 text-emerald-700',
-  partial: 'bg-amber-100 text-amber-700',
-  pending: 'bg-red-100 text-red-700',
+  paid: 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200/60',
+  partial: 'bg-amber-100 text-amber-800 ring-1 ring-amber-200/60',
+  pending: 'bg-red-100 text-red-800 ring-1 ring-red-200/60',
 };
 
 const chartLabel = (value) => {
@@ -42,291 +51,419 @@ const chartLabel = (value) => {
   return str.length > 10 ? str.slice(5) : str;
 };
 
+const CHART = {
+  green: '#15803d',
+  greenLight: '#22c55e',
+  amber: '#d97706',
+  amberLight: '#f59e0b',
+  teal: '#0d9488',
+  red: '#dc2626',
+  grid: '#e2e8f0',
+};
+
+const PIE_COLORS = ['#15803d', '#d97706', '#0d9488', '#16a34a', '#b45309', '#059669', '#ca8a04', '#047857'];
+
+const pieLabel = ({ name, percent }) =>
+  `${String(name).slice(0, 14)} ${(percent * 100).toFixed(0)}%`;
+
+const chartTooltipStyle = {
+  borderRadius: '12px',
+  border: '1px solid #bbf7d0',
+  boxShadow: '0 4px 12px rgb(20 83 45 / 0.12)',
+  fontSize: '12px',
+};
+
+const SectionHeading = ({ title, subtitle }) => (
+  <div className="mb-4">
+    <h2 className="text-base font-bold text-slate-800">{title}</h2>
+    {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
+  </div>
+);
+
 const DashboardPage = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading, isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+
+  const fetchDashboard = async (background = false) => {
+    if (!background) setLoading(true);
+    setLoadError(null);
+
+    const cached = getCached('dashboard:summary');
+    if (cached?.data?.data) {
+      setData(cached.data.data);
+      setLoading(false);
+    }
+
+    try {
+      const response = await dashboardService.getDashboard();
+      setData(response.data.data);
+    } catch (error) {
+      if (!cached?.data?.data) {
+        const message = error.code === 'ERR_NETWORK'
+          ? 'Cannot reach backend API. Make sure backend is running on port 5001.'
+          : error.response?.data?.message || error.message || 'Failed to load dashboard';
+        setLoadError(message);
+        toast.error(message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchDashboard = async () => {
-      try {
-        const response = await dashboardService.getDashboard();
-        setData(response.data.data);
-      } catch (error) {
-        toast.error(error.response?.data?.message || 'Failed to load dashboard');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchDashboard();
-  }, []);
+    if (authLoading || !isAuthenticated) return;
 
-  if (loading) return <LoadingSpinner />;
-  if (!data) {
+    const cached = getCached('dashboard:summary');
+    if (cached?.data?.data) {
+      setData(cached.data.data);
+      setLoading(false);
+      fetchDashboard(true);
+    } else {
+      fetchDashboard(false);
+    }
+  }, [authLoading, isAuthenticated]);
+
+  if (!data && !loading) {
     return (
-      <div className="py-12 text-center text-slate-500">
-        Unable to load dashboard data.
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-emerald-100 bg-white py-16 text-center shadow-sm">
+        <p className="text-slate-600">Unable to load dashboard data.</p>
+        {loadError && <p className="mt-2 text-sm text-slate-400">{loadError}</p>}
+        <button
+          type="button"
+          onClick={fetchDashboard}
+          className="mt-4 rounded-xl bg-gradient-to-r from-primary-700 to-primary-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md hover:from-primary-800"
+        >
+          Retry
+        </button>
       </div>
     );
   }
 
-  const { cards, charts, recentSales, recentActivities } = data;
+  const cards = data?.cards;
+  const recentSales = data?.recentSales ?? [];
+  const recentActivities = data?.recentActivities ?? [];
+  const chartsEnabled = Boolean(data);
 
-  const todayCards = [
-    { label: "Today's Sales", value: cards.today.sales, sub: `${cards.today.salesCount} bills`, icon: FiShoppingCart, color: 'bg-blue-100 text-blue-700' },
-    { label: "Today's Purchase", value: cards.today.purchases, sub: `${cards.today.purchaseCount} records`, icon: FiPackage, color: 'bg-violet-100 text-violet-700' },
-    { label: "Today's Profit", value: cards.today.profit, sub: 'From sales', icon: FiTrendingUp, color: 'bg-emerald-100 text-emerald-700' },
-    { label: "Today's Collection", value: cards.today.collection, sub: 'Cash inflow', icon: FiDollarSign, color: 'bg-teal-100 text-teal-700' },
-    { label: "Today's Pending", value: cards.today.pending, sub: `${cards.today.pendingCount} bills`, icon: FiAlertTriangle, color: 'bg-amber-100 text-amber-700' },
-  ];
+  const todayCards = cards
+    ? [
+        { label: "Today's Sales", value: formatCurrency(cards.today.sales), sub: `${cards.today.salesCount} bills`, icon: FiShoppingCart, accent: 'emerald' },
+        { label: "Today's Purchase", value: formatCurrency(cards.today.purchases), sub: `${cards.today.purchaseCount} records`, icon: FiPackage, accent: 'amber' },
+        { label: "Today's Profit", value: formatCurrency(cards.today.profit), sub: 'From sales', icon: FiTrendingUp, accent: 'green' },
+        { label: "Today's Collection", value: formatCurrency(cards.today.collection), sub: 'Cash inflow', icon: FiDollarSign, accent: 'teal' },
+        { label: "Today's Pending", value: formatCurrency(cards.today.pending), sub: `${cards.today.pendingCount} bills`, icon: FiAlertTriangle, accent: 'orange' },
+      ]
+    : Array.from({ length: 5 }, (_, i) => ({
+        label: 'Loading...',
+        value: '—',
+        sub: '—',
+        icon: FiShoppingCart,
+        accent: 'slate',
+        skeleton: true,
+        key: i,
+      }));
 
-  const summaryCards = [
-    { label: 'Monthly Sales', value: cards.monthly.sales, sub: `${cards.monthly.salesCount} bills` },
-    { label: 'Monthly Profit', value: cards.monthly.profit, sub: 'This month' },
-    { label: 'Overall Revenue', value: cards.overall.revenue, sub: 'All time' },
-    { label: 'Total Customers', value: cards.totals.customers, sub: 'Active', format: 'number' },
-    { label: 'Total Products', value: cards.totals.products, sub: 'Active', format: 'number' },
-    { label: 'Total Stock', value: cards.totals.stockUnits, sub: 'Units in hand', format: 'number' },
-    { label: 'Low Stock', value: cards.totals.lowStock, sub: 'Products', format: 'number', alert: true },
-    { label: 'Pending Bills', value: cards.totals.pendingBills, sub: 'Outstanding', format: 'number', alert: true },
-  ];
+  const summaryCards = cards
+    ? [
+        { label: 'Monthly Sales', value: formatCurrency(cards.monthly.sales), sub: `${cards.monthly.salesCount} bills`, icon: FiTrendingUp },
+        { label: 'Monthly Profit', value: formatCurrency(cards.monthly.profit), sub: 'This month', icon: FiDollarSign },
+        { label: 'Overall Revenue', value: formatCurrency(cards.overall.revenue), sub: 'All time', icon: FiShoppingCart },
+        { label: 'Total Customers', value: cards.totals.customers, sub: 'Active', icon: FiUsers },
+        { label: 'Total Products', value: cards.totals.products, sub: 'Active', icon: FiBox },
+        { label: 'Total Stock', value: cards.totals.stockUnits, sub: 'Units in hand', icon: FiPackage },
+        { label: 'Low Stock', value: cards.totals.lowStock, sub: 'Products', icon: FiAlertTriangle, alert: true },
+        { label: 'Pending Bills', value: cards.totals.pendingBills, sub: 'Outstanding', icon: FiCreditCard, alert: true },
+      ]
+    : Array.from({ length: 8 }, (_, i) => ({
+        label: 'Loading...',
+        value: '—',
+        sub: '—',
+        skeleton: true,
+        key: i,
+      }));
+
+  const firstName = user?.fullName?.split(' ')[0] || 'there';
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-        <p className="mt-1 text-slate-600">Welcome back, {user?.fullName}. Here is your business overview.</p>
-      </div>
-
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {todayCards.map((card) => (
-          <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-slate-500">{card.label}</p>
-              <div className={`rounded-lg p-2 ${card.color}`}>
-                <card.icon className="h-4 w-4" />
-              </div>
-            </div>
-            <p className="mt-2 text-xl font-bold text-slate-900">{formatCurrency(card.value)}</p>
-            <p className="mt-1 text-xs text-slate-500">{card.sub}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {summaryCards.map((card) => (
-          <div key={card.label} className={`rounded-xl border bg-white p-4 shadow-sm ${card.alert ? 'border-amber-200' : 'border-slate-200'}`}>
-            <p className="text-xs text-slate-500">{card.label}</p>
-            <p className={`mt-1 text-lg font-bold ${card.alert ? 'text-amber-700' : 'text-slate-900'}`}>
-              {card.format === 'number' ? card.value : formatCurrency(card.value)}
+    <div className={`space-y-6 ${loading ? 'pointer-events-none' : ''}`}>
+      {/* Hero banner */}
+      <div className="dashboard-hero relative overflow-hidden rounded-2xl px-5 py-6 sm:px-7 sm:py-7">
+        <div className="dashboard-hero-pattern absolute inset-0 opacity-80" aria-hidden="true" />
+        <div className="relative flex flex-wrap items-end justify-between gap-4">
+          <div className="max-w-xl">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-300/90">
+              Business Overview
             </p>
-            <p className="mt-1 text-xs text-slate-500">{card.sub}</p>
+            <h1 className="mt-1 text-2xl font-bold text-white sm:text-3xl">
+              Welcome back, {firstName}
+            </h1>
+            <p className="mt-2 text-sm leading-relaxed text-emerald-100/90">
+              Track sales, stock, collections and profit for your cattle feed business — all in one place.
+            </p>
           </div>
-        ))}
-      </div>
-
-      <div className="mb-6 grid gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-4 text-sm font-semibold text-slate-700">Daily Sales (7 days)</h2>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={charts.dailySales}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="label" tickFormatter={chartLabel} fontSize={11} />
-                <YAxis fontSize={11} />
-                <Tooltip formatter={(v) => formatCurrency(v)} />
-                <Line type="monotone" dataKey="sales" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-4 text-sm font-semibold text-slate-700">Profit Trend (30 days)</h2>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={charts.profitTrend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="label" tickFormatter={chartLabel} fontSize={11} />
-                <YAxis fontSize={11} />
-                <Tooltip formatter={(v) => formatCurrency(v)} />
-                <Line type="monotone" dataKey="profit" stroke="#16a34a" strokeWidth={2} dot={{ r: 3 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-4 text-sm font-semibold text-slate-700">Monthly Sales (12 months)</h2>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={charts.monthlySales}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="label" tickFormatter={(v) => String(v).slice(0, 6)} fontSize={10} />
-                <YAxis fontSize={11} />
-                <Tooltip formatter={(v) => formatCurrency(v)} />
-                <Bar dataKey="sales" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-4 text-sm font-semibold text-slate-700">Purchase vs Sales (6 months)</h2>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={charts.purchaseVsSales}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="label" tickFormatter={(v) => String(v).slice(0, 6)} fontSize={10} />
-                <YAxis fontSize={11} />
-                <Tooltip formatter={(v) => formatCurrency(v)} />
-                <Legend />
-                <Bar dataKey="sales" name="Sales" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="purchases" name="Purchases" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-4 text-sm font-semibold text-slate-700">Yearly Sales</h2>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={charts.yearlySales}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="label" fontSize={11} />
-                <YAxis fontSize={11} />
-                <Tooltip formatter={(v) => formatCurrency(v)} />
-                <Bar dataKey="sales" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-4 text-sm font-semibold text-slate-700">Stock In vs Out (14 days)</h2>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={charts.stockInOut}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="label" tickFormatter={chartLabel} fontSize={11} />
-                <YAxis fontSize={11} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="stockIn" name="Stock In" fill="#16a34a" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="stockOut" name="Stock Out" fill="#ef4444" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              to="/billing"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-4 py-2 text-xs font-semibold text-white ring-1 ring-white/25 backdrop-blur-sm transition hover:bg-white/25"
+            >
+              <FiShoppingCart className="h-3.5 w-3.5" />
+              Open Billing
+            </Link>
+            <Link
+              to="/stock"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500/90 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-amber-900/20 transition hover:bg-amber-500"
+            >
+              View Stock
+              <FiArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </div>
         </div>
       </div>
 
-      <div className="mb-6 grid gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-4 text-sm font-semibold text-slate-700">Top Selling Products (30 days)</h2>
-          <div className="h-64">
-            {charts.topProducts.length === 0 ? (
-              <p className="py-12 text-center text-sm text-slate-500">No sales data yet</p>
-            ) : (
+      {/* Today's performance */}
+      <section>
+        <SectionHeading title="Today's Performance" subtitle="Live snapshot of your feed shop for today" />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          {todayCards.map((card) => (
+            <DashboardStatCard
+              key={card.label + (card.key ?? '')}
+              {...card}
+              skeleton={card.skeleton}
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* Business summary */}
+      <section>
+        <SectionHeading title="Business Summary" subtitle="Monthly totals, inventory and outstanding items" />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {summaryCards.map((card) => (
+            <DashboardSummaryCard
+              key={card.label + (card.key ?? '')}
+              {...card}
+              skeleton={card.skeleton}
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* Analytics charts */}
+      <section>
+        <SectionHeading title="Sales & Profit Analytics" subtitle="Trends across daily, monthly and yearly periods" />
+        <div className="grid gap-5 lg:grid-cols-2">
+          <DashboardChartCard title="Sales Trend" chartKey="sales" defaultPeriod="daily" enabled={chartsEnabled}>
+            {(chartData) => (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={charts.topProducts} layout="vertical" margin={{ left: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis type="number" fontSize={11} />
-                  <YAxis type="category" dataKey="name" width={120} fontSize={10} tickFormatter={(v) => String(v).slice(0, 18)} />
-                  <Tooltip />
-                  <Bar dataKey="quantity" name="Qty Sold" fill="#16a34a" radius={[0, 4, 4, 0]} />
-                </BarChart>
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+                  <XAxis dataKey="label" tickFormatter={chartLabel} fontSize={11} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <YAxis fontSize={11} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(v) => formatCurrency(v)} contentStyle={chartTooltipStyle} />
+                  <Line type="monotone" dataKey="sales" stroke={CHART.green} strokeWidth={2.5} dot={{ r: 4, fill: CHART.green, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
+                </LineChart>
               </ResponsiveContainer>
             )}
-          </div>
-        </div>
+          </DashboardChartCard>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <FiUsers className="h-4 w-4" /> Top Customers (90 days)
-          </h2>
-          <div className="h-64">
-            {charts.topCustomers.length === 0 ? (
-              <p className="py-12 text-center text-sm text-slate-500">No customer sales yet</p>
-            ) : (
+          <DashboardChartCard title="Profit Trend" chartKey="profit" defaultPeriod="daily" enabled={chartsEnabled}>
+            {(chartData) => (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={charts.topCustomers} layout="vertical" margin={{ left: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis type="number" fontSize={11} tickFormatter={(v) => `₹${v / 1000}k`} />
-                  <YAxis type="category" dataKey="name" width={100} fontSize={10} tickFormatter={(v) => String(v).slice(0, 14)} />
-                  <Tooltip formatter={(v) => formatCurrency(v)} />
-                  <Bar dataKey="totalSpent" name="Total Spent" fill="#3b82f6" radius={[0, 4, 4, 0]} />
-                </BarChart>
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+                  <XAxis dataKey="label" tickFormatter={chartLabel} fontSize={11} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <YAxis fontSize={11} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(v) => formatCurrency(v)} contentStyle={chartTooltipStyle} />
+                  <Line type="monotone" dataKey="profit" stroke={CHART.greenLight} strokeWidth={2.5} dot={{ r: 4, fill: CHART.greenLight, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="revenue" stroke={CHART.amber} strokeWidth={2} dot={{ r: 4, fill: CHART.amber, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
+                </LineChart>
               </ResponsiveContainer>
             )}
-          </div>
-        </div>
-      </div>
+          </DashboardChartCard>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-            <h2 className="text-sm font-semibold text-slate-700">Recent Bills</h2>
-            <Link to="/billing" className="text-xs font-medium text-primary-700 hover:underline">View all</Link>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
-                <tr>
-                  {['Invoice', 'Customer', 'Amount', 'Status'].map((h) => (
-                    <th key={h} className="px-4 py-2 text-left text-xs font-semibold uppercase text-slate-500">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {recentSales.length === 0 ? (
-                  <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-slate-500">No recent bills</td></tr>
-                ) : (
-                  recentSales.map((sale) => (
-                    <tr key={sale.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-2 text-sm font-medium">{sale.invoiceNumber}</td>
-                      <td className="px-4 py-2 text-sm">{sale.customerName}</td>
-                      <td className="px-4 py-2 text-sm">{formatCurrency(sale.totalAmount)}</td>
-                      <td className="px-4 py-2">
-                        <span className={`rounded-full px-2 py-0.5 text-xs capitalize ${statusBadge[sale.paymentStatus]}`}>
-                          {sale.paymentStatus}
-                        </span>
+          <DashboardChartCard title="Monthly Sales" chartKey="sales" defaultPeriod="monthly" enabled={chartsEnabled}>
+            {(chartData) => (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+                  <XAxis dataKey="label" tickFormatter={(v) => String(v).slice(0, 6)} fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <YAxis fontSize={11} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(v) => formatCurrency(v)} contentStyle={chartTooltipStyle} />
+                  <Line type="monotone" dataKey="sales" stroke={CHART.green} strokeWidth={2.5} dot={{ r: 5, fill: CHART.green, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 7 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </DashboardChartCard>
+
+          <DashboardChartCard title="Purchase vs Sales" chartKey="purchaseVsSales" defaultPeriod="monthly" enabled={chartsEnabled}>
+            {(chartData) => (
+              <ResponsiveContainer width="100%" height="100%">
+                <ScatterChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
+                  <XAxis type="number" dataKey="purchases" name="Purchases" fontSize={11} tick={{ fill: '#64748b' }} tickFormatter={(v) => `₹${Math.round(v / 1000)}k`} />
+                  <YAxis type="number" dataKey="sales" name="Sales" fontSize={11} tick={{ fill: '#64748b' }} tickFormatter={(v) => `₹${Math.round(v / 1000)}k`} />
+                  <ZAxis dataKey="label" name="Period" />
+                  <Tooltip cursor={{ strokeDasharray: '3 3' }} formatter={(v) => formatCurrency(v)} labelFormatter={(_, payload) => payload?.[0]?.payload?.label || ''} contentStyle={chartTooltipStyle} />
+                  <Legend />
+                  <Scatter name="Period data" data={chartData} fill={CHART.amber} />
+                </ScatterChart>
+              </ResponsiveContainer>
+            )}
+          </DashboardChartCard>
+
+          <DashboardChartCard title="Yearly Sales" chartKey="sales" defaultPeriod="yearly" enabled={chartsEnabled}>
+            {(chartData) => (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+                  <XAxis dataKey="label" fontSize={11} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <YAxis fontSize={11} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(v) => formatCurrency(v)} contentStyle={chartTooltipStyle} />
+                  <Line type="monotone" dataKey="sales" stroke={CHART.teal} strokeWidth={2.5} dot={{ r: 5, fill: CHART.teal, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 7 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </DashboardChartCard>
+
+          <DashboardChartCard title="Stock In vs Out" chartKey="stockInOut" defaultPeriod="daily" enabled={chartsEnabled}>
+            {(chartData) => (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+                  <XAxis dataKey="label" tickFormatter={chartLabel} fontSize={11} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <YAxis fontSize={11} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={chartTooltipStyle} />
+                  <Legend />
+                  <Line type="monotone" dataKey="stockIn" name="Stock In" stroke={CHART.greenLight} strokeWidth={2.5} dot={{ r: 4, fill: CHART.greenLight }} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="stockOut" name="Stock Out" stroke={CHART.red} strokeWidth={2.5} dot={{ r: 4, fill: CHART.red }} activeDot={{ r: 6 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </DashboardChartCard>
+        </div>
+      </section>
+
+      {/* Top performers */}
+      <section>
+        <SectionHeading title="Top Performers" subtitle="Best selling products and highest spending customers" />
+        <div className="grid gap-5 lg:grid-cols-2">
+          <DashboardChartCard title="Top Selling Products" chartKey="topProducts" defaultPeriod="monthly" enabled={chartsEnabled}>
+            {(chartData) => (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={chartData} dataKey="quantity" nameKey="name" cx="50%" cy="50%" outerRadius={88} label={pieLabel} labelLine={false}>
+                    {chartData.map((_, index) => (
+                      <Cell key={`product-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={chartTooltipStyle} />
+                  <Legend formatter={(value) => String(value).slice(0, 20)} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </DashboardChartCard>
+
+          <DashboardChartCard title="Top Customers" chartKey="topCustomers" defaultPeriod="monthly" enabled={chartsEnabled}>
+            {(chartData) => (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={chartData} dataKey="totalSpent" nameKey="name" cx="50%" cy="50%" outerRadius={88} label={pieLabel} labelLine={false}>
+                    {chartData.map((_, index) => (
+                      <Cell key={`customer-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v) => formatCurrency(v)} contentStyle={chartTooltipStyle} />
+                  <Legend formatter={(value) => String(value).slice(0, 20)} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </DashboardChartCard>
+        </div>
+      </section>
+
+      {/* Recent activity */}
+      <section>
+        <SectionHeading title="Recent Activity" subtitle="Latest bills and system actions" />
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div className="overflow-hidden rounded-2xl border border-emerald-100/80 bg-white shadow-sm shadow-emerald-950/5">
+            <div className="dashboard-panel-header flex items-center justify-between border-b border-emerald-50 px-4 py-3">
+              <h2 className="text-sm font-semibold text-slate-800">Recent Bills</h2>
+              <Link to="/billing" className="inline-flex items-center gap-1 text-xs font-semibold text-primary-700 hover:text-primary-800">
+                View all <FiArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-emerald-50">
+                <thead>
+                  <tr className="bg-emerald-50/50">
+                    {['Invoice', 'Customer', 'Amount', 'Status'].map((h) => (
+                      <th key={h} className="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {recentSales.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-10 text-center text-sm text-slate-500">
+                        No recent bills
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    recentSales.map((sale) => (
+                      <tr key={sale.id} className="transition hover:bg-emerald-50/40">
+                        <td className="px-4 py-2.5 text-sm font-semibold text-slate-800">{sale.invoiceNumber}</td>
+                        <td className="px-4 py-2.5 text-sm text-slate-600">{sale.customerName}</td>
+                        <td className="px-4 py-2.5 text-sm font-medium text-primary-800">{formatCurrency(sale.totalAmount)}</td>
+                        <td className="px-4 py-2.5">
+                          <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize ${statusBadge[sale.paymentStatus]}`}>
+                            {sale.paymentStatus}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
 
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-4 py-3">
-            <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-              <FiActivity className="h-4 w-4" /> Recent Activities
-            </h2>
-          </div>
-          <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
-            {recentActivities.length === 0 ? (
-              <p className="px-4 py-8 text-center text-sm text-slate-500">No recent activity</p>
-            ) : (
-              recentActivities.map((activity) => (
-                <div key={activity.id} className="px-4 py-3">
-                  <p className="text-sm font-medium capitalize text-slate-800">{formatAction(activity.action)}</p>
-                  <p className="text-xs text-slate-500">
-                    {activity.userName}
-                    {activity.entityType ? ` · ${activity.entityType}` : ''}
-                    {activity.entityId ? ` #${activity.entityId}` : ''}
-                  </p>
-                  <p className="mt-0.5 text-xs text-slate-400">
-                    {new Date(activity.createdAt).toLocaleString('en-IN')}
-                  </p>
-                </div>
-              ))
-            )}
+          <div className="overflow-hidden rounded-2xl border border-emerald-100/80 bg-white shadow-sm shadow-emerald-950/5">
+            <div className="dashboard-panel-header border-b border-emerald-50 px-4 py-3">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                <FiActivity className="h-4 w-4 text-primary-600" />
+                Recent Activities
+              </h2>
+            </div>
+            <div className="max-h-80 divide-y divide-slate-100 overflow-y-auto">
+              {recentActivities.length === 0 ? (
+                <p className="px-4 py-10 text-center text-sm text-slate-500">No recent activity</p>
+              ) : (
+                recentActivities.map((activity) => (
+                  <div key={activity.id} className="flex gap-3 px-4 py-3 transition hover:bg-emerald-50/30">
+                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-700">
+                      <FiActivity className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium capitalize text-slate-800">{formatAction(activity.action)}</p>
+                      <p className="text-xs text-slate-500">
+                        {activity.userName}
+                        {activity.entityType ? ` · ${activity.entityType}` : ''}
+                        {activity.entityId ? ` #${activity.entityId}` : ''}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-slate-400">
+                        {new Date(activity.createdAt).toLocaleString('en-IN')}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 };

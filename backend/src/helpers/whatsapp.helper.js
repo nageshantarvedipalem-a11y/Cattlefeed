@@ -1,11 +1,8 @@
+import { normalizeIndianMobile } from '../utils/phoneValidation.js';
+
 const DEFAULT_API_VERSION = 'v21.0';
 
-export const normalizePhoneNumber = (phone) => {
-  const digits = String(phone || '').replace(/\D/g, '');
-  if (!digits) return null;
-  if (digits.length === 10) return `91${digits}`;
-  return digits;
-};
+export const normalizePhoneNumber = (phone) => normalizeIndianMobile(phone);
 
 export const buildWhatsAppLink = (phone, message) => {
   const normalized = normalizePhoneNumber(phone);

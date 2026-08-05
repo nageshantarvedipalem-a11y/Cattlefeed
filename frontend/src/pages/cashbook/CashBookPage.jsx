@@ -7,6 +7,8 @@ import { formatCurrency } from '../../utils/format';
 import { downloadBlob, getExportFilename } from '../../utils/download';
 import Pagination from '../../components/common/Pagination';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import PeriodFilter from '../../components/common/PeriodFilter';
+import usePeriodFilter from '../../hooks/usePeriodFilter';
 import CashBookEntryModal from '../../components/cashbook/CashBookEntryModal';
 
 const TYPE_LABELS = {
@@ -38,7 +40,18 @@ const CashBookPage = () => {
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
-  const [period, setPeriod] = useState('');
+  const {
+    period,
+    setPeriod,
+    dateFrom,
+    setDateFrom,
+    dateTo,
+    setDateTo,
+    apiParams,
+    isReady,
+    isCustomPending,
+    isInvalidRange,
+  } = usePeriodFilter('');
   const [transactionType, setTransactionType] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [entryModalOpen, setEntryModalOpen] = useState(false);
@@ -52,13 +65,21 @@ const CashBookPage = () => {
   }, [searchInput]);
 
   const fetchCashBook = useCallback(async () => {
+    if (!isReady) {
+      setLoading(false);
+      if (!isCustomPending && isInvalidRange) {
+        toast.error('From date cannot be after To date');
+      }
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await cashBookService.getCashBook({
         page,
         limit,
         search: search || undefined,
-        period: period || undefined,
+        ...apiParams,
         transactionType: transactionType || undefined,
         paymentMethod: paymentMethod || undefined,
       });
@@ -70,18 +91,22 @@ const CashBookPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, search, period, transactionType, paymentMethod]);
+  }, [page, limit, search, apiParams, isReady, isCustomPending, isInvalidRange, transactionType, paymentMethod]);
 
   useEffect(() => {
     fetchCashBook();
   }, [fetchCashBook]);
 
   const handleExport = async (format) => {
+    if (!isReady) {
+      toast.error(isCustomPending ? 'Select from and to dates for custom range' : 'Invalid date range');
+      return;
+    }
     try {
       const response = await cashBookService.exportCashBook({
         format,
         search: search || undefined,
-        period: period || undefined,
+        ...apiParams,
         transactionType: transactionType || undefined,
         paymentMethod: paymentMethod || undefined,
       });
@@ -154,16 +179,14 @@ const CashBookPage = () => {
               className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-4 text-sm outline-none focus:border-primary-500"
             />
           </div>
-          <select
-            value={period}
-            onChange={(e) => { setPeriod(e.target.value); setPage(1); }}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500"
-          >
-            <option value="">All Time</option>
-            <option value="daily">Today</option>
-            <option value="monthly">This Month</option>
-            <option value="yearly">This Year</option>
-          </select>
+          <PeriodFilter
+            period={period}
+            onPeriodChange={(v) => { setPeriod(v); setPage(1); }}
+            dateFrom={dateFrom}
+            onDateFromChange={(v) => { setDateFrom(v); setPage(1); }}
+            dateTo={dateTo}
+            onDateToChange={(v) => { setDateTo(v); setPage(1); }}
+          />
           <select
             value={transactionType}
             onChange={(e) => { setTransactionType(e.target.value); setPage(1); }}
@@ -202,7 +225,13 @@ const CashBookPage = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {entries.length === 0 ? (
+                    {isCustomPending ? (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-500">
+                          Select from and to dates for custom range
+                        </td>
+                      </tr>
+                    ) : entries.length === 0 ? (
                       <tr>
                         <td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-500">No cash book entries for this period</td>
                       </tr>

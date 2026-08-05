@@ -15,6 +15,8 @@ import { downloadBlob, getExportFilename } from '../../utils/download';
 import Modal from '../../components/common/Modal';
 import Pagination from '../../components/common/Pagination';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import PeriodFilter from '../../components/common/PeriodFilter';
+import usePeriodFilter from '../../hooks/usePeriodFilter';
 import PurchaseFormModal from '../../components/stock/PurchaseFormModal';
 import AdjustmentFormModal from '../../components/stock/AdjustmentFormModal';
 
@@ -46,7 +48,18 @@ const StockPage = () => {
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
-  const [period, setPeriod] = useState('');
+  const {
+    period,
+    setPeriod,
+    dateFrom,
+    setDateFrom,
+    dateTo,
+    setDateTo,
+    apiParams,
+    isReady,
+    isCustomPending,
+    isInvalidRange,
+  } = usePeriodFilter('');
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
   const [adjustmentModalOpen, setAdjustmentModalOpen] = useState(false);
   const [detailPurchase, setDetailPurchase] = useState(null);
@@ -74,13 +87,21 @@ const StockPage = () => {
   }, [page, limit, search]);
 
   const fetchHistory = useCallback(async () => {
+    if (!isReady) {
+      setLoading(false);
+      if (!isCustomPending && isInvalidRange) {
+        toast.error('From date cannot be after To date');
+      }
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await stockService.getHistory({
         page,
         limit,
         search,
-        period: period || undefined,
+        ...apiParams,
       });
       setMovements(response.data.data);
       setPagination(response.data.pagination);
@@ -89,7 +110,7 @@ const StockPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, search, period]);
+  }, [page, limit, search, apiParams, isReady, isCustomPending, isInvalidRange]);
 
   const fetchLowStock = useCallback(async () => {
     setLoading(true);
@@ -130,11 +151,15 @@ const StockPage = () => {
   };
 
   const handleExportHistory = async (format) => {
+    if (!isReady) {
+      toast.error(isCustomPending ? 'Select from and to dates for custom range' : 'Invalid date range');
+      return;
+    }
     try {
       const response = await stockService.exportHistory({
         format,
         search,
-        period: period || undefined,
+        ...apiParams,
       });
       downloadBlob(response.data, getExportFilename(response, `stock-history.${format === 'pdf' ? 'pdf' : 'xlsx'}`));
       toast.success(`Stock history exported as ${format.toUpperCase()}`);
@@ -215,16 +240,14 @@ const StockPage = () => {
 
         {activeTab === 'history' && (
           <div className="flex flex-wrap gap-2">
-            <select
-              value={period}
-              onChange={(e) => { setPeriod(e.target.value); setPage(1); }}
-              className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-primary-500"
-            >
-              <option value="">All Time</option>
-              <option value="daily">Today</option>
-              <option value="monthly">This Month</option>
-              <option value="yearly">This Year</option>
-            </select>
+            <PeriodFilter
+              period={period}
+              onPeriodChange={(v) => { setPeriod(v); setPage(1); }}
+              dateFrom={dateFrom}
+              onDateFromChange={(v) => { setDateFrom(v); setPage(1); }}
+              dateTo={dateTo}
+              onDateToChange={(v) => { setDateTo(v); setPage(1); }}
+            />
             <button type="button" onClick={() => handleExportHistory('excel')} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">
               <FiDownload className="h-4 w-4" /> Excel
             </button>
@@ -303,7 +326,9 @@ const StockPage = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {movements.length === 0 ? (
+                    {isCustomPending ? (
+                      <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">Select from and to dates for custom range</td></tr>
+                    ) : movements.length === 0 ? (
                       <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">No stock movements found</td></tr>
                     ) : (
                       movements.map((movement) => (

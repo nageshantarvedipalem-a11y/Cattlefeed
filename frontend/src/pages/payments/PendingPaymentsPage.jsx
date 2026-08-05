@@ -10,15 +10,18 @@ import toast from 'react-hot-toast';
 import paymentService from '../../services/paymentService';
 import whatsappService from '../../services/whatsappService';
 import { useAuth } from '../../context/AuthContext';
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency, formatPaymentStatus } from '../../utils/format';
 import { downloadBlob, getExportFilename } from '../../utils/download';
+import billingService from '../../services/billingService';
 import Pagination from '../../components/common/Pagination';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import PeriodFilter from '../../components/common/PeriodFilter';
+import usePeriodFilter from '../../hooks/usePeriodFilter';
 import ReceivePaymentModal from '../../components/payments/ReceivePaymentModal';
 
 const tabs = [
-  { id: 'pending', label: 'Pending Invoices' },
-  { id: 'history', label: 'Payment History' },
+  { id: 'pending', label: 'Pending Payments' },
+  { id: 'history', label: 'Completed Payments' },
 ];
 
 const statusBadge = {
@@ -41,7 +44,18 @@ const PendingPaymentsPage = () => {
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
-  const [period, setPeriod] = useState('');
+  const {
+    period,
+    setPeriod,
+    dateFrom,
+    setDateFrom,
+    dateTo,
+    setDateTo,
+    apiParams,
+    isReady,
+    isCustomPending,
+    isInvalidRange,
+  } = usePeriodFilter('');
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [selectedSale, setSelectedSale] = useState(null);
   const [receiveModalOpen, setReceiveModalOpen] = useState(false);
@@ -55,13 +69,21 @@ const PendingPaymentsPage = () => {
   }, [searchInput]);
 
   const fetchPending = useCallback(async () => {
+    if (!isReady) {
+      setLoading(false);
+      if (!isCustomPending && isInvalidRange) {
+        toast.error('From date cannot be after To date');
+      }
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await paymentService.getPendingPayments({
         page,
         limit,
         search: search || undefined,
-        period: period || undefined,
+        ...apiParams,
         overdueOnly: overdueOnly || undefined,
       });
       setSummary(response.data.data.summary);
@@ -72,16 +94,24 @@ const PendingPaymentsPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, search, period, overdueOnly]);
+  }, [page, limit, search, apiParams, isReady, isCustomPending, isInvalidRange, overdueOnly]);
 
   const fetchHistory = useCallback(async () => {
+    if (!isReady) {
+      setLoading(false);
+      if (!isCustomPending && isInvalidRange) {
+        toast.error('From date cannot be after To date');
+      }
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await paymentService.getPaymentHistory({
         page,
         limit,
         search: search || undefined,
-        period: period || undefined,
+        ...apiParams,
       });
       setPayments(response.data.data.payments);
       setPagination(response.data.data.pagination);
@@ -90,7 +120,7 @@ const PendingPaymentsPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, search, period]);
+  }, [page, limit, search, apiParams, isReady, isCustomPending, isInvalidRange]);
 
   useEffect(() => {
     if (activeTab === 'pending') fetchPending();
@@ -142,17 +172,49 @@ const PendingPaymentsPage = () => {
   };
 
   const handleExport = async (format) => {
+    if (!isReady) {
+      toast.error(isCustomPending ? 'Select from and to dates for custom range' : 'Invalid date range');
+      return;
+    }
     try {
       const response = await paymentService.exportPendingPayments({
         format,
         search: search || undefined,
-        period: period || undefined,
+        ...apiParams,
         overdueOnly: overdueOnly || undefined,
       });
       downloadBlob(response.data, getExportFilename(response, `pending-payments.${format === 'pdf' ? 'pdf' : 'xlsx'}`));
       toast.success(`Exported as ${format.toUpperCase()}`);
     } catch {
       toast.error('Export failed');
+    }
+  };
+
+  const handlePrintBill = async (saleId, invoiceNumber) => {
+    try {
+      const response = await billingService.downloadInvoice(saleId, true);
+      downloadBlob(response.data, getExportFilename(response, `${invoiceNumber}.pdf`));
+    } catch {
+      toast.error('Failed to download bill');
+    }
+  };
+
+  const handleResendInvoice = async (saleId) => {
+    try {
+      await whatsappService.sendInvoice(saleId);
+      toast.success('Invoice resent via WhatsApp');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to resend WhatsApp invoice');
+    }
+  };
+
+  const handleViewBill = async (saleId) => {
+    try {
+      const response = await billingService.getSale(saleId);
+      const sale = response.data.data.sale;
+      window.alert(`${sale.invoiceNumber}\nCustomer: ${sale.customerName || 'Walk-in'}\nTotal: ${formatCurrency(sale.totalAmount)}\nPaid: ${formatCurrency(sale.paidAmount)}\nPending: ${formatCurrency(sale.pendingAmount)}`);
+    } catch {
+      toast.error('Failed to load bill details');
     }
   };
 
@@ -236,16 +298,14 @@ const PendingPaymentsPage = () => {
               className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-4 text-sm outline-none focus:border-primary-500"
             />
           </div>
-          <select
-            value={period}
-            onChange={(e) => { setPeriod(e.target.value); setPage(1); }}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500"
-          >
-            <option value="">All Time</option>
-            <option value="daily">Today</option>
-            <option value="monthly">This Month</option>
-            <option value="yearly">This Year</option>
-          </select>
+          <PeriodFilter
+            period={period}
+            onPeriodChange={(v) => { setPeriod(v); setPage(1); }}
+            dateFrom={dateFrom}
+            onDateFromChange={(v) => { setDateFrom(v); setPage(1); }}
+            dateTo={dateTo}
+            onDateToChange={(v) => { setDateTo(v); setPage(1); }}
+          />
           {activeTab === 'pending' && (
             <label className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm">
               <input
@@ -267,15 +327,21 @@ const PendingPaymentsPage = () => {
                 <table className="min-w-full divide-y divide-slate-200">
                   <thead className="bg-slate-50">
                     <tr>
-                      {['Invoice', 'Customer', 'Total', 'Paid', 'Pending', 'Due Date', 'Status', 'Actions'].map((h) => (
+                      {['Invoice', 'Customer', 'Phone', 'Bill Amount', 'Paid', 'Pending', 'Bill Date', 'Status', 'Actions'].map((h) => (
                         <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {pendingSales.length === 0 ? (
+                    {isCustomPending ? (
                       <tr>
-                        <td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-500">No pending invoices found</td>
+                        <td colSpan={9} className="px-4 py-12 text-center text-sm text-slate-500">
+                          Select from and to dates for custom range
+                        </td>
+                      </tr>
+                    ) : pendingSales.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="px-4 py-12 text-center text-sm text-slate-500">No pending invoices found</td>
                       </tr>
                     ) : (
                       pendingSales.map((sale) => (
@@ -283,18 +349,17 @@ const PendingPaymentsPage = () => {
                           <td className="px-4 py-3 text-sm font-medium text-slate-900">{sale.invoiceNumber}</td>
                           <td className="px-4 py-3">
                             <p className="text-sm font-medium text-slate-900">{sale.customerName}</p>
-                            <p className="text-xs text-slate-500">{sale.customerPhone}</p>
                           </td>
+                          <td className="px-4 py-3 text-sm text-slate-600">{sale.customerPhone || '—'}</td>
                           <td className="px-4 py-3 text-sm">{formatCurrency(sale.totalAmount)}</td>
                           <td className="px-4 py-3 text-sm text-emerald-700">{formatCurrency(sale.paidAmount)}</td>
                           <td className="px-4 py-3 text-sm font-medium text-amber-700">{formatCurrency(sale.pendingAmount)}</td>
                           <td className="px-4 py-3 text-sm">
-                            {sale.dueDate ? new Date(sale.dueDate).toLocaleDateString('en-IN') : '—'}
-                            {sale.isOverdue && <span className="ml-1 text-xs text-red-600">(Overdue)</span>}
+                            {new Date(sale.saleDate).toLocaleDateString('en-IN')}
                           </td>
                           <td className="px-4 py-3">
-                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize ${statusBadge[sale.paymentStatus] || statusBadge.pending}`}>
-                              {sale.paymentStatus}
+                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge[sale.paymentStatus] || statusBadge.pending}`}>
+                              {formatPaymentStatus(sale.paymentStatus, sale.paidAmount)}
                             </span>
                           </td>
                           <td className="px-4 py-3 print:hidden">
@@ -305,15 +370,29 @@ const PendingPaymentsPage = () => {
                                   onClick={() => handleReceive(sale)}
                                   className="inline-flex items-center gap-1 text-sm font-medium text-primary-700 hover:text-primary-800"
                                 >
-                                  <FiDollarSign className="h-4 w-4" /> Receive
+                                  <FiDollarSign className="h-4 w-4" /> Receive Payment
                                 </button>
                               )}
                               <button
                                 type="button"
-                                onClick={() => handleWhatsApp(sale.id)}
+                                onClick={() => handleViewBill(sale.id)}
+                                className="text-sm font-medium text-slate-700 hover:text-slate-900"
+                              >
+                                View Bill
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handlePrintBill(sale.id, sale.invoiceNumber)}
+                                className="inline-flex items-center gap-1 text-sm font-medium text-slate-700 hover:text-slate-900"
+                              >
+                                <FiPrinter className="h-4 w-4" /> Print Bill
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleResendInvoice(sale.id)}
                                 className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:text-emerald-800"
                               >
-                                <FiMessageCircle className="h-4 w-4" /> WhatsApp
+                                <FiMessageCircle className="h-4 w-4" /> Resend WhatsApp
                               </button>
                             </div>
                           </td>
@@ -339,7 +418,13 @@ const PendingPaymentsPage = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {payments.length === 0 ? (
+                    {isCustomPending ? (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">
+                          Select from and to dates for custom range
+                        </td>
+                      </tr>
+                    ) : payments.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">No payment records found</td>
                       </tr>

@@ -8,6 +8,8 @@ import { formatCurrency } from '../../utils/format';
 import { downloadBlob, getExportFilename } from '../../utils/download';
 import Pagination from '../../components/common/Pagination';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import PeriodFilter from '../../components/common/PeriodFilter';
+import usePeriodFilter from '../../hooks/usePeriodFilter';
 import AdjustmentModal from '../../components/ledger/AdjustmentModal';
 
 const LedgerDetailPage = () => {
@@ -19,18 +21,37 @@ const LedgerDetailPage = () => {
   const [page, setPage] = useState(1);
   const [limit] = useState(15);
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
-  const [period, setPeriod] = useState('');
+  const {
+    period,
+    setPeriod,
+    dateFrom,
+    setDateFrom,
+    dateTo,
+    setDateTo,
+    apiParams,
+    isReady,
+    isCustomPending,
+    isInvalidRange,
+  } = usePeriodFilter('');
   const [adjustmentOpen, setAdjustmentOpen] = useState(false);
 
   const canEdit = checkPermission('ledger', 'edit');
 
   const fetchLedger = useCallback(async () => {
+    if (!isReady) {
+      setLoading(false);
+      if (!isCustomPending && isInvalidRange) {
+        toast.error('From date cannot be after To date');
+      }
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await ledgerService.getCustomerLedger(customerId, {
         page,
         limit,
-        period: period || undefined,
+        ...apiParams,
       });
       setSummary(response.data.data.summary);
       setEntries(response.data.data.entries);
@@ -40,17 +61,21 @@ const LedgerDetailPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [customerId, page, limit, period]);
+  }, [customerId, page, limit, apiParams, isReady, isCustomPending, isInvalidRange]);
 
   useEffect(() => {
     fetchLedger();
   }, [fetchLedger]);
 
   const handleExport = async (format) => {
+    if (!isReady) {
+      toast.error(isCustomPending ? 'Select from and to dates for custom range' : 'Invalid date range');
+      return;
+    }
     try {
       const response = await ledgerService.exportLedger(customerId, {
         format,
-        period: period || undefined,
+        ...apiParams,
       });
       downloadBlob(response.data, getExportFilename(response, `ledger.${format === 'pdf' ? 'pdf' : 'xlsx'}`));
       toast.success(`Ledger exported as ${format.toUpperCase()}`);
@@ -128,16 +153,14 @@ const LedgerDetailPage = () => {
         </div>
 
         <div className="mb-4 flex flex-wrap gap-2 print:hidden">
-          <select
-            value={period}
-            onChange={(e) => { setPeriod(e.target.value); setPage(1); }}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500"
-          >
-            <option value="">All Time</option>
-            <option value="daily">Today</option>
-            <option value="monthly">This Month</option>
-            <option value="yearly">This Year</option>
-          </select>
+          <PeriodFilter
+            period={period}
+            onPeriodChange={(v) => { setPeriod(v); setPage(1); }}
+            dateFrom={dateFrom}
+            onDateFromChange={(v) => { setDateFrom(v); setPage(1); }}
+            dateTo={dateTo}
+            onDateToChange={(v) => { setDateTo(v); setPage(1); }}
+          />
         </div>
 
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -155,7 +178,13 @@ const LedgerDetailPage = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {entries.length === 0 ? (
+                    {isCustomPending ? (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">
+                          Select from and to dates for custom range
+                        </td>
+                      </tr>
+                    ) : entries.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">No ledger entries for this period</td>
                       </tr>

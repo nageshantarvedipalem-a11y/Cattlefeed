@@ -7,6 +7,16 @@ export const searchProducts = asyncHandler(async (req, res) => {
   sendSuccess(res, result, 'Products fetched successfully');
 });
 
+export const listStockBatches = asyncHandler(async (req, res) => {
+  const result = await billingService.listStockBatches(req.query);
+  sendSuccess(res, result, 'Stock batches fetched successfully');
+});
+
+export const listStockBatchProducts = asyncHandler(async (req, res) => {
+  const result = await billingService.listStockBatchProducts(req.params.purchaseId, req.query);
+  sendSuccess(res, result, 'Stock batch products fetched successfully');
+});
+
 export const listSales = asyncHandler(async (req, res) => {
   const result = await billingService.listSales(req.query);
   sendPaginated(res, result.sales, result.pagination, 'Sales fetched successfully');
@@ -23,8 +33,10 @@ export const createSale = asyncHandler(async (req, res) => {
 });
 
 export const downloadInvoice = asyncHandler(async (req, res) => {
-  const result = await billingService.downloadInvoicePdf(req.params.id);
+  const thermal = req.query.format === 'thermal';
+  const result = await billingService.downloadInvoicePdf(req.params.id, thermal);
   res.setHeader('Content-Type', result.contentType);
-  res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+  res.setHeader('Content-Disposition', `inline; filename="${result.filename}"`);
+  res.setHeader('Cache-Control', 'no-store');
   res.send(result.buffer);
 });

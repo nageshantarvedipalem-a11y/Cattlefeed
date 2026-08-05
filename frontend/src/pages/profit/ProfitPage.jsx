@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Bar,
-  BarChart,
   CartesianGrid,
   Legend,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -17,6 +17,17 @@ import { formatCurrency } from '../../utils/format';
 import { downloadBlob, getExportFilename } from '../../utils/download';
 import Pagination from '../../components/common/Pagination';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import PeriodFilter from '../../components/common/PeriodFilter';
+import usePeriodFilter from '../../hooks/usePeriodFilter';
+import DashboardChartCard from '../../components/dashboard/DashboardChartCard';
+
+const profitPeriodOptions = [
+  { value: '', label: 'All Time (12 months chart)' },
+  { value: 'daily', label: 'Today (7-day chart)' },
+  { value: 'monthly', label: 'This Month' },
+  { value: 'yearly', label: 'This Year' },
+  { value: 'custom', label: 'Custom Range' },
+];
 
 const ProfitPage = () => {
   const { checkPermission } = useAuth();
@@ -25,14 +36,29 @@ const ProfitPage = () => {
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState(null);
   const [filteredTotals, setFilteredTotals] = useState(null);
-  const [chartData, setChartData] = useState([]);
   const [entries, setEntries] = useState([]);
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
-  const [period, setPeriod] = useState('');
+  const {
+    period,
+    setPeriod,
+    dateFrom,
+    setDateFrom,
+    dateTo,
+    setDateTo,
+    apiParams,
+    isReady,
+    isCustomPending,
+    isInvalidRange,
+  } = usePeriodFilter('');
+
+  const handlePeriodChange = (value) => {
+    setPeriod(value);
+    setPage(1);
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -43,18 +69,25 @@ const ProfitPage = () => {
   }, [searchInput]);
 
   const fetchProfit = useCallback(async () => {
+    if (!isReady) {
+      setLoading(false);
+      if (!isCustomPending && isInvalidRange) {
+        toast.error('From date cannot be after To date');
+      }
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await profitService.getProfit({
         page,
         limit,
         search: search || undefined,
-        period: period || undefined,
+        ...apiParams,
       });
       const data = response.data.data;
       setSummary(data.summary);
       setFilteredTotals(data.filteredTotals);
-      setChartData(data.chartData);
       setEntries(data.entries);
       setPagination(data.pagination);
     } catch (error) {
@@ -62,18 +95,22 @@ const ProfitPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, search, period]);
+  }, [page, limit, search, apiParams, isReady, isCustomPending, isInvalidRange]);
 
   useEffect(() => {
     fetchProfit();
   }, [fetchProfit]);
 
   const handleExport = async (format) => {
+    if (!isReady) {
+      toast.error(isCustomPending ? 'Select from and to dates for custom range' : 'Invalid date range');
+      return;
+    }
     try {
       const response = await profitService.exportProfit({
         format,
         search: search || undefined,
-        period: period || undefined,
+        ...apiParams,
       });
       downloadBlob(response.data, getExportFilename(response, `profit-report.${format === 'pdf' ? 'pdf' : 'xlsx'}`));
       toast.success(`Profit report exported as ${format.toUpperCase()}`);
@@ -152,27 +189,38 @@ const ProfitPage = () => {
           </div>
         )}
 
-        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm print:hidden">
-          <h2 className="mb-4 text-sm font-semibold text-slate-700">Profit Trend</h2>
-          {loading ? (
-            <div className="py-12"><LoadingSpinner /></div>
-          ) : chartData.length === 0 ? (
-            <p className="py-12 text-center text-sm text-slate-500">No profit data for this period</p>
-          ) : (
-            <div className="h-72 w-full">
+        <div className="mb-6 print:hidden">
+          <DashboardChartCard title="Profit Trend" chartKey="profit" defaultPeriod="monthly">
+            {(chartData) => (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="label" tickFormatter={chartLabel} fontSize={11} />
                   <YAxis fontSize={11} />
                   <Tooltip formatter={(value) => formatCurrency(value)} />
                   <Legend />
-                  <Bar dataKey="profit" name="Profit" fill="#16a34a" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="revenue" name="Revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                </BarChart>
+                  <Line
+                    type="monotone"
+                    dataKey="profit"
+                    name="Profit"
+                    stroke="#16a34a"
+                    strokeWidth={2}
+                    dot={{ r: 5, fill: '#16a34a', strokeWidth: 2, stroke: '#fff' }}
+                    activeDot={{ r: 7 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="revenue"
+                    name="Revenue"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    dot={{ r: 5, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }}
+                    activeDot={{ r: 7 }}
+                  />
+                </LineChart>
               </ResponsiveContainer>
-            </div>
-          )}
+            )}
+          </DashboardChartCard>
         </div>
 
         <div className="mb-4 flex flex-wrap gap-2 print:hidden">
@@ -186,16 +234,15 @@ const ProfitPage = () => {
               className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-4 text-sm outline-none focus:border-primary-500"
             />
           </div>
-          <select
-            value={period}
-            onChange={(e) => { setPeriod(e.target.value); setPage(1); }}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500"
-          >
-            <option value="">All Time (12 months chart)</option>
-            <option value="daily">Today (7-day chart)</option>
-            <option value="monthly">This Month</option>
-            <option value="yearly">This Year</option>
-          </select>
+          <PeriodFilter
+            period={period}
+            onPeriodChange={handlePeriodChange}
+            dateFrom={dateFrom}
+            onDateFromChange={(v) => { setDateFrom(v); setPage(1); }}
+            dateTo={dateTo}
+            onDateToChange={(v) => { setDateTo(v); setPage(1); }}
+            options={profitPeriodOptions}
+          />
         </div>
 
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -213,7 +260,13 @@ const ProfitPage = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {entries.length === 0 ? (
+                    {isCustomPending ? (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-500">
+                          Select from and to dates for custom range
+                        </td>
+                      </tr>
+                    ) : entries.length === 0 ? (
                       <tr>
                         <td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-500">No profit entries for this period</td>
                       </tr>

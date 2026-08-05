@@ -7,6 +7,8 @@ import { formatCurrency } from '../../utils/format';
 import { downloadBlob, getExportFilename } from '../../utils/download';
 import Pagination from '../../components/common/Pagination';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import PeriodFilter from '../../components/common/PeriodFilter';
+import usePeriodFilter from '../../hooks/usePeriodFilter';
 
 const reportTypes = [
   { id: 'summary', label: 'Summary' },
@@ -38,7 +40,23 @@ const ReportsPage = () => {
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
-  const [period, setPeriod] = useState('monthly');
+  const {
+    period,
+    setPeriod,
+    dateFrom,
+    setDateFrom,
+    dateTo,
+    setDateTo,
+    apiParams,
+    isReady,
+    isCustomPending,
+    isInvalidRange,
+  } = usePeriodFilter('monthly');
+
+  const handlePeriodChange = (value) => {
+    setPeriod(value);
+    setPage(1);
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -49,13 +67,21 @@ const ReportsPage = () => {
   }, [searchInput]);
 
   const fetchReport = useCallback(async () => {
+    if (!isReady) {
+      setLoading(false);
+      if (!isCustomPending && isInvalidRange) {
+        toast.error('From date cannot be after To date');
+      }
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await reportService.getReport(reportType, {
         page: reportType === 'summary' ? 1 : page,
         limit: reportType === 'summary' ? 10 : limit,
         search: reportType === 'summary' ? undefined : (search || undefined),
-        period: period || undefined,
+        ...apiParams,
       });
       const data = response.data.data;
       setSummary(data.summary || null);
@@ -67,7 +93,7 @@ const ReportsPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [reportType, page, limit, search, period]);
+  }, [reportType, page, limit, search, apiParams, isReady, isCustomPending, isInvalidRange]);
 
   useEffect(() => {
     fetchReport();
@@ -79,11 +105,15 @@ const ReportsPage = () => {
   };
 
   const handleExport = async (format) => {
+    if (!isReady) {
+      toast.error(isCustomPending ? 'Select from and to dates for custom range' : 'Invalid date range');
+      return;
+    }
     try {
       const response = await reportService.exportReport(reportType, {
         format,
         search: reportType === 'summary' ? undefined : (search || undefined),
-        period: period || undefined,
+        ...apiParams,
       });
       downloadBlob(response.data, getExportFilename(response, `${reportType}-report.${format === 'pdf' ? 'pdf' : 'xlsx'}`));
       toast.success(`Report exported as ${format.toUpperCase()}`);
@@ -122,6 +152,9 @@ const ReportsPage = () => {
 
   const renderTable = () => {
     if (loading) return <div className="py-16"><LoadingSpinner /></div>;
+    if (isCustomPending) {
+      return <p className="py-12 text-center text-sm text-slate-500">Select from and to dates for custom range</p>;
+    }
     if (rows.length === 0) return <p className="py-12 text-center text-sm text-slate-500">No records for this report period</p>;
 
     switch (reportType) {
@@ -317,16 +350,14 @@ const ReportsPage = () => {
         </div>
 
         <div className="mb-4 flex flex-wrap gap-2 print:hidden">
-          <select
-            value={period}
-            onChange={(e) => { setPeriod(e.target.value); setPage(1); }}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500"
-          >
-            <option value="daily">Today</option>
-            <option value="monthly">This Month</option>
-            <option value="yearly">This Year</option>
-            <option value="">All Time</option>
-          </select>
+          <PeriodFilter
+            period={period}
+            onPeriodChange={handlePeriodChange}
+            dateFrom={dateFrom}
+            onDateFromChange={(v) => { setDateFrom(v); setPage(1); }}
+            dateTo={dateTo}
+            onDateToChange={(v) => { setDateTo(v); setPage(1); }}
+          />
           {reportType !== 'summary' && (
             <div className="relative min-w-[200px] flex-1 max-w-md">
               <FiSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />

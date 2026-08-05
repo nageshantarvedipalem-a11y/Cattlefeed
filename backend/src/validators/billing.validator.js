@@ -1,6 +1,17 @@
 import { body, param, query } from 'express-validator';
+import { validateIndianMobile } from '../utils/phoneValidation.js';
 
 export const searchProductsValidation = [
+  query('search').optional().trim(),
+  query('barcode').optional().trim(),
+];
+
+export const stockBatchSearchValidation = [
+  query('search').optional().trim(),
+];
+
+export const stockBatchProductsValidation = [
+  param('purchaseId').isInt({ min: 1 }).withMessage('Valid stock batch ID is required'),
   query('search').optional().trim(),
   query('barcode').optional().trim(),
 ];
@@ -22,6 +33,19 @@ export const saleIdValidation = [
 
 export const createSaleValidation = [
   body('customerId').optional({ nullable: true }).isInt({ min: 1 }),
+  body('customer.name').optional().trim().isLength({ min: 1, max: 150 }),
+  body('customer.phone')
+    .optional()
+    .trim()
+    .custom((value) => {
+      if (!value) return true;
+      const result = validateIndianMobile(value);
+      if (!result.valid) throw new Error(result.error);
+      return true;
+    }),
+  body('customer.village').optional({ values: 'falsy' }).trim(),
+  body('customer.address').optional({ values: 'falsy' }).trim(),
+  body('customer.notes').optional({ values: 'falsy' }).trim(),
   body('saleDate').optional().isISO8601().toDate(),
   body('discountAmount').optional().isFloat({ min: 0 }),
   body('dueDate').optional({ nullable: true }).isISO8601().toDate(),

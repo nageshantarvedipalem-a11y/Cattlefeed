@@ -26,6 +26,13 @@ const startServer = async () => {
   app.listen(PORT, () => {
     logger.info(`Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
     logger.info(`Cattle Feed API: http://localhost:${PORT}${API_PREFIX}`);
+  }).on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+      logger.error(`Port ${PORT} is already in use. Stop the other process first:`);
+      logger.error(`  kill -9 $(lsof -t -i:${PORT})`);
+      process.exit(1);
+    }
+    throw error;
   });
 };
 

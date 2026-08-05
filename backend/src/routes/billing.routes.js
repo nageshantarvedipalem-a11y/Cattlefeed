@@ -4,6 +4,8 @@ import { authenticate, authorizePermission } from '../middlewares/auth.middlewar
 import { validate } from '../middlewares/validate.middleware.js';
 import {
   searchProductsValidation,
+  stockBatchSearchValidation,
+  stockBatchProductsValidation,
   listSalesValidation,
   saleIdValidation,
   createSaleValidation,
@@ -12,6 +14,20 @@ import {
 const router = Router();
 
 router.use(authenticate);
+
+router.get(
+  '/stock-batches',
+  authorizePermission('billing', 'view'),
+  validate(stockBatchSearchValidation),
+  billingController.listStockBatches
+);
+
+router.get(
+  '/stock-batches/:purchaseId/products',
+  authorizePermission('billing', 'view'),
+  validate(stockBatchProductsValidation),
+  billingController.listStockBatchProducts
+);
 
 router.get(
   '/products/search',

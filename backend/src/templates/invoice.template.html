@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 210mm;
+    height: 297mm;
+    margin: 0;
+    overflow: hidden;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    background: #F5A623;
+    color: #3a5a2f;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .outer { padding: 10mm 8mm 8mm; height: 100%; }
+
+  .sheet {
+    position: relative;
+    background: #eef2e6;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .wave-top { position:absolute; top:0; left:0; width:100%; height: 95px; }
+  .wave-bottom { position:absolute; bottom:0; left:0; width:100%; height: 70px; }
+
+  .content { position: relative; z-index: 5; padding: 88px 28px 72px; }
+
+  .head-row { display:flex; justify-content:space-between; align-items:flex-start; }
+  h1.invoice {
+    font-size: 46px; font-weight: 800; letter-spacing: 1px;
+    color:#3d5a2c; margin-bottom: 14px;
+  }
+  .meta { font-size: 13px; font-weight:700; color:#3d5a2c; line-height: 1.7; }
+
+  .logo { text-align:right; }
+  .logo .brand { font-size: 26px; font-weight: 800; color:#6a9445; letter-spacing:1px; }
+  .logo .sub { font-size: 12px; font-weight:700; color:#7ea45f; letter-spacing:2px; }
+  .logo .mark { font-size: 30px; }
+
+  .parties { display:flex; justify-content:space-between; margin-top: 22px; }
+  .party { width: 48%; }
+  .party h3 { font-size: 16px; color:#3d5a2c; letter-spacing:1px; margin-bottom: 4px; }
+  .party .name { font-size: 17px; font-weight:800; color:#3d5a2c; margin-bottom: 10px; text-transform: uppercase; }
+  .kv { display:flex; font-size: 13.5px; color:#4a4a3f; line-height: 2.0; }
+  .kv .k { font-weight:700; color:#3d5a2c; width: 100px; flex-shrink: 0; }
+  .kv .k.wide { width: 90px; }
+  .kv .v { word-break: break-word; }
+
+  table { width:100%; border-collapse: collapse; margin-top: 18px; }
+  thead th {
+    background:#8fae5f; color:#31481f; text-align:left;
+    font-size: 13px; padding: 10px 12px;
+  }
+  thead th.num { text-align:right; }
+  tbody td {
+    background:#e4ead6; font-size: 12px; color:#3f4a34;
+    padding: 10px 12px; border-bottom: 4px solid #eef2e6;
+  }
+  tbody td.num { text-align:right; }
+  tbody td.idx { width: 34px; color:#3f4a34; }
+
+  .totals-wrap { display:flex; justify-content:flex-end; margin-top: 4px; }
+  .totals { background:#8fae5f; width: 320px; padding: 16px 22px; color:#31481f; }
+  .totals .row { display:flex; justify-content:space-between; font-size: 14px; font-weight:700; line-height: 1.9; }
+  .totals .grand { display:flex; justify-content:space-between; font-size: 17px; font-weight:800; margin-top: 10px; padding-top:10px; border-top:1px solid rgba(0,0,0,0.15); }
+
+  .lower { display:flex; justify-content:space-between; margin-top: 22px; }
+  .pay h4, .terms h4 { font-size: 16px; color:#3d5a2c; letter-spacing:1px; margin-bottom: 10px; }
+  .pay .kv .k { width: 130px; }
+  .terms { width: 42%; text-align:left; }
+  .terms p { font-size: 11px; color:#5a5a4d; line-height:1.6; margin-bottom: 16px; }
+  .sign-line { border-top: 2px solid #7ea45f; padding-top: 6px; text-align:center; font-size: 12px; color:#4a4a3f; width: 200px; margin-left:auto; }
+
+  .footer-plants { position:absolute; bottom:10px; left:0; width:100%; text-align:center; font-size:18px; letter-spacing:24px; z-index:6; }
+</style>
+</head>
+<body>
+  <div class="outer">
+    <div class="sheet">
+
+      <svg class="wave-top" viewBox="0 0 800 210" preserveAspectRatio="none">
+        <path d="M0,0 L800,0 L800,120 C660,180 560,90 420,120 C300,145 210,205 90,170 C55,160 25,150 0,155 Z" fill="#3e5c2c"/>
+        <path d="M0,0 L800,0 L800,70 C640,140 520,60 380,95 C250,128 150,150 0,110 Z" fill="#8fae5f" opacity="0.65"/>
+      </svg>
+
+      <div class="content">
+        <div class="head-row">
+          <div>
+            <h1 class="invoice">INVOICE</h1>
+            <div class="meta">DATE: {{INVOICE_DATE}}<br>INVOICE # {{INVOICE_NUMBER}}</div>
+          </div>
+          <div class="logo">
+            <div class="mark">🌾</div>
+            <div class="brand">{{COMPANY_NAME}}</div>
+            <div class="sub">{{COMPANY_TAGLINE}}</div>
+          </div>
+        </div>
+
+        <div class="parties">
+          <div class="party">
+            <h3>BILL TO:</h3>
+            <div class="name">{{CUSTOMER_NAME}}</div>
+            <div class="kv"><span class="k">PHONE:</span><span class="v">{{CUSTOMER_PHONE}}</span></div>
+            <div class="kv"><span class="k">ADDRESS:</span><span class="v">{{CUSTOMER_ADDRESS}}</span></div>
+          </div>
+          <div class="party">
+            <h3>COMPANY ADDRESS</h3>
+            <div class="kv"><span class="k wide">ADDRESS:</span><span class="v">{{COMPANY_ADDRESS}}</span></div>
+            <div class="kv"><span class="k wide">PHONE:</span><span class="v">{{COMPANY_PHONE}}</span></div>
+            <div class="kv"><span class="k wide">GSTIN:</span><span class="v">{{COMPANY_GST}}</span></div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width:52px;"></th>
+              <th>Item Description</th>
+              <th class="num">Price</th>
+              <th class="num">Qty.</th>
+              <th class="num">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{ITEM_ROWS}}
+          </tbody>
+        </table>
+
+        <div class="totals-wrap">
+          <div class="totals">
+            <div class="row"><span>SUBTOTAL</span><span>{{SUBTOTAL}}</span></div>
+            {{DISCOUNT_ROW}}
+            <div class="row"><span>{{GST_LABEL}}</span><span>{{TAX_AMOUNT}}</span></div>
+            <div class="grand"><span>TOTAL</span><span>{{TOTAL}}</span></div>
+          </div>
+        </div>
+
+        <div class="lower">
+          <div class="pay">
+            <h4>PAYMENT INFO</h4>
+            <div class="kv"><span class="k">Payment Type:</span><span class="v">{{PAYMENT_METHOD}}</span></div>
+            <div class="kv"><span class="k">Paid Amount:</span><span class="v">{{PAID_AMOUNT}}</span></div>
+            <div class="kv"><span class="k">Pending:</span><span class="v">{{PENDING_AMOUNT}}</span></div>
+            <div class="kv"><span class="k">Status:</span><span class="v">{{PAYMENT_STATUS}}</span></div>
+          </div>
+        </div>
+
+        <div class="lower" style="margin-top:16px; align-items:flex-end;">
+          <div class="terms">
+            <h4>Terms and Conditions</h4>
+            <p>Goods once sold will not be taken back. Payment due as per agreed terms. Please check quantity and quality at the time of delivery.</p>
+          </div>
+          <div style="width:42%;">
+            <div class="sign-line">Authorized Sign</div>
+          </div>
+        </div>
+      </div>
+
+      <svg class="wave-bottom" viewBox="0 0 800 150" preserveAspectRatio="none">
+        <path d="M0,150 L800,150 L800,60 C660,20 560,90 420,70 C300,52 210,10 90,40 C55,48 25,55 0,50 Z" fill="#8fae5f" opacity="0.6"/>
+        <path d="M0,150 L800,150 L800,95 C640,55 520,110 380,90 C250,72 150,55 0,100 Z" fill="#3e5c2c"/>
+      </svg>
+      <div class="footer-plants">🌾🌼🌾🌼🌾🌼🌾</div>
+
+    </div>
+  </div>
+</body>
+</html>

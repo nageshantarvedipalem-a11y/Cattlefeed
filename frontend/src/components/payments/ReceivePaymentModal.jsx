@@ -5,7 +5,7 @@ import paymentService from '../../services/paymentService';
 import { formatCurrency } from '../../utils/format';
 import LoadingSpinner from '../common/LoadingSpinner';
 
-const METHOD_OPTIONS = ['cash', 'upi', 'card', 'bank'];
+const METHOD_OPTIONS = ['cash', 'upi'];
 
 const ReceivePaymentModal = ({ isOpen, onClose, onSuccess, sale }) => {
   const {

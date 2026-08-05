@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom';
 import {
   FiHome,
   FiKey,
@@ -17,11 +17,12 @@ import {
   FiFileText,
   FiMessageCircle,
   FiX,
+  FiPlus,
+  FiCalendar,
 } from 'react-icons/fi';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { formatRoleName } from '../utils/auth';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: FiHome, module: 'dashboard' },
@@ -40,10 +41,9 @@ const navItems = [
   { to: '/change-password', label: 'Change Password', icon: FiKey, module: null },
 ];
 
-const DashboardLayout = () => {
-  const { user, logout, checkPermission } = useAuth();
+const Sidebar = ({ expanded = false, onNavigate }) => {
+  const { logout, checkPermission } = useAuth();
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const visibleNavItems = navItems.filter((item) => {
     if (!item.module) return true;
@@ -60,99 +60,167 @@ const DashboardLayout = () => {
     }
   };
 
-  const sidebarContent = (
-    <>
-      <div className="border-b border-slate-700 px-6 py-5">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-600 font-bold text-white">
-            CF
-          </div>
-          <div>
-            <p className="font-semibold text-white">Cattle Feed ERP</p>
-            <p className="text-xs text-slate-400">Admin Dashboard</p>
-          </div>
-        </div>
-      </div>
+  const rowClass = (isActive, extra = '') =>
+    [
+      'flex h-10 w-full cursor-pointer items-center rounded-xl text-[13px] font-medium transition-all duration-200',
+      expanded
+        ? 'gap-3 px-3'
+        : 'justify-center px-0 group-hover/sidebar:justify-start group-hover/sidebar:gap-3 group-hover/sidebar:px-3',
+      isActive
+        ? 'sidebar-nav-active text-white shadow-sm'
+        : 'text-emerald-100/80 hover:bg-white/10 hover:text-white',
+      extra,
+    ].join(' ');
 
-      <nav className="flex-1 space-y-1 px-3 py-4">
-        {visibleNavItems.map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/'}
-            onClick={() => setSidebarOpen(false)}
-            className={({ isActive }) =>
-              `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
-                isActive
-                  ? 'bg-teal-700 text-white'
-                  : 'text-slate-300 hover:bg-slate-700 hover:text-white'
-              }`
-            }
-          >
-            <Icon className="h-4 w-4" />
-            {label}
-          </NavLink>
-        ))}
-      </nav>
+  const textClass = expanded
+    ? 'inline truncate'
+    : 'hidden group-hover/sidebar:inline truncate';
 
-      <div className="border-t border-slate-700 p-4">
-        <div className="mb-3 rounded-lg bg-slate-800 px-3 py-2">
-          <p className="truncate text-sm font-medium text-white">{user?.fullName}</p>
-          <p className="truncate text-xs text-slate-400">@{user?.username}</p>
-          <span className="mt-1 inline-block rounded-full bg-primary-900 px-2 py-0.5 text-xs text-primary-200">
-            {formatRoleName(user?.roleName)}
-          </span>
-        </div>
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-red-300 transition hover:bg-red-950 hover:text-red-200"
-        >
-          <FiLogOut className="h-4 w-4" />
-          Logout
-        </button>
-      </div>
-    </>
-  );
+  const contentPad = expanded ? 'px-3' : 'px-2 group-hover/sidebar:px-3';
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <aside className="hidden w-64 shrink-0 flex-col bg-slate-900 lg:flex">
-        {sidebarContent}
-      </aside>
+    <aside
+      className={`group/sidebar flex h-full shrink-0 flex-col overflow-hidden border-r border-primary-800/40 bg-gradient-to-b from-primary-950 via-primary-900 to-primary-950 text-white transition-[width] duration-300 ease-in-out ${
+        expanded ? 'w-64' : 'w-[4.25rem] hover:w-64 hover:shadow-2xl hover:shadow-primary-950/50'
+      }`}
+    >
+      <div className={`flex flex-1 flex-col overflow-hidden ${contentPad}`}>
+        <div
+          className={`flex h-[4.25rem] shrink-0 items-center border-b border-white/10 ${
+            expanded ? 'gap-3' : 'justify-center group-hover/sidebar:justify-start group-hover/sidebar:gap-3'
+          }`}
+        >
+          <div className="sidebar-brand-gradient flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-black text-white shadow-lg shadow-primary-950/40">
+            CF
+          </div>
+          <div className={expanded ? 'min-w-0' : 'hidden min-w-0 group-hover/sidebar:block'}>
+            <p className="truncate text-sm font-bold leading-tight text-white">Cattle Feed ERP</p>
+            <p className="truncate text-[10px] font-medium uppercase tracking-wider text-amber-300/80">
+              Feed Business Suite
+            </p>
+          </div>
+        </div>
+
+        <nav className="flex-1 space-y-0.5 overflow-y-auto py-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {visibleNavItems.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === '/'}
+              title={label}
+              onClick={onNavigate}
+              className={({ isActive }) => rowClass(isActive)}
+            >
+              <Icon className="h-[1.125rem] w-[1.125rem] shrink-0" />
+              <span className={textClass}>{label}</span>
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="shrink-0 border-t border-white/10 py-3">
+          <button
+            type="button"
+            onClick={handleLogout}
+            title="Logout"
+            className={rowClass(false, 'text-red-300 hover:bg-red-950/40 hover:text-red-200')}
+          >
+            <FiLogOut className="h-[1.125rem] w-[1.125rem] shrink-0" />
+            <span className={textClass}>Logout</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+  );
+};
+
+const todayLabel = () =>
+  new Date().toLocaleDateString('en-IN', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
+const DashboardLayout = () => {
+  const { user, checkPermission } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const canBill = checkPermission('billing', 'view');
+
+  const initials = user?.fullName
+    ?.split(' ')
+    .map((n) => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || 'CF';
+
+  return (
+    <div className="flex h-full overflow-hidden bg-slate-50">
+      <div className="hidden h-full shrink-0 lg:block">
+        <Sidebar />
+      </div>
 
       {sidebarOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
+        <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-          <aside className="relative flex h-full w-64 flex-col bg-slate-900">
+          <div className="relative h-full w-64">
             <button
               type="button"
               onClick={() => setSidebarOpen(false)}
-              className="absolute right-3 top-3 rounded-lg p-2 text-slate-300 hover:bg-slate-800"
+              className="absolute right-3 top-3 z-10 rounded-lg p-2 text-emerald-100 hover:bg-white/10"
             >
               <FiX className="h-5 w-5" />
             </button>
-            {sidebarContent}
-          </aside>
+            <Sidebar expanded onNavigate={() => setSidebarOpen(false)} />
+          </div>
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:px-6">
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(true)}
-            className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden"
-          >
-            <FiMenu className="h-5 w-5" />
-          </button>
-          <div className="ml-auto text-right">
-            <p className="text-sm font-medium text-slate-900">{user?.fullName}</p>
-            <p className="text-xs text-slate-500">{formatRoleName(user?.roleName)}</p>
+      <div className="dashboard-shell relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="dashboard-shell-pattern pointer-events-none absolute inset-0 opacity-70" aria-hidden="true" />
+
+        <header className="relative z-30 flex shrink-0 items-center justify-between border-b border-emerald-100/80 bg-white/85 px-4 py-3 backdrop-blur-md lg:px-6">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="rounded-xl p-2 text-slate-600 hover:bg-emerald-50 lg:hidden"
+            >
+              <FiMenu className="h-5 w-5" />
+            </button>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-primary-700">
+                Cattle Feed ERP
+              </p>
+              <p className="flex items-center gap-1.5 text-sm text-slate-600">
+                <FiCalendar className="h-3.5 w-3.5 text-amber-600" />
+                {todayLabel()}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            {canBill && (
+              <Link
+                to="/billing"
+                className="hidden items-center gap-1.5 rounded-xl bg-gradient-to-r from-primary-700 to-primary-600 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-primary-900/20 transition hover:from-primary-800 hover:to-primary-700 sm:inline-flex"
+              >
+                <FiPlus className="h-3.5 w-3.5" />
+                New Bill
+              </Link>
+            )}
+            <div className="flex items-center gap-2 rounded-xl border border-emerald-100 bg-white/90 px-2.5 py-1.5 shadow-sm">
+              <div className="sidebar-brand-gradient flex h-8 w-8 items-center justify-center rounded-lg text-[10px] font-bold text-white">
+                {initials}
+              </div>
+              <div className="hidden min-w-0 sm:block">
+                <p className="truncate text-xs font-semibold text-slate-800">{user?.fullName}</p>
+                <p className="truncate text-[10px] capitalize text-slate-400">{user?.role}</p>
+              </div>
+            </div>
           </div>
         </header>
 
-        <main className="flex-1 p-4 lg:p-6">
+        <main className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-4 lg:p-6">
           <Outlet />
         </main>
       </div>

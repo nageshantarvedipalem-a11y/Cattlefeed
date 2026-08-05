@@ -1,60 +1,53 @@
 import {
   getDashboardCards,
-  getDailySalesChart,
-  getMonthlySalesChart,
-  getYearlySalesChart,
-  getProfitChart,
-  getPurchaseVsSalesChart,
-  getStockInOutChart,
-  getTopProducts,
-  getTopCustomers,
   getRecentSales,
   getRecentActivities,
+  getSalesChartFiltered,
+  getProfitChartFiltered,
+  getPurchaseVsSalesChartFiltered,
+  getStockInOutChartFiltered,
+  getTopProductsFiltered,
+  getTopCustomersFiltered,
 } from '../repositories/dashboard.repository.js';
 
 export class DashboardService {
   async getDashboard() {
-    const [
-      cards,
-      dailySales,
-      monthlySales,
-      yearlySales,
-      profitTrend,
-      purchaseVsSales,
-      stockInOut,
-      topProducts,
-      topCustomers,
-      recentSales,
-      recentActivities,
-    ] = await Promise.all([
+    const [cards, recentSales, recentActivities] = await Promise.all([
       getDashboardCards(),
-      getDailySalesChart(7),
-      getMonthlySalesChart(12),
-      getYearlySalesChart(),
-      getProfitChart(30),
-      getPurchaseVsSalesChart(6),
-      getStockInOutChart(14),
-      getTopProducts(5),
-      getTopCustomers(5),
       getRecentSales(8),
       getRecentActivities(10),
     ]);
 
     return {
       cards,
-      charts: {
-        dailySales,
-        monthlySales,
-        yearlySales,
-        profitTrend,
-        purchaseVsSales,
-        stockInOut,
-        topProducts,
-        topCustomers,
-      },
       recentSales,
       recentActivities,
     };
+  }
+
+  async getChartData(chartKey, filters = {}) {
+    const params = {
+      period: filters.period || 'daily',
+      dateFrom: filters.dateFrom || null,
+      dateTo: filters.dateTo || null,
+    };
+
+    switch (chartKey) {
+      case 'sales':
+        return getSalesChartFiltered(params);
+      case 'profit':
+        return getProfitChartFiltered(params);
+      case 'purchaseVsSales':
+        return getPurchaseVsSalesChartFiltered(params);
+      case 'stockInOut':
+        return getStockInOutChartFiltered(params);
+      case 'topProducts':
+        return getTopProductsFiltered(params);
+      case 'topCustomers':
+        return getTopCustomersFiltered(params);
+      default:
+        throw new Error('Invalid chart key');
+    }
   }
 }
 

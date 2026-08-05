@@ -1,6 +1,7 @@
 import { verifyAccessToken } from '../helpers/jwt.helper.js';
 import { findUserById, sanitizeUser } from '../repositories/user.repository.js';
 import { AppError } from '../utils/apiResponse.js';
+import { getCachedUser, setCachedUser } from '../utils/authCache.js';
 
 export const authenticate = async (req, res, next) => {
   try {
@@ -13,9 +14,13 @@ export const authenticate = async (req, res, next) => {
     const token = authHeader.split(' ')[1];
     const decoded = verifyAccessToken(token);
 
-    const user = await findUserById(decoded.userId);
+    let user = getCachedUser(decoded.userId);
     if (!user) {
-      throw new AppError('User account not found or inactive', 401);
+      user = await findUserById(decoded.userId);
+      if (!user) {
+        throw new AppError('User account not found or inactive', 401);
+      }
+      setCachedUser(decoded.userId, user);
     }
 
     req.user = sanitizeUser(user);

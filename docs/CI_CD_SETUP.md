@@ -141,7 +141,7 @@ If this works, GitHub Actions will work too.
 | `VPS_HOST` | VPS IP or domain | `123.45.67.89` |
 | `VPS_USER` | SSH username | `root` |
 | `VPS_SSH_KEY` | Full private key content | paste entire `~/.ssh/cattlefeed_deploy` file |
-| `VPS_PORT` | SSH port (optional) | `22` |
+| `VPS_PORT` | SSH port (Hostinger uses **65002**) | `65002` |
 | `VPS_APP_DIR` | App path (optional) | `/var/www/cattlefeed` |
 | `DEPLOY_HEALTH_URL` | Health check URL (optional) | `https://yourdomain.com/api/cattlefeed/v1/health` |
 

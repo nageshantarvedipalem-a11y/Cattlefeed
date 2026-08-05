@@ -28,10 +28,6 @@ const maskToken = (token) => {
   return `${token.slice(0, 4)}${'*'.repeat(Math.min(token.length - 8, 20))}${token.slice(-4)}`;
 };
 
-const buildInvoiceCaption = (sale, company) => {
-  return `Dear ${sale.customerName || 'Customer'},\n\nThank you for your purchase from ${company.company_name || 'Cattle Feed ERP'}.\n\nInvoice: ${sale.invoiceNumber}\nTotal: ₹${Number(sale.totalAmount).toFixed(2)}\nPaid: ₹${Number(sale.paidAmount).toFixed(2)}${sale.pendingAmount > 0 ? `\nPending: ₹${Number(sale.pendingAmount).toFixed(2)}` : ''}\n\nPlease find your invoice attached.`;
-};
-
 const loadSaleWithDetails = async (saleId) => {
   const saleRow = await findSaleById(saleId);
   if (!saleRow) return null;
@@ -120,7 +116,7 @@ export class WhatsAppService {
 
     const phone = normalizePhoneNumber(saleRow.customer_phone);
     if (!phone) {
-      throw new AppError('Customer phone number is not available for this sale', 400);
+      throw new AppError('Invalid customer WhatsApp number. Enter a valid 10-digit Indian mobile number.', 400);
     }
 
     const config = await getWhatsAppSettings();
@@ -137,7 +133,6 @@ export class WhatsAppService {
     }
 
     const company = await getCompanySettings();
-    const caption = buildInvoiceCaption(sale, company);
     const pdfBuffer = await buildInvoicePdf(sale, company);
     const filename = `${sale.invoiceNumber}.pdf`;
 
@@ -146,7 +141,7 @@ export class WhatsAppService {
       customerId: sale.customerId,
       phone,
       messageType: 'invoice',
-      messageBody: caption,
+      messageBody: `[PDF Invoice] ${sale.invoiceNumber}`,
       mediaFilename: filename,
       sentBy: currentUser?.id || null,
       status: 'pending',
@@ -164,7 +159,7 @@ export class WhatsAppService {
         phone,
         mediaId,
         filename,
-        caption,
+        null,
         config
       );
 

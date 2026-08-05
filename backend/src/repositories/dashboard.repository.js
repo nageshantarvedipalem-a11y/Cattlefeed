@@ -1,71 +1,67 @@
 import { query } from '../../config/database.js';
+import {
+  buildDateWhere,
+  buildGroupSelect,
+  resolveChartConfig,
+} from '../utils/chartFilters.js';
 
 export const getDashboardCards = async () => {
-  const [
-    todaySales,
-    todayPurchases,
-    todayProfit,
-    todayCollection,
-    todayPending,
-    monthlySales,
-    monthlyProfit,
-    overallRevenue,
-    totalCustomers,
-    totalProducts,
-    totalStock,
-    lowStock,
-    pendingBills,
-  ] = await Promise.all([
-    query(`SELECT COALESCE(SUM(total_amount), 0) AS total, COUNT(*) AS count
-           FROM sales WHERE DATE(sale_date) = CURDATE()`),
-    query(`SELECT COALESCE(SUM(total_amount), 0) AS total, COUNT(*) AS count
-           FROM purchases WHERE DATE(purchase_date) = CURDATE()`),
-    query(`SELECT COALESCE(SUM(si.profit_amount), 0) AS total
-           FROM sale_items si INNER JOIN sales s ON s.id = si.sale_id
-           WHERE DATE(s.sale_date) = CURDATE()`),
-    query(`SELECT COALESCE(SUM(amount), 0) AS total
-           FROM cash_book WHERE DATE(transaction_date) = CURDATE()
-           AND transaction_type IN ('cash_in', 'income')`),
-    query(`SELECT COALESCE(SUM(pending_amount), 0) AS total, COUNT(*) AS count
-           FROM sales WHERE DATE(sale_date) = CURDATE() AND pending_amount > 0`),
-    query(`SELECT COALESCE(SUM(total_amount), 0) AS total, COUNT(*) AS count
-           FROM sales WHERE YEAR(sale_date) = YEAR(CURDATE()) AND MONTH(sale_date) = MONTH(CURDATE())`),
-    query(`SELECT COALESCE(SUM(si.profit_amount), 0) AS total
-           FROM sale_items si INNER JOIN sales s ON s.id = si.sale_id
-           WHERE YEAR(s.sale_date) = YEAR(CURDATE()) AND MONTH(s.sale_date) = MONTH(CURDATE())`),
-    query(`SELECT COALESCE(SUM(total_amount), 0) AS total FROM sales`),
-    query(`SELECT COUNT(*) AS total FROM customers WHERE is_active = 1`),
-    query(`SELECT COUNT(*) AS total FROM products WHERE status = 'active'`),
-    query(`SELECT COALESCE(SUM(current_stock), 0) AS total FROM products WHERE status = 'active'`),
-    query(`SELECT COUNT(*) AS total FROM products WHERE status = 'active' AND current_stock <= min_stock`),
-    query(`SELECT COUNT(*) AS total FROM sales WHERE pending_amount > 0`),
-  ]);
+  const [row] = await query(`
+    SELECT
+      (SELECT COALESCE(SUM(total_amount), 0) FROM sales WHERE DATE(sale_date) = CURDATE()) AS today_sales,
+      (SELECT COUNT(*) FROM sales WHERE DATE(sale_date) = CURDATE()) AS today_sales_count,
+      (SELECT COALESCE(SUM(total_amount), 0) FROM purchases WHERE DATE(purchase_date) = CURDATE()) AS today_purchases,
+      (SELECT COUNT(*) FROM purchases WHERE DATE(purchase_date) = CURDATE()) AS today_purchase_count,
+      (SELECT COALESCE(SUM(si.profit_amount), 0)
+       FROM sale_items si INNER JOIN sales s ON s.id = si.sale_id
+       WHERE DATE(s.sale_date) = CURDATE()) AS today_profit,
+      (SELECT COALESCE(SUM(amount), 0) FROM cash_book
+       WHERE DATE(transaction_date) = CURDATE()
+       AND transaction_type IN ('cash_in', 'income')) AS today_collection,
+      (SELECT COALESCE(SUM(pending_amount), 0) FROM sales
+       WHERE DATE(sale_date) = CURDATE() AND pending_amount > 0) AS today_pending,
+      (SELECT COUNT(*) FROM sales
+       WHERE DATE(sale_date) = CURDATE() AND pending_amount > 0) AS today_pending_count,
+      (SELECT COALESCE(SUM(total_amount), 0) FROM sales
+       WHERE YEAR(sale_date) = YEAR(CURDATE()) AND MONTH(sale_date) = MONTH(CURDATE())) AS monthly_sales,
+      (SELECT COUNT(*) FROM sales
+       WHERE YEAR(sale_date) = YEAR(CURDATE()) AND MONTH(sale_date) = MONTH(CURDATE())) AS monthly_sales_count,
+      (SELECT COALESCE(SUM(si.profit_amount), 0)
+       FROM sale_items si INNER JOIN sales s ON s.id = si.sale_id
+       WHERE YEAR(s.sale_date) = YEAR(CURDATE()) AND MONTH(s.sale_date) = MONTH(CURDATE())) AS monthly_profit,
+      (SELECT COALESCE(SUM(total_amount), 0) FROM sales) AS overall_revenue,
+      (SELECT COUNT(*) FROM customers WHERE is_active = 1) AS total_customers,
+      (SELECT COUNT(*) FROM products WHERE status = 'active') AS total_products,
+      (SELECT COALESCE(SUM(current_stock), 0) FROM products WHERE status = 'active') AS total_stock,
+      (SELECT COUNT(*) FROM products WHERE status = 'active' AND current_stock <= min_stock) AS low_stock,
+      (SELECT COUNT(*) FROM sales WHERE pending_amount > 0) AS pending_bills
+  `);
 
   return {
     today: {
-      sales: Number(todaySales[0]?.total ?? 0),
-      salesCount: Number(todaySales[0]?.count ?? 0),
-      purchases: Number(todayPurchases[0]?.total ?? 0),
-      purchaseCount: Number(todayPurchases[0]?.count ?? 0),
-      profit: Number(todayProfit[0]?.total ?? 0),
-      collection: Number(todayCollection[0]?.total ?? 0),
-      pending: Number(todayPending[0]?.total ?? 0),
-      pendingCount: Number(todayPending[0]?.count ?? 0),
+      sales: Number(row?.today_sales ?? 0),
+      salesCount: Number(row?.today_sales_count ?? 0),
+      purchases: Number(row?.today_purchases ?? 0),
+      purchaseCount: Number(row?.today_purchase_count ?? 0),
+      profit: Number(row?.today_profit ?? 0),
+      collection: Number(row?.today_collection ?? 0),
+      pending: Number(row?.today_pending ?? 0),
+      pendingCount: Number(row?.today_pending_count ?? 0),
     },
     monthly: {
-      sales: Number(monthlySales[0]?.total ?? 0),
-      salesCount: Number(monthlySales[0]?.count ?? 0),
-      profit: Number(monthlyProfit[0]?.total ?? 0),
+      sales: Number(row?.monthly_sales ?? 0),
+      salesCount: Number(row?.monthly_sales_count ?? 0),
+      profit: Number(row?.monthly_profit ?? 0),
     },
     overall: {
-      revenue: Number(overallRevenue[0]?.total ?? 0),
+      revenue: Number(row?.overall_revenue ?? 0),
     },
     totals: {
-      customers: Number(totalCustomers[0]?.total ?? 0),
-      products: Number(totalProducts[0]?.total ?? 0),
-      stockUnits: Number(totalStock[0]?.total ?? 0),
-      lowStock: Number(lowStock[0]?.total ?? 0),
-      pendingBills: Number(pendingBills[0]?.total ?? 0),
+      customers: Number(row?.total_customers ?? 0),
+      products: Number(row?.total_products ?? 0),
+      stockUnits: Number(row?.total_stock ?? 0),
+      lowStock: Number(row?.low_stock ?? 0),
+      pendingBills: Number(row?.pending_bills ?? 0),
     },
   };
 };
@@ -257,5 +253,172 @@ export const getRecentActivities = async (limit = 10) => {
     details: r.details ? (typeof r.details === 'string' ? JSON.parse(r.details) : r.details) : null,
     userName: r.user_name || 'System',
     createdAt: r.created_at,
+  }));
+};
+
+export const getSalesChartFiltered = async ({ period, dateFrom, dateTo } = {}) => {
+  const config = resolveChartConfig(period, dateFrom, dateTo);
+  const dateWhere = buildDateWhere(config, 'sale_date');
+  const group = buildGroupSelect(config.grouping, 'sale_date');
+
+  const rows = await query(
+    `SELECT ${group.labelExpr} AS label,
+            ${group.sortExpr} AS sort_key,
+            COALESCE(SUM(total_amount), 0) AS sales,
+            COUNT(*) AS count
+     FROM sales
+     WHERE 1=1 ${dateWhere.clause}
+     GROUP BY ${group.groupExpr}, ${group.labelExpr}
+     ORDER BY sort_key ASC`,
+    dateWhere.params
+  );
+
+  return rows.map((r) => ({
+    label: String(r.label),
+    sales: Number(r.sales),
+    count: Number(r.count),
+  }));
+};
+
+export const getProfitChartFiltered = async ({ period, dateFrom, dateTo } = {}) => {
+  const config = resolveChartConfig(period, dateFrom, dateTo);
+  const dateWhere = buildDateWhere(config, 's.sale_date');
+  const group = buildGroupSelect(config.grouping, 's.sale_date');
+
+  const rows = await query(
+    `SELECT ${group.labelExpr} AS label,
+            ${group.sortExpr} AS sort_key,
+            COALESCE(SUM(si.profit_amount), 0) AS profit,
+            COALESCE(SUM(si.total_amount), 0) AS revenue
+     FROM sale_items si
+     INNER JOIN sales s ON s.id = si.sale_id
+     WHERE 1=1 ${dateWhere.clause}
+     GROUP BY ${group.groupExpr}, ${group.labelExpr}
+     ORDER BY sort_key ASC`,
+    dateWhere.params
+  );
+
+  return rows.map((r) => ({
+    label: String(r.label),
+    profit: Number(r.profit),
+    revenue: Number(r.revenue),
+  }));
+};
+
+export const getPurchaseVsSalesChartFiltered = async ({ period, dateFrom, dateTo } = {}) => {
+  const config = resolveChartConfig(period, dateFrom, dateTo);
+  const salesDateWhere = buildDateWhere(config, 'sale_date');
+  const purchaseDateWhere = buildDateWhere(config, 'purchase_date');
+  const salesGroup = buildGroupSelect(config.grouping, 'sale_date');
+  const purchaseGroup = buildGroupSelect(config.grouping, 'purchase_date');
+
+  const [salesRows, purchaseRows] = await Promise.all([
+    query(
+      `SELECT ${salesGroup.groupExpr} AS group_key,
+              ${salesGroup.labelExpr} AS label,
+              COALESCE(SUM(total_amount), 0) AS sales
+       FROM sales
+       WHERE 1=1 ${salesDateWhere.clause}
+       GROUP BY ${salesGroup.groupExpr}, ${salesGroup.labelExpr}`,
+      salesDateWhere.params
+    ),
+    query(
+      `SELECT ${purchaseGroup.groupExpr} AS group_key,
+              COALESCE(SUM(total_amount), 0) AS purchases
+       FROM purchases
+       WHERE 1=1 ${purchaseDateWhere.clause}
+       GROUP BY ${purchaseGroup.groupExpr}`,
+      purchaseDateWhere.params
+    ),
+  ]);
+
+  const purchaseMap = new Map(
+    purchaseRows.map((row) => [String(row.group_key), Number(row.purchases)])
+  );
+
+  return salesRows
+    .map((row) => ({
+      label: String(row.label),
+      sortKey: String(row.group_key),
+      sales: Number(row.sales),
+      purchases: purchaseMap.get(String(row.group_key)) ?? 0,
+    }))
+    .sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+    .map(({ label, sales, purchases }) => ({ label, sales, purchases }));
+};
+
+export const getStockInOutChartFiltered = async ({ period, dateFrom, dateTo } = {}) => {
+  const config = resolveChartConfig(period, dateFrom, dateTo);
+  const dateWhere = buildDateWhere(config, 'created_at');
+  const group = buildGroupSelect(config.grouping, 'created_at');
+
+  const rows = await query(
+    `SELECT ${group.labelExpr} AS label,
+            ${group.sortExpr} AS sort_key,
+            COALESCE(SUM(CASE WHEN movement_type = 'in' THEN quantity ELSE 0 END), 0) AS stock_in,
+            COALESCE(SUM(CASE WHEN movement_type = 'out' THEN quantity ELSE 0 END), 0) AS stock_out
+     FROM stock_movements
+     WHERE 1=1 ${dateWhere.clause}
+     GROUP BY ${group.groupExpr}, ${group.labelExpr}
+     ORDER BY sort_key ASC`,
+    dateWhere.params
+  );
+
+  return rows.map((r) => ({
+    label: String(r.label),
+    stockIn: Number(r.stock_in),
+    stockOut: Number(r.stock_out),
+  }));
+};
+
+export const getTopProductsFiltered = async ({ period, dateFrom, dateTo, limit = 8 } = {}) => {
+  const config = resolveChartConfig(period, dateFrom, dateTo);
+  const dateWhere = buildDateWhere(config, 's.sale_date');
+
+  const rows = await query(
+    `SELECT p.name, p.sku,
+            COALESCE(SUM(si.quantity), 0) AS quantity,
+            COALESCE(SUM(si.total_amount), 0) AS revenue
+     FROM sale_items si
+     INNER JOIN products p ON p.id = si.product_id
+     INNER JOIN sales s ON s.id = si.sale_id
+     WHERE 1=1 ${dateWhere.clause}
+     GROUP BY p.id, p.name, p.sku
+     ORDER BY quantity DESC
+     LIMIT ?`,
+    [...dateWhere.params, limit]
+  );
+
+  return rows.map((r) => ({
+    name: r.name,
+    sku: r.sku,
+    quantity: Number(r.quantity),
+    revenue: Number(r.revenue),
+  }));
+};
+
+export const getTopCustomersFiltered = async ({ period, dateFrom, dateTo, limit = 8 } = {}) => {
+  const config = resolveChartConfig(period, dateFrom, dateTo);
+  const dateWhere = buildDateWhere(config, 's.sale_date');
+
+  const rows = await query(
+    `SELECT c.name, c.phone, c.village,
+            COUNT(s.id) AS order_count,
+            COALESCE(SUM(s.total_amount), 0) AS total_spent
+     FROM sales s
+     INNER JOIN customers c ON c.id = s.customer_id
+     WHERE 1=1 ${dateWhere.clause}
+     GROUP BY c.id, c.name, c.phone, c.village
+     ORDER BY total_spent DESC
+     LIMIT ?`,
+    [...dateWhere.params, limit]
+  );
+
+  return rows.map((r) => ({
+    name: r.name,
+    phone: r.phone,
+    village: r.village,
+    orderCount: Number(r.order_count),
+    totalSpent: Number(r.total_spent),
   }));
 };

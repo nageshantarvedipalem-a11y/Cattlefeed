@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FiEdit2,
   FiPlus,
@@ -11,16 +11,17 @@ import toast from 'react-hot-toast';
 import userService from '../../services/userService';
 import { useAuth } from '../../context/AuthContext';
 import { formatRoleName } from '../../utils/auth';
+import { getCached } from '../../utils/apiCache';
 import Modal from '../../components/common/Modal';
 import Pagination from '../../components/common/Pagination';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
 import UserFormModal from '../../components/users/UserFormModal';
 
 const UsersPage = () => {
-  const { user: currentUser, checkPermission } = useAuth();
+  const { user: currentUser, checkPermission, loading: authLoading, isAuthenticated } = useAuth();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [fetching, setFetching] = useState(true);
+  const hasLoadedOnce = useRef(false);
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
@@ -47,33 +48,60 @@ const UsersPage = () => {
   }, []);
 
   const fetchUsers = useCallback(async () => {
-    setLoading(true);
+    const params = {
+      page,
+      limit,
+      search,
+      roleId: roleFilter || undefined,
+      isActive: statusFilter || undefined,
+      sortBy,
+      sortOrder,
+    };
+    const cacheKey = `users:list:${JSON.stringify(params)}`;
+    const cached = getCached(cacheKey);
+
+    if (cached?.data?.data) {
+      setUsers(cached.data.data);
+      setPagination(cached.data.pagination);
+      hasLoadedOnce.current = true;
+      setFetching(false);
+    } else if (!hasLoadedOnce.current) {
+      setFetching(true);
+    }
+
     try {
-      const response = await userService.getUsers({
-        page,
-        limit,
-        search,
-        roleId: roleFilter || undefined,
-        isActive: statusFilter || undefined,
-        sortBy,
-        sortOrder,
-      });
+      const response = await userService.getUsers(params);
       setUsers(response.data.data);
       setPagination(response.data.pagination);
+      hasLoadedOnce.current = true;
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to load users');
+      if (!cached?.data?.data) {
+        toast.error(
+          error.code === 'ERR_NETWORK'
+            ? 'Cannot reach backend API. Start backend on port 5001.'
+            : error.response?.data?.message || 'Failed to load users'
+        );
+      }
     } finally {
-      setLoading(false);
+      setFetching(false);
     }
   }, [page, limit, search, roleFilter, statusFilter, sortBy, sortOrder]);
 
   useEffect(() => {
+    if (authLoading || !isAuthenticated) return;
+
+    const rolesCached = getCached('users:roles');
+    if (rolesCached?.data?.data?.roles) {
+      setRoles(rolesCached.data.data.roles);
+    }
+
     fetchRoles();
-  }, [fetchRoles]);
+  }, [fetchRoles, authLoading, isAuthenticated]);
 
   useEffect(() => {
+    if (authLoading || !isAuthenticated) return;
     fetchUsers();
-  }, [fetchUsers]);
+  }, [fetchUsers, authLoading, isAuthenticated]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -188,129 +216,127 @@ const UsersPage = () => {
         </select>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        {loading ? (
-          <div className="py-16">
-            <LoadingSpinner />
-          </div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
-                  <tr>
-                    {[
-                      { key: 'fullName', label: 'Name' },
-                      { key: 'username', label: 'Username' },
-                      { key: 'email', label: 'Email' },
-                      { key: 'roleName', label: 'Role' },
-                      { key: 'isActive', label: 'Status' },
-                      { key: 'lastLoginAt', label: 'Last Login' },
-                    ].map((col) => (
-                      <th
-                        key={col.key}
-                        onClick={() => handleSort(col.key)}
-                        className="cursor-pointer px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-700"
-                      >
-                        {col.label}{sortIndicator(col.key)}
-                      </th>
-                    ))}
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {users.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">
-                        No users found
-                      </td>
-                    </tr>
-                  ) : (
-                    users.map((user) => (
-                      <tr key={user.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3">
-                          <p className="font-medium text-slate-900">{user.fullName}</p>
-                          <p className="text-xs text-slate-500">{user.phone || '—'}</p>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-slate-700">@{user.username}</td>
-                        <td className="px-4 py-3 text-sm text-slate-700">{user.email}</td>
-                        <td className="px-4 py-3">
-                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
-                            {formatRoleName(user.roleName)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                            user.isActive
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}>
-                            {user.isActive ? 'Active' : 'Inactive'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-slate-500">
-                          {user.lastLoginAt
-                            ? new Date(user.lastLoginAt).toLocaleString()
-                            : 'Never'}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center justify-end gap-1">
-                            {canEdit && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => handleEdit(user)}
-                                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-primary-700"
-                                  title="Edit user"
-                                >
-                                  <FiEdit2 className="h-4 w-4" />
-                                </button>
-                                {user.id !== currentUser?.id && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleStatus(user)}
-                                    className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-amber-600"
-                                    title={user.isActive ? 'Disable user' : 'Enable user'}
-                                  >
-                                    {user.isActive ? (
-                                      <FiUserX className="h-4 w-4" />
-                                    ) : (
-                                      <FiUserCheck className="h-4 w-4" />
-                                    )}
-                                  </button>
-                                )}
-                              </>
-                            )}
-                            {canDelete && user.id !== currentUser?.id && (
+      <div className={`overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-opacity ${fetching && users.length > 0 ? 'opacity-70' : ''}`}>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-slate-50">
+              <tr>
+                {[
+                  { key: 'fullName', label: 'Name' },
+                  { key: 'username', label: 'Username' },
+                  { key: 'email', label: 'Email' },
+                  { key: 'roleName', label: 'Role' },
+                  { key: 'isActive', label: 'Status' },
+                  { key: 'lastLoginAt', label: 'Last Login' },
+                ].map((col) => (
+                  <th
+                    key={col.key}
+                    onClick={() => handleSort(col.key)}
+                    className="cursor-pointer px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-700"
+                  >
+                    {col.label}{sortIndicator(col.key)}
+                  </th>
+                ))}
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {fetching && users.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-400">
+                    Loading users...
+                  </td>
+                </tr>
+              ) : users.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">
+                    No users found
+                  </td>
+                </tr>
+              ) : (
+                users.map((user) => (
+                  <tr key={user.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-slate-900">{user.fullName}</p>
+                      <p className="text-xs text-slate-500">{user.phone || '—'}</p>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-700">@{user.username}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700">{user.email}</td>
+                    <td className="px-4 py-3">
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                        {formatRoleName(user.roleName)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                        user.isActive
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-red-100 text-red-700'
+                      }`}>
+                        {user.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-500">
+                      {user.lastLoginAt
+                        ? new Date(user.lastLoginAt).toLocaleString()
+                        : 'Never'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        {canEdit && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleEdit(user)}
+                              className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-primary-700"
+                              title="Edit user"
+                            >
+                              <FiEdit2 className="h-4 w-4" />
+                            </button>
+                            {user.id !== currentUser?.id && (
                               <button
                                 type="button"
-                                onClick={() => handleDelete(user)}
-                                className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-600"
-                                title="Delete user"
+                                onClick={() => handleToggleStatus(user)}
+                                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-amber-600"
+                                title={user.isActive ? 'Disable user' : 'Enable user'}
                               >
-                                <FiTrash2 className="h-4 w-4" />
+                                {user.isActive ? (
+                                  <FiUserX className="h-4 w-4" />
+                                ) : (
+                                  <FiUserCheck className="h-4 w-4" />
+                                )}
                               </button>
                             )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                          </>
+                        )}
+                        {canDelete && user.id !== currentUser?.id && (
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(user)}
+                            className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-600"
+                            title="Delete user"
+                          >
+                            <FiTrash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
 
-            <Pagination
-              page={page}
-              totalPages={pagination.totalPages}
-              total={pagination.total}
-              limit={limit}
-              onPageChange={setPage}
-            />
-          </>
-        )}
+        <Pagination
+          page={page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          limit={limit}
+          onPageChange={setPage}
+        />
       </div>
 
       <Modal

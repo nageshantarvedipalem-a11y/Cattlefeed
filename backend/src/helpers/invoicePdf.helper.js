@@ -1,86 +1,103 @@
 import PDFDocument from 'pdfkit';
 import { formatCurrency } from '../utils/formatCurrency.helper.js';
+import { buildInvoiceHtml } from './invoiceHtml.helper.js';
+import { launchBrowser } from './puppeteerBrowser.helper.js';
 
-export const buildInvoicePdf = (sale, company) => new Promise((resolve, reject) => {
-  const doc = new PDFDocument({ margin: 40, size: 'A4' });
+let browserPromise = null;
+
+const getBrowser = async () => {
+  if (!browserPromise) {
+    browserPromise = launchBrowser().catch((error) => {
+      browserPromise = null;
+      throw error;
+    });
+  }
+  return browserPromise;
+};
+
+export const buildInvoicePdf = async (sale, company) => {
+  const html = buildInvoiceHtml(sale, company);
+  let browser;
+
+  try {
+    browser = await getBrowser();
+    const page = await browser.newPage();
+
+    try {
+      await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
+      await page.emulateMediaType('print');
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        preferCSSPageSize: true,
+        margin: { top: '0', right: '0', bottom: '0', left: '0' },
+      });
+      return Buffer.from(pdfBuffer);
+    } finally {
+      await page.close();
+    }
+  } catch (error) {
+    browserPromise = null;
+    const hint = error.message?.includes('Could not find Chrome')
+      ? ' Install Chrome or run: cd backend && npm run install:chrome'
+      : '';
+    throw new Error(`Invoice PDF generation failed: ${error.message}${hint}`);
+  }
+};
+
+const paymentStatusLabel = (sale) => {
+  if (sale.paymentStatus === 'paid') return 'PAID';
+  if (sale.paymentStatus === 'partial') return 'PARTIALLY PAID';
+  if (Number(sale.paidAmount) === 0) return 'CREDIT';
+  return String(sale.paymentStatus || '').toUpperCase();
+};
+
+export const buildThermalInvoicePdf = (sale, company) => new Promise((resolve, reject) => {
+  const doc = new PDFDocument({ margin: 12, size: [226.77, 841.89] });
   const chunks = [];
+  const currency = company.currency_symbol || '₹';
+  const width = 202;
 
   doc.on('data', (chunk) => chunks.push(chunk));
   doc.on('end', () => resolve(Buffer.concat(chunks)));
   doc.on('error', reject);
 
-  const currency = company.currency_symbol || '₹';
+  doc.fontSize(11).font('Helvetica-Bold').text(company.company_name || 'Cattle Feed ERP', { align: 'center', width });
+  doc.fontSize(8).font('Helvetica');
+  if (company.company_address) doc.text(company.company_address, { align: 'center', width });
+  if (company.company_phone) doc.text(`Ph: ${company.company_phone}`, { align: 'center', width });
+  if (company.company_gst) doc.text(`GST: ${company.company_gst}`, { align: 'center', width });
 
-  doc.fontSize(18).font('Helvetica-Bold').text(company.company_name || 'Cattle Feed ERP', { align: 'center' });
-  if (company.company_address) {
-    doc.fontSize(9).font('Helvetica').text(company.company_address, { align: 'center' });
-  }
-  if (company.company_phone || company.company_gst) {
-    doc.fontSize(9).text(
-      [company.company_phone && `Phone: ${company.company_phone}`, company.company_gst && `GST: ${company.company_gst}`]
-        .filter(Boolean).join(' | '),
-      { align: 'center' }
-    );
-  }
-
-  doc.moveDown();
-  doc.fontSize(14).font('Helvetica-Bold').text('TAX INVOICE', { align: 'center' });
-  doc.moveDown();
-
-  doc.fontSize(10).font('Helvetica');
-  doc.text(`Invoice No: ${sale.invoiceNumber}`);
+  doc.moveDown(0.5);
+  doc.fontSize(9).font('Helvetica-Bold').text('TAX INVOICE', { align: 'center', width });
+  doc.fontSize(8).font('Helvetica');
+  doc.text(`Invoice: ${sale.invoiceNumber}`);
   doc.text(`Date: ${new Date(sale.saleDate).toLocaleString('en-IN')}`);
-  if (sale.customerName) {
-    doc.text(`Customer: ${sale.customerName}${sale.customerPhone ? ` (${sale.customerPhone})` : ''}`);
-  } else {
-    doc.text('Customer: Walk-in');
-  }
-  doc.moveDown();
-
-  const tableTop = doc.y;
-  const colX = [40, 220, 280, 330, 380, 440, 500];
-  const headers = ['Item', 'Qty', 'Rate', 'GST%', 'Tax', 'Total'];
-
-  doc.font('Helvetica-Bold').fontSize(9);
-  headers.forEach((header, i) => {
-    doc.text(header, colX[i], tableTop, { width: i === 0 ? 170 : 55, lineBreak: false });
-  });
-
-  let y = tableTop + 16;
-  doc.font('Helvetica').fontSize(8);
+  doc.text(`Customer: ${sale.customerName || 'Walk-in'}`);
+  if (sale.customerPhone) doc.text(`Phone: ${sale.customerPhone}`);
+  doc.moveDown(0.5);
+  doc.text('--------------------------------', { align: 'center', width });
 
   sale.items.forEach((item) => {
-    if (y > 700) {
-      doc.addPage();
-      y = 40;
-    }
-    doc.text(item.productName, colX[0], y, { width: 170, lineBreak: false });
-    doc.text(String(item.quantity), colX[1], y, { width: 50, lineBreak: false });
-    doc.text(formatCurrency(item.sellingPrice, currency), colX[2], y, { width: 45, lineBreak: false });
-    doc.text(String(item.gstRate), colX[3], y, { width: 40, lineBreak: false });
-    doc.text(formatCurrency(item.taxAmount, currency), colX[4], y, { width: 50, lineBreak: false });
-    doc.text(formatCurrency(item.totalAmount, currency), colX[5], y, { width: 55, lineBreak: false });
-    y += 14;
+    doc.font('Helvetica-Bold').text(item.productName, { width });
+    doc.font('Helvetica').text(
+      `${item.quantity} x ${formatCurrency(item.sellingPrice, currency)} = ${formatCurrency(item.totalAmount, currency)}`,
+      { width }
+    );
   });
 
-  doc.moveDown(2);
-  y = Math.max(y + 10, doc.y);
-  doc.font('Helvetica-Bold').fontSize(10);
-  doc.text(`Subtotal: ${formatCurrency(sale.subtotal, currency)}`, 350, y, { align: 'right' });
-  doc.text(`Tax: ${formatCurrency(sale.taxAmount, currency)}`, 350, y + 14, { align: 'right' });
-  if (sale.discountAmount > 0) {
-    doc.text(`Discount: -${formatCurrency(sale.discountAmount, currency)}`, 350, y + 28, { align: 'right' });
-    y += 14;
-  }
-  doc.fontSize(12).text(`Grand Total: ${formatCurrency(sale.totalAmount, currency)}`, 350, y + 28, { align: 'right' });
-  doc.fontSize(10).font('Helvetica');
-  doc.text(`Paid: ${formatCurrency(sale.paidAmount, currency)}`, 350, y + 44, { align: 'right' });
-  if (sale.pendingAmount > 0) {
-    doc.text(`Pending: ${formatCurrency(sale.pendingAmount, currency)}`, 350, y + 58, { align: 'right' });
-  }
-
-  doc.moveDown(3);
-  doc.fontSize(8).text('Thank you for your business!', { align: 'center' });
+  doc.text('--------------------------------', { align: 'center', width });
+  doc.text(`Subtotal: ${formatCurrency(sale.subtotal, currency)}`, { align: 'right', width });
+  doc.text(`Discount: ${formatCurrency(sale.discountAmount, currency)}`, { align: 'right', width });
+  doc.text(`GST: ${formatCurrency(sale.taxAmount, currency)}`, { align: 'right', width });
+  doc.font('Helvetica-Bold').text(`Grand Total: ${formatCurrency(sale.totalAmount, currency)}`, { align: 'right', width });
+  doc.font('Helvetica');
+  doc.text(`Paid: ${formatCurrency(sale.paidAmount, currency)}`, { align: 'right', width });
+  doc.text(`Pending: ${formatCurrency(sale.pendingAmount, currency)}`, { align: 'right', width });
+  doc.text(`Payment: ${sale.primaryPaymentMethod?.toUpperCase() || 'CASH'}`, { align: 'right', width });
+  doc.text(`Status: ${paymentStatusLabel(sale)}`, { align: 'right', width });
+  doc.moveDown(0.5);
+  doc.fontSize(8).text('Thank you for your business!', { align: 'center', width });
 
   doc.end();
 });

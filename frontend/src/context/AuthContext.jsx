@@ -32,10 +32,13 @@ export const AuthProvider = ({ children }) => {
       setUser(freshUser);
       setToken(storedToken);
       setAuthSession(storedToken, freshUser);
-    } catch {
-      clearAuthSession();
-      setUser(null);
-      setToken(null);
+    } catch (error) {
+      // Only clear session on auth failure — keep session on network/backend errors
+      if (error.response?.status === 401) {
+        clearAuthSession();
+        setUser(null);
+        setToken(null);
+      }
     } finally {
       setLoading(false);
     }

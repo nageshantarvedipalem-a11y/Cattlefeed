@@ -41,6 +41,8 @@ export const formatSale = (row, items = [], payments = []) => ({
   customerId: row.customer_id,
   customerName: row.customer_name || null,
   customerPhone: row.customer_phone || null,
+  customerVillage: row.customer_village || null,
+  customerAddress: row.customer_address || null,
   saleDate: row.sale_date,
   subtotal: Number(row.subtotal),
   taxAmount: Number(row.tax_amount),
@@ -63,6 +65,7 @@ export const formatSale = (row, items = [], payments = []) => ({
 
 const saleSelect = `
   SELECT s.id, s.invoice_number, s.customer_id, c.name AS customer_name, c.phone AS customer_phone,
+         c.village AS customer_village, c.address AS customer_address,
          s.sale_date, s.subtotal, s.tax_amount, s.discount_amount, s.total_amount,
          s.paid_amount, s.pending_amount, s.payment_status, s.primary_payment_method,
          s.due_date, s.remarks, s.created_by, u.full_name AS created_by_name,
@@ -237,17 +240,19 @@ export const searchPosProducts = async (search = '', barcode = '') => {
     return rows.map(formatPosProduct);
   }
 
-  const term = `%${search}%`;
+  const term = `%${search.trim()}%`;
+  const hasSearch = Boolean(search.trim());
   const rows = await query(
     `SELECT p.id, p.name, p.sku, p.barcode, p.selling_price, p.purchase_price,
             p.gst_rate, p.current_stock, c.name AS category_name
      FROM products p
      LEFT JOIN categories c ON c.id = p.category_id
      WHERE p.status = 'active'
-       AND (p.name LIKE ? OR p.sku LIKE ? OR p.barcode LIKE ?)
+       AND p.current_stock > 0
+       ${hasSearch ? 'AND (p.name LIKE ? OR p.sku LIKE ? OR p.barcode LIKE ?)' : ''}
      ORDER BY p.name ASC
-     LIMIT 20`,
-    [term, term, term]
+     LIMIT ${hasSearch ? 50 : 500}`,
+    hasSearch ? [term, term, term] : []
   );
   return rows.map(formatPosProduct);
 };

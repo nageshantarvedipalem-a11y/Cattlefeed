@@ -11,6 +11,10 @@ import {
   getConnection,
 } from '../repositories/sale.repository.js';
 import {
+  findAvailableStockBatches,
+  findStockBatchProducts,
+} from '../repositories/stockBatch.repository.js';
+import {
   createStockMovementRecord,
   getProductStockForUpdate,
   updateProductStock,
@@ -23,12 +27,17 @@ import {
   getLatestCashBalance,
   createCashBookEntry,
 } from '../repositories/cashBook.repository.js';
-import { findCustomerById } from '../repositories/customer.repository.js';
+import {
+  findCustomerById,
+  findCustomerByPhone,
+  createCustomerRecord,
+} from '../repositories/customer.repository.js';
 import { getNextInvoiceNumber, getCompanySettings } from '../repositories/settings.repository.js';
-import { buildInvoicePdf } from '../helpers/invoicePdf.helper.js';
+import { buildInvoicePdf, buildThermalInvoicePdf } from '../helpers/invoicePdf.helper.js';
 import { logActivity } from '../repositories/activityLog.repository.js';
 import whatsappService from './whatsapp.service.js';
 import { AppError } from '../utils/apiResponse.js';
+import { validateIndianMobile } from '../utils/phoneValidation.js';
 
 const PAYMENT_METHODS = ['cash', 'upi', 'card', 'bank', 'credit'];
 const CASH_BOOK_METHODS = ['cash', 'upi', 'card', 'bank'];
@@ -72,6 +81,20 @@ const resolvePaymentStatus = (paidAmount, totalAmount) => {
 };
 
 export class BillingService {
+  async listStockBatches(queryParams) {
+    const batches = await findAvailableStockBatches(queryParams.search?.trim() || '');
+    return { batches };
+  }
+
+  async listStockBatchProducts(purchaseId, queryParams) {
+    const products = await findStockBatchProducts(
+      purchaseId,
+      queryParams.search?.trim() || '',
+      queryParams.barcode?.trim() || ''
+    );
+    return { products, purchaseId };
+  }
+
   async searchProducts(queryParams) {
     const products = await searchPosProducts(
       queryParams.search?.trim() || '',
@@ -121,33 +144,59 @@ export class BillingService {
       throw new AppError('At least one product is required', 400);
     }
 
-    if (data.customerId) {
-      const customer = await findCustomerById(data.customerId);
-      if (!customer) {
-        throw new AppError('Customer not found', 404);
-      }
-      if (!customer.is_active) {
-        throw new AppError('Selected customer is inactive', 400);
-      }
-    }
-
-    const payments = Array.isArray(data.payments) ? data.payments : [];
-    if (payments.length === 0) {
-      throw new AppError('At least one payment method is required', 400);
-    }
-
-    for (const payment of payments) {
-      if (!PAYMENT_METHODS.includes(payment.paymentMethod)) {
-        throw new AppError(`Invalid payment method: ${payment.paymentMethod}`, 400);
-      }
-      if (Number(payment.amount) <= 0) {
-        throw new AppError('Payment amount must be greater than 0', 400);
-      }
-    }
-
     const connection = await getConnection();
     try {
       await connection.beginTransaction();
+
+      let customerId = data.customerId || null;
+
+      if (!customerId && data.customer?.phone) {
+        const phoneCheck = validateIndianMobile(data.customer.phone);
+        if (!phoneCheck.valid) {
+          throw new AppError(phoneCheck.error, 400);
+        }
+
+        const phone = phoneCheck.display;
+        const existing = await findCustomerByPhone(phone);
+
+        if (existing) {
+          customerId = existing.id;
+        } else {
+          customerId = await createCustomerRecord(connection, {
+            name: String(data.customer.name || 'Customer').trim(),
+            phone,
+            village: data.customer.village?.trim() || null,
+            address: data.customer.address?.trim() || null,
+            notes: data.customer.notes?.trim() || null,
+            openingBalance: 0,
+            openingBalanceType: 'debit',
+            creditLimit: 0,
+            isActive: true,
+          });
+        }
+      } else if (customerId) {
+        const customer = await findCustomerById(customerId);
+        if (!customer) {
+          throw new AppError('Customer not found', 404);
+        }
+        if (!customer.is_active) {
+          throw new AppError('Selected customer is inactive', 400);
+        }
+      }
+
+      const payments = Array.isArray(data.payments) ? data.payments : [];
+      if (payments.length === 0) {
+        throw new AppError('Payment details are required', 400);
+      }
+
+      for (const payment of payments) {
+        if (!PAYMENT_METHODS.includes(payment.paymentMethod)) {
+          throw new AppError(`Invalid payment method: ${payment.paymentMethod}`, 400);
+        }
+        if (Number(payment.amount) <= 0) {
+          throw new AppError('Payment amount must be greater than 0', 400);
+        }
+      }
 
       const processedItems = [];
       for (const item of data.items) {
@@ -204,12 +253,12 @@ export class BillingService {
       const pendingAmount = Math.max(totalAmount - paidAmount, 0);
       const hasCreditPayment = payments.some((p) => p.paymentMethod === 'credit');
 
-      if (pendingAmount > 0 && !data.customerId) {
-        throw new AppError('Customer is required for credit or partial payments', 400);
+      if (pendingAmount > 0 && !customerId) {
+        throw new AppError('Customer name and mobile are required for partial or credit bills', 400);
       }
 
-      if (hasCreditPayment && !data.customerId) {
-        throw new AppError('Customer is required for credit sales', 400);
+      if (hasCreditPayment && !customerId) {
+        throw new AppError('Customer name and mobile are required for credit bills', 400);
       }
 
       const invoiceNumber = await getNextInvoiceNumber(connection);
@@ -217,7 +266,7 @@ export class BillingService {
 
       const saleId = await createSaleRecord(connection, {
         invoiceNumber,
-        customerId: data.customerId || null,
+        customerId,
         saleDate,
         subtotal,
         taxAmount,
@@ -274,12 +323,12 @@ export class BillingService {
         });
       }
 
-      if (data.customerId && pendingAmount > 0) {
-        const previousBalance = await getLatestCustomerBalance(connection, data.customerId);
+      if (customerId && pendingAmount > 0) {
+        const previousBalance = await getLatestCustomerBalance(connection, customerId);
         const newBalance = previousBalance + pendingAmount;
 
         await createLedgerEntry(connection, {
-          customerId: data.customerId,
+          customerId,
           transactionDate: saleDate,
           transactionType: 'sale',
           referenceType: 'sale',
@@ -334,14 +383,16 @@ export class BillingService {
     }
   }
 
-  async downloadInvoicePdf(saleId) {
+  async downloadInvoicePdf(saleId, thermal = false) {
     const { sale } = await this.getSaleById(saleId);
     const company = await getCompanySettings();
-    const buffer = await buildInvoicePdf(sale, company);
+    const buffer = thermal
+      ? await buildThermalInvoicePdf(sale, company)
+      : await buildInvoicePdf(sale, company);
 
     return {
       buffer,
-      filename: `${sale.invoiceNumber}.pdf`,
+      filename: `${sale.invoiceNumber}${thermal ? '-thermal' : ''}.pdf`,
       contentType: 'application/pdf',
     };
   }

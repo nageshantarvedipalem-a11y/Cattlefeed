@@ -23,3 +23,10 @@ export const formatStatusLabel = (status) => {
   };
   return labels[status] || status;
 };
+
+export const formatPaymentStatus = (status, paidAmount = 0) => {
+  if (status === 'paid') return 'PAID';
+  if (status === 'partial') return 'PARTIALLY PAID';
+  if (status === 'pending' && Number(paidAmount) === 0) return 'CREDIT';
+  return String(status || '').toUpperCase();
+};
