@@ -136,8 +136,8 @@ const PreviousBillsPanel = () => {
   const handlePrint = async (saleId) => {
     try {
       await printInvoicePdf(saleId);
-    } catch {
-      toast.error('Failed to print invoice PDF');
+    } catch (error) {
+      toast.error(error.message || 'Failed to print invoice');
     }
   };
 

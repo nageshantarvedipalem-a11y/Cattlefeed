@@ -26,7 +26,7 @@ const PosBillSuccessModal = ({
     try {
       await printInvoicePdf(sale.id);
     } catch (error) {
-      toast.error(error.message || 'Failed to print invoice PDF');
+      toast.error(error.message || 'Failed to print invoice');
     }
   };
 
