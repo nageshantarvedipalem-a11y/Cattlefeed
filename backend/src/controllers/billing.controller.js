@@ -33,7 +33,7 @@ export const createSale = asyncHandler(async (req, res) => {
 });
 
 export const downloadInvoice = asyncHandler(async (req, res) => {
-  const format = req.query.format || 'standard';
+  const format = req.query.format || 'html';
 
   if (format === 'html') {
     const result = await billingService.getInvoiceHtml(req.params.id);

@@ -1,50 +1,46 @@
 import billingService from '../services/billingService';
 import { parseApiErrorMessage } from './apiError';
 
-const printHtmlInIframe = (html) => new Promise((resolve, reject) => {
-  const iframe = document.createElement('iframe');
-  iframe.setAttribute('title', 'Invoice print');
-  iframe.style.position = 'fixed';
-  iframe.style.left = '-10000px';
-  iframe.style.top = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = '0';
-  iframe.style.visibility = 'hidden';
+const openPrintWindow = (html) => new Promise((resolve, reject) => {
+  const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=900,height=1200');
+  if (!printWindow) {
+    reject(new Error('Pop-up blocked. Allow pop-ups to print the invoice.'));
+    return;
+  }
 
-  const cleanup = () => {
-    iframe.remove();
-  };
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
 
-  iframe.onload = () => {
+  const triggerPrint = () => {
     setTimeout(() => {
       try {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
+        printWindow.focus();
+        printWindow.print();
         resolve();
       } catch (error) {
-        cleanup();
+        printWindow.close();
         reject(new Error('Failed to open print dialog'));
-        return;
       }
-      setTimeout(cleanup, 60000);
-    }, 600);
+    }, 800);
   };
 
-  iframe.onerror = () => {
-    cleanup();
-    reject(new Error('Failed to load invoice for printing'));
-  };
-
-  document.body.appendChild(iframe);
-  iframe.srcdoc = html;
+  if (printWindow.document.readyState === 'complete') {
+    triggerPrint();
+  } else {
+    printWindow.onload = triggerPrint;
+  }
 });
+
+const fetchInvoiceHtml = async (saleId) => {
+  const response = await billingService.downloadInvoice(saleId, 'html');
+  return typeof response.data === 'string' ? response.data : response.data.text();
+};
 
 export const printInvoicePdf = async (saleId) => {
   try {
-    const response = await billingService.downloadInvoice(saleId, 'html');
-    const html = typeof response.data === 'string' ? response.data : await response.data.text();
-    await printHtmlInIframe(html);
+    const html = await fetchInvoiceHtml(saleId);
+    await openPrintWindow(html);
   } catch (error) {
     const message = await parseApiErrorMessage(error, 'Failed to load invoice');
     throw new Error(message);
@@ -53,9 +49,8 @@ export const printInvoicePdf = async (saleId) => {
 
 export const downloadInvoicePdf = async (saleId) => {
   try {
-    const response = await billingService.downloadInvoice(saleId, 'html');
-    const html = typeof response.data === 'string' ? response.data : await response.data.text();
-    await printHtmlInIframe(html);
+    const html = await fetchInvoiceHtml(saleId);
+    await openPrintWindow(html);
   } catch (error) {
     const message = await parseApiErrorMessage(error, 'Failed to download invoice');
     throw new Error(message);

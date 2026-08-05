@@ -14,10 +14,10 @@ export const billingService = {
 
   createSale: (data) => api.post('/billing/sales', data),
 
-  downloadInvoice: (id, format = 'standard') =>
+  downloadInvoice: (id, format = 'html') =>
     api.get(`/billing/sales/${id}/invoice`, {
       params: { format },
-      responseType: format === 'html' ? 'text' : 'blob',
+      responseType: format === 'thermal' || format === 'pdf' ? 'blob' : 'text',
     }),
 };
 
