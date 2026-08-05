@@ -95,13 +95,15 @@ Click **New repository secret** for each:
 | `FTP_PASSWORD` | Yes | your FTP password |
 | `FTP_PORT` | No | `21` (default) |
 | `FTP_PROTOCOL` | No | `ftps` (recommended) or `ftp` |
-| `REMOTE_DIR` | Yes | `/public_html` |
+| `REMOTE_DIR` | Yes | `./` for domain FTP users (see note below) |
 | `VITE_API_BASE_URL` | Yes | `https://yellow-cobra-125039.hostingersite.com/api/cattlefeed/v1` |
 | `SITE_URL` | No | `https://lightsteelblue-bison-593262.hostingersite.com` |
 
+> **REMOTE_DIR for lightsteelblue FTP:** If your FTP username is `u289260512.lightsteelblue-bison-593262.hostingersite.com`, login already opens **inside** `public_html`. Set `REMOTE_DIR` to **`./`** — **not** `/public_html` (that folder does not exist from FTP and deploy will fail).
+>
 > **REMOTE_DIR troubleshooting:** If Actions shows green but the live site does not change, your FTP path is wrong. In Hostinger File Manager, open the folder that contains `index.html` for your site, then set `REMOTE_DIR` to that FTP path. Common values:
-> - `/public_html`
-> - `/domains/lightsteelblue-bison-593262.hostingersite.com/public_html`
+> - `./` — domain FTP account (username = `*.hostingersite.com`)
+> - `/public_html/` — generic FTP account that starts above web root
 
 > Never commit passwords. Only store in GitHub Secrets.
 

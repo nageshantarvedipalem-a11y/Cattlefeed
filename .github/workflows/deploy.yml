@@ -99,9 +99,16 @@ jobs:
       - name: Prepare FTP server path
         run: |
           DIR="${{ secrets.REMOTE_DIR }}"
-          if [ -z "$DIR" ]; then
-            echo "::error::REMOTE_DIR secret is not set."
-            exit 1
+          USER="${{ secrets.FTP_USERNAME }}"
+          # Hostinger "domain" FTP users (username ends with hostingersite.com) land
+          # directly in public_html — there is no nested /public_html folder.
+          if [ -z "$DIR" ] || [ "$DIR" = "/public_html" ] || [ "$DIR" = "/public_html/" ]; then
+            if echo "$USER" | grep -q 'hostingersite.com'; then
+              echo "Hostinger domain FTP account detected — using ./ (FTP root is already public_html)"
+              DIR="./"
+            elif [ -z "$DIR" ]; then
+              DIR="/public_html/"
+            fi
           fi
           case "$DIR" in
             */) ;;
