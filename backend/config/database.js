@@ -17,7 +17,7 @@ const dbConfig = {
 const pool = mysql.createPool({
   ...dbConfig,
   waitForConnections: true,
-  connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT, 10) || 3,
+  connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT, 10) || 100,
   queueLimit: 20,
   enableKeepAlive: true,
   keepAliveInitialDelay: 10000,
