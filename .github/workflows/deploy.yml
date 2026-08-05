@@ -97,17 +97,19 @@ jobs:
           echo "Using frontend FTP host (masked by GitHub)"
 
       - name: Prepare FTP server path
+        id: ftp
         run: |
           DIR="${{ secrets.REMOTE_DIR }}"
           USER="${{ secrets.FTP_USERNAME }}"
           # Hostinger "domain" FTP users (username ends with hostingersite.com) land
           # directly in public_html — there is no nested /public_html folder.
-          if [ -z "$DIR" ] || [ "$DIR" = "/public_html" ] || [ "$DIR" = "/public_html/" ]; then
+          if [ -z "$DIR" ] || [ "$DIR" = "/public_html" ] || [ "$DIR" = "/public_html/" ] || [ "$DIR" = "./" ] || [ "$DIR" = "." ]; then
             if echo "$USER" | grep -q 'hostingersite.com'; then
-              echo "Hostinger domain FTP account detected — using ./ (FTP root is already public_html)"
-              DIR="./"
+              echo "Hostinger domain FTP account detected — using / (FTP root is already public_html)"
+              DIR="/"
             elif [ -z "$DIR" ]; then
-              DIR="/public_html/"
+              echo "::error::REMOTE_DIR secret is not set."
+              exit 1
             fi
           fi
           case "$DIR" in
@@ -115,7 +117,8 @@ jobs:
             *) DIR="${DIR}/" ;;
           esac
           echo "FTP server-dir: $DIR"
-          echo "FTP_SERVER_DIR=$DIR" >> "$GITHUB_ENV"
+          # Use GITHUB_OUTPUT — ./ breaks GITHUB_ENV parsing (Invalid format error)
+          echo "server_dir=$DIR" >> "$GITHUB_OUTPUT"
 
       - name: Deploy to Hostinger FTP
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
@@ -127,7 +130,7 @@ jobs:
           port: ${{ secrets.FTP_PORT || 21 }}
           protocol: ${{ secrets.FTP_PROTOCOL || 'ftps' }}
           local-dir: ./frontend/dist/
-          server-dir: ${{ env.FTP_SERVER_DIR }}
+          server-dir: ${{ steps.ftp.outputs.server_dir }}
           dangerous-clean-slate: false
           log-level: verbose
           exclude: |
