@@ -3,7 +3,7 @@ import { FiDownload, FiPlus, FiPrinter, FiSearch } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import cashBookService from '../../services/cashBookService';
 import { useAuth } from '../../context/AuthContext';
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency, formatDate } from '../../utils/format';
 import { downloadBlob, getExportFilename } from '../../utils/download';
 import Pagination from '../../components/common/Pagination';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -27,6 +27,96 @@ const typeBadge = (type) => {
   if (outflowTypes.includes(type)) return 'bg-red-100 text-red-700';
   return 'bg-slate-100 text-slate-700';
 };
+
+const COLUMNS = [
+  { key: 'date', label: 'Date', align: 'left', width: '9%' },
+  { key: 'type', label: 'Type', align: 'left', width: '8%' },
+  { key: 'category', label: 'Category', align: 'left', width: '12%' },
+  { key: 'method', label: 'Method', align: 'left', width: '7%' },
+  { key: 'amount', label: 'Amount', align: 'right', width: '11%' },
+  { key: 'balance', label: 'Balance', align: 'right', width: '11%' },
+  { key: 'reference', label: 'Reference', align: 'left', width: '12%' },
+  { key: 'remarks', label: 'Remarks', align: 'left', width: '30%' },
+];
+
+const headCellClass = (align) =>
+  `px-3 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 ${
+    align === 'right' ? 'text-right' : 'text-left'
+  }`;
+
+const bodyCellClass = (align) =>
+  `px-3 py-2.5 text-sm align-middle ${
+    align === 'right' ? 'text-right tabular-nums whitespace-nowrap' : 'text-left'
+  }`;
+
+const formatReference = (entry) => {
+  if (!entry.referenceType) return '—';
+  const label = String(entry.referenceType).replace(/_/g, ' ');
+  const titled = label.charAt(0).toUpperCase() + label.slice(1);
+  return entry.referenceId ? `${titled} #${entry.referenceId}` : titled;
+};
+
+const CashBookTable = ({ entries, isCustomPending }) => (
+  <div className="min-h-0 flex-1 overflow-auto">
+    <table className="w-full min-w-[920px] border-collapse" style={{ tableLayout: 'fixed' }}>
+      <colgroup>
+        {COLUMNS.map((col) => (
+          <col key={col.key} style={{ width: col.width }} />
+        ))}
+      </colgroup>
+      <thead className="sticky top-0 z-10 bg-slate-50 shadow-[inset_0_-1px_0_#e2e8f0]">
+        <tr>
+          {COLUMNS.map((col) => (
+            <th key={col.key} className={headCellClass(col.align)}>
+              {col.label}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-slate-100 bg-white">
+        {isCustomPending ? (
+          <tr>
+            <td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-500">
+              Select from and to dates for custom range
+            </td>
+          </tr>
+        ) : entries.length === 0 ? (
+          <tr>
+            <td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-500">
+              No cash book entries for this period
+            </td>
+          </tr>
+        ) : (
+          entries.map((entry) => (
+            <tr key={entry.id} className="hover:bg-slate-50/80">
+              <td className={`${bodyCellClass('left')} whitespace-nowrap text-slate-700`}>
+                {formatDate(entry.transactionDate)}
+              </td>
+              <td className={bodyCellClass('left')}>
+                <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${typeBadge(entry.transactionType)}`}>
+                  {TYPE_LABELS[entry.transactionType] || entry.transactionType}
+                </span>
+              </td>
+              <td className={`${bodyCellClass('left')} text-slate-700`}>{entry.category || '—'}</td>
+              <td className={`${bodyCellClass('left')} uppercase text-slate-600`}>{entry.paymentMethod || '—'}</td>
+              <td className={`${bodyCellClass('right')} font-medium ${inflowTypes.includes(entry.transactionType) ? 'text-emerald-700' : 'text-red-700'}`}>
+                {inflowTypes.includes(entry.transactionType) ? '+' : '−'}
+                {formatCurrency(entry.amount)}
+              </td>
+              <td className={`${bodyCellClass('right')} font-semibold text-slate-900`}>
+                {formatCurrency(entry.balanceAfter)}
+              </td>
+              <td className={`${bodyCellClass('left')} capitalize text-slate-600`}>
+                {formatReference(entry)}
+              </td>
+              <td className={`${bodyCellClass('left')} text-slate-600`}>{entry.remarks || '—'}</td>
+            </tr>
+          ))
+        )}
+      </tbody>
+    </table>
+  </div>
+);
 
 const CashBookPage = () => {
   const { checkPermission } = useAuth();
@@ -122,9 +212,9 @@ const CashBookPage = () => {
   };
 
   return (
-    <div>
-      <div id="cashbook-print-area">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="flex h-0 min-h-0 flex-1 flex-col overflow-hidden">
+      <div id="cashbook-print-area" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="mb-4 flex shrink-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Cash Book</h1>
             <p className="mt-1 text-sm text-slate-500">Cash in/out, income, expenses, and running balance</p>
@@ -152,7 +242,7 @@ const CashBookPage = () => {
         </div>
 
         {summary && (
-          <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="mb-4 grid shrink-0 gap-4 sm:grid-cols-2 lg:grid-cols-5">
             {[
               { label: 'Opening Balance', value: summary.openingBalance, color: 'text-slate-900' },
               { label: 'Total Inflow', value: summary.totalInflow, color: 'text-emerald-700' },
@@ -168,7 +258,7 @@ const CashBookPage = () => {
           </div>
         )}
 
-        <div className="mb-4 flex flex-wrap gap-2 print:hidden">
+        <div className="mb-4 flex shrink-0 flex-wrap gap-2 print:hidden">
           <div className="relative min-w-[200px] flex-1 max-w-md">
             <FiSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
@@ -210,57 +300,13 @@ const CashBookPage = () => {
           </select>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           {loading && !entries.length ? (
             <div className="py-16"><LoadingSpinner /></div>
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      {['Date', 'Type', 'Category', 'Method', 'Amount', 'Balance', 'Reference', 'Remarks'].map((h) => (
-                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {isCustomPending ? (
-                      <tr>
-                        <td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-500">
-                          Select from and to dates for custom range
-                        </td>
-                      </tr>
-                    ) : entries.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-500">No cash book entries for this period</td>
-                      </tr>
-                    ) : (
-                      entries.map((entry) => (
-                        <tr key={entry.id} className="hover:bg-slate-50">
-                          <td className="px-4 py-3 text-sm">{entry.transactionDate}</td>
-                          <td className="px-4 py-3">
-                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize ${typeBadge(entry.transactionType)}`}>
-                              {TYPE_LABELS[entry.transactionType] || entry.transactionType}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-slate-700">{entry.category || '—'}</td>
-                          <td className="px-4 py-3 text-sm uppercase text-slate-600">{entry.paymentMethod}</td>
-                          <td className={`px-4 py-3 text-sm font-medium ${inflowTypes.includes(entry.transactionType) ? 'text-emerald-700' : 'text-red-700'}`}>
-                            {inflowTypes.includes(entry.transactionType) ? '+' : '−'}{formatCurrency(entry.amount)}
-                          </td>
-                          <td className="px-4 py-3 text-sm font-medium text-slate-900">{formatCurrency(entry.balanceAfter)}</td>
-                          <td className="px-4 py-3 text-sm capitalize text-slate-600">
-                            {entry.referenceType || '—'}{entry.referenceId ? ` #${entry.referenceId}` : ''}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-slate-600">{entry.remarks || '—'}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              <div className="print:hidden">
+              <CashBookTable entries={entries} isCustomPending={isCustomPending} />
+              <div className="shrink-0 border-t border-slate-200 bg-white print:hidden">
                 <Pagination page={page} totalPages={pagination.totalPages} total={pagination.total} limit={limit} onPageChange={setPage} />
               </div>
             </>

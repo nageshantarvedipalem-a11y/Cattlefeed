@@ -30,3 +30,14 @@ export const formatPaymentStatus = (status, paidAmount = 0) => {
   if (status === 'pending' && Number(paidAmount) === 0) return 'CREDIT';
   return String(status || '').toUpperCase();
 };
+
+export const formatDate = (value) => {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+};

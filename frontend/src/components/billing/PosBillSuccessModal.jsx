@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { formatCurrency, formatPaymentStatus } from '../../utils/format';
 import { downloadBlob } from '../../utils/download';
 import { printInvoicePdf } from '../../utils/printInvoice';
+import { parseApiErrorMessage } from '../../utils/apiError';
 import billingService from '../../services/billingService';
 
 const PosBillSuccessModal = ({
@@ -20,7 +21,8 @@ const PosBillSuccessModal = ({
       const response = await billingService.downloadInvoice(sale.id, false);
       downloadBlob(response.data, `${sale.invoiceNumber}.pdf`);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to download invoice PDF');
+      const message = await parseApiErrorMessage(error, 'Failed to download invoice PDF');
+      toast.error(message);
     }
   };
 
@@ -28,7 +30,7 @@ const PosBillSuccessModal = ({
     try {
       await printInvoicePdf(sale.id);
     } catch (error) {
-      toast.error(error.response?.data?.message || error.message || 'Failed to print invoice PDF');
+      toast.error(error.message || 'Failed to print invoice PDF');
     }
   };
 

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { testConnection, query } from '../../config/database.js';
+import { query } from '../../config/database.js';
 import { asyncHandler, sendSuccess } from '../utils/apiResponse.js';
 import appConfig, { getApiPrefix, getApiUrl } from '../../config/app.config.js';
 
@@ -10,7 +10,6 @@ router.get('/', asyncHandler(async (req, res) => {
   let databaseName = process.env.DB_NAME || 'cattle_feed_erp';
 
   try {
-    await testConnection(true);
     const [dbInfo] = await query('SELECT DATABASE() AS db_name');
     database = 'online';
     databaseName = dbInfo?.db_name || databaseName;

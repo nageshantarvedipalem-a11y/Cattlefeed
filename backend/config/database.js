@@ -34,19 +34,6 @@ const RETRYABLE_DB_ERRORS = new Set([
 const isRetryableDbError = (error) =>
   RETRYABLE_DB_ERRORS.has(error?.code) || error?.errno === 'ECONNRESET';
 
-const closeConnection = async (connection) => {
-  if (!connection) return;
-  try {
-    await connection.end();
-  } catch {
-    try {
-      connection.destroy();
-    } catch {
-      // ignore
-    }
-  }
-};
-
 pool.on('connection', (connection) => {
   connection.on('error', (err) => {
     logger.warn(`MySQL pool connection error: ${err.code || err.message}`);
@@ -54,27 +41,19 @@ pool.on('connection', (connection) => {
 });
 
 export const testConnection = async (silent = false) => {
-  const connection = await mysql.createConnection(dbConfig);
-  try {
-    await connection.ping();
-    if (!silent) {
-      logger.info('MySQL database connected successfully');
-    }
-    return true;
-  } finally {
-    await closeConnection(connection);
+  await pool.query('SELECT 1');
+  if (!silent) {
+    logger.info('MySQL database connected successfully');
   }
+  return true;
 };
 
 export const query = async (sql, params = [], retries = 2) => {
   let lastError;
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
-    let connection;
-
     try {
-      connection = await mysql.createConnection(dbConfig);
-      const [rows] = await connection.execute(sql, params);
+      const [rows] = await pool.execute(sql, params);
       return rows;
     } catch (error) {
       lastError = error;
@@ -86,8 +65,6 @@ export const query = async (sql, params = [], retries = 2) => {
       }
 
       throw error;
-    } finally {
-      await closeConnection(connection);
     }
   }
 

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { testConnection, query } from '../../config/database.js';
+import { query } from '../../config/database.js';
 import { asyncHandler, sendSuccess } from '../utils/apiResponse.js';
 import appConfig, { getApiPrefix } from '../../config/app.config.js';
 
@@ -22,7 +22,6 @@ router.get('/', asyncHandler(async (_req, res) => {
   };
 
   try {
-    await testConnection(true);
     const [dbInfo] = await query('SELECT DATABASE() AS db_name, NOW() AS server_time');
     payload.database = 'online';
     payload.databaseName = dbInfo?.db_name || payload.databaseName;

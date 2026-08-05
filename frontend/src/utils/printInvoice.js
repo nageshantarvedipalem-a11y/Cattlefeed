@@ -1,22 +1,13 @@
 import billingService from '../services/billingService';
-
-const getApiErrorMessage = (error, fallback) => {
-  const blobMessage = error?.response?.data?.message;
-  if (typeof blobMessage === 'string') return blobMessage;
-
-  if (error?.response?.data instanceof Blob) {
-    return fallback;
-  }
-
-  return error?.response?.data?.message || error.message || fallback;
-};
+import { parseApiErrorMessage } from './apiError';
 
 export const printInvoicePdf = async (saleId) => {
   let response;
   try {
     response = await billingService.downloadInvoice(saleId, false);
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to load invoice PDF'));
+    const message = await parseApiErrorMessage(error, 'Failed to load invoice PDF');
+    throw new Error(message);
   }
 
   const blob = new Blob([response.data], { type: 'application/pdf' });

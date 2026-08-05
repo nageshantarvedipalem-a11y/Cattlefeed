@@ -9,8 +9,7 @@ export const login = asyncHandler(async (req, res) => {
 });
 
 export const me = asyncHandler(async (req, res) => {
-  const user = await authService.getProfile(req.user.id);
-  sendSuccess(res, { user }, 'Profile fetched successfully');
+  sendSuccess(res, { user: req.user }, 'Profile fetched successfully');
 });
 
 export const logout = asyncHandler(async (req, res) => {

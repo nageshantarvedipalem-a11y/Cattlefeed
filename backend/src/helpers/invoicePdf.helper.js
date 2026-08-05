@@ -1,5 +1,6 @@
 import PDFDocument from 'pdfkit';
 import { formatCurrency } from '../utils/formatCurrency.helper.js';
+import { logger } from '../utils/logger.js';
 import { buildInvoiceHtml } from './invoiceHtml.helper.js';
 import { launchBrowser } from './puppeteerBrowser.helper.js';
 
@@ -15,41 +16,124 @@ const getBrowser = async () => {
   return browserPromise;
 };
 
-export const buildInvoicePdf = async (sale, company) => {
-  const html = buildInvoiceHtml(sale, company);
-  let browser;
-
-  try {
-    browser = await getBrowser();
-    const page = await browser.newPage();
-
-    try {
-      await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
-      await page.emulateMediaType('print');
-      const pdfBuffer = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        preferCSSPageSize: true,
-        margin: { top: '0', right: '0', bottom: '0', left: '0' },
-      });
-      return Buffer.from(pdfBuffer);
-    } finally {
-      await page.close();
-    }
-  } catch (error) {
-    browserPromise = null;
-    const hint = error.message?.includes('Could not find Chrome')
-      ? ' Install Chrome or run: cd backend && npm run install:chrome'
-      : '';
-    throw new Error(`Invoice PDF generation failed: ${error.message}${hint}`);
-  }
-};
-
 const paymentStatusLabel = (sale) => {
   if (sale.paymentStatus === 'paid') return 'PAID';
   if (sale.paymentStatus === 'partial') return 'PARTIALLY PAID';
   if (Number(sale.paidAmount) === 0) return 'CREDIT';
   return String(sale.paymentStatus || '').toUpperCase();
+};
+
+const buildStandardInvoicePdfKit = (sale, company) => new Promise((resolve, reject) => {
+  const doc = new PDFDocument({ margin: 50, size: 'A4' });
+  const chunks = [];
+  const currency = company.currency_symbol || '₹';
+  const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+
+  doc.on('data', (chunk) => chunks.push(chunk));
+  doc.on('end', () => resolve(Buffer.concat(chunks)));
+  doc.on('error', reject);
+
+  doc.fontSize(22).font('Helvetica-Bold').text('TAX INVOICE', { align: 'right' });
+  doc.fontSize(10).font('Helvetica').text(company.company_name || 'Cattle Feed ERP', { align: 'right' });
+  if (company.company_address) doc.text(company.company_address, { align: 'right' });
+  if (company.company_phone) doc.text(`Phone: ${company.company_phone}`, { align: 'right' });
+  if (company.company_gst) doc.text(`GST: ${company.company_gst}`, { align: 'right' });
+
+  doc.moveDown(1);
+  doc.fontSize(10).font('Helvetica-Bold');
+  doc.text(`Invoice No: ${sale.invoiceNumber}`);
+  doc.font('Helvetica').text(`Date: ${new Date(sale.saleDate).toLocaleDateString('en-IN')}`);
+  doc.moveDown(0.5);
+  doc.font('Helvetica-Bold').text('Bill To:');
+  doc.font('Helvetica').text(sale.customerName || 'Walk-in Customer');
+  if (sale.customerPhone) doc.text(`Phone: ${sale.customerPhone}`);
+
+  const tableTop = doc.y + 12;
+  const colWidths = [30, pageWidth - 210, 60, 50, 70];
+  const headers = ['#', 'Product', 'Rate', 'Qty', 'Amount'];
+  let x = doc.page.margins.left;
+
+  doc.font('Helvetica-Bold').fontSize(9);
+  headers.forEach((header, i) => {
+    doc.text(header, x, tableTop, { width: colWidths[i], align: i >= 2 ? 'right' : 'left' });
+    x += colWidths[i];
+  });
+
+  doc.moveTo(doc.page.margins.left, tableTop + 14)
+    .lineTo(doc.page.width - doc.page.margins.right, tableTop + 14)
+    .stroke();
+
+  let rowY = tableTop + 20;
+  doc.font('Helvetica').fontSize(9);
+  (sale.items || []).forEach((item, index) => {
+    x = doc.page.margins.left;
+    const cells = [
+      String(index + 1),
+      item.productName,
+      formatCurrency(item.sellingPrice, currency),
+      String(item.quantity),
+      formatCurrency(item.totalAmount, currency),
+    ];
+    cells.forEach((cell, i) => {
+      doc.text(cell, x, rowY, { width: colWidths[i], align: i >= 2 ? 'right' : 'left' });
+      x += colWidths[i];
+    });
+    rowY += 18;
+  });
+
+  doc.y = rowY + 10;
+  const totalsX = doc.page.width - doc.page.margins.right - 180;
+  const addTotalRow = (label, value, bold = false) => {
+    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(10);
+    doc.text(label, totalsX, doc.y, { width: 90, continued: false });
+    doc.text(value, totalsX + 90, doc.y - 12, { width: 90, align: 'right' });
+    doc.moveDown(0.3);
+  };
+
+  addTotalRow('Subtotal', formatCurrency(sale.subtotal, currency));
+  if (Number(sale.discountAmount) > 0) {
+    addTotalRow('Discount', `-${formatCurrency(sale.discountAmount, currency)}`);
+  }
+  addTotalRow('GST', formatCurrency(sale.taxAmount, currency));
+  addTotalRow('Grand Total', formatCurrency(sale.totalAmount, currency), true);
+  addTotalRow('Paid', formatCurrency(sale.paidAmount, currency));
+  addTotalRow('Pending', formatCurrency(sale.pendingAmount, currency));
+  addTotalRow('Payment', (sale.primaryPaymentMethod || 'cash').toUpperCase());
+  addTotalRow('Status', paymentStatusLabel(sale));
+
+  doc.moveDown(2);
+  doc.fontSize(9).font('Helvetica').text('Thank you for your business!', { align: 'center' });
+  doc.end();
+});
+
+const buildInvoicePdfWithPuppeteer = async (sale, company) => {
+  const html = buildInvoiceHtml(sale, company);
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+
+  try {
+    await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
+    await page.emulateMediaType('print');
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: { top: '0', right: '0', bottom: '0', left: '0' },
+    });
+    return Buffer.from(pdfBuffer);
+  } finally {
+    await page.close();
+  }
+};
+
+export const buildInvoicePdf = async (sale, company) => {
+  try {
+    return await buildInvoicePdfWithPuppeteer(sale, company);
+  } catch (error) {
+    browserPromise = null;
+    logger.warn(`Puppeteer invoice PDF failed, using PDFKit fallback: ${error.message}`);
+    return buildStandardInvoicePdfKit(sale, company);
+  }
 };
 
 export const buildThermalInvoicePdf = (sale, company) => new Promise((resolve, reject) => {
