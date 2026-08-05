@@ -75,6 +75,20 @@ jobs:
           grep -q 'assets/index-' dist/index.html
           echo "Built bundle: $(grep -o 'assets/index-[^\"]*\\.js' dist/index.html | head -1)"
 
+      - name: Prepare FTP server path
+        run: |
+          DIR="${{ secrets.REMOTE_DIR }}"
+          if [ -z "$DIR" ]; then
+            echo "::error::REMOTE_DIR secret is not set."
+            exit 1
+          fi
+          case "$DIR" in
+            */) ;;
+            *) DIR="${DIR}/" ;;
+          esac
+          echo "FTP server-dir: $DIR"
+          echo "FTP_SERVER_DIR=$DIR" >> "$GITHUB_ENV"
+
       - name: Deploy to Hostinger FTP
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
@@ -85,7 +99,7 @@ jobs:
           port: ${{ secrets.FTP_PORT || 21 }}
           protocol: ${{ secrets.FTP_PROTOCOL || 'ftps' }}
           local-dir: ./frontend/dist/
-          server-dir: ${{ secrets.REMOTE_DIR }}
+          server-dir: ${{ env.FTP_SERVER_DIR }}
           dangerous-clean-slate: false
           log-level: verbose
           exclude: |
@@ -114,7 +128,7 @@ jobs:
             echo "✅ Live site matches deployed build"
           else
             echo "::warning::Live site still shows old bundle."
-            echo "::warning::Fix GitHub secret REMOTE_DIR — use only: /public_html"
+            echo "::warning::Fix GitHub secret REMOTE_DIR — use only: /public_html/ (trailing slash optional)"
           fi
 
       - name: Skip FTP (dry run)
