@@ -128,7 +128,7 @@ jobs:
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           port: ${{ secrets.FTP_PORT || 21 }}
-          protocol: ${{ secrets.FTP_PROTOCOL || 'ftps' }}
+          protocol: ${{ secrets.FTP_PROTOCOL || 'ftp' }}
           local-dir: ./frontend/dist/
           server-dir: ${{ steps.ftp.outputs.server_dir }}
           dangerous-clean-slate: false
@@ -144,10 +144,9 @@ jobs:
         env:
           SITE_URL: ${{ secrets.SITE_URL }}
         working-directory: ${{ env.WORKING_DIRECTORY }}
-        continue-on-error: true
         run: |
           if [ -z "$SITE_URL" ]; then
-            echo "SITE_URL secret not set — skipping live verification"
+            echo "::warning::SITE_URL secret not set — skipping live verification"
             exit 0
           fi
           BUILT=$(grep -o 'assets/index-[^\"]*\\.js' dist/index.html | head -1)
@@ -158,8 +157,9 @@ jobs:
           if [ "$BUILT" = "$LIVE" ]; then
             echo "✅ Live site matches deployed build"
           else
-            echo "::warning::Live site still shows old bundle."
-            echo "::warning::Fix GitHub secret REMOTE_DIR — use only: /public_html/ (trailing slash optional)"
+            echo "::error::Live site still shows old bundle ($LIVE vs $BUILT)."
+            echo "::error::FTP upload did not update the website — check FTP credentials and REMOTE_DIR."
+            exit 1
           fi
 
       - name: Skip FTP (dry run)
