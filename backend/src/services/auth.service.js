@@ -37,23 +37,20 @@ export class AuthService {
       throw new AppError('Invalid username or password', 401);
     }
 
-    await updateLastLogin(user.id);
-
     const sanitized = sanitizeUser(user);
     const token = signAccessToken({
       userId: sanitized.id,
-      roleId: sanitized.roleId,
-      roleName: sanitized.roleName,
-      username: sanitized.username,
+      user: sanitized,
     });
 
-    await logActivity({
+    updateLastLogin(user.id).catch(() => {});
+    logActivity({
       userId: user.id,
       action: 'login_success',
       entityType: 'user',
       entityId: user.id,
       ipAddress,
-    });
+    }).catch(() => {});
 
     return { user: sanitized, token };
   }

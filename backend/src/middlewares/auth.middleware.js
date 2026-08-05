@@ -14,16 +14,23 @@ export const authenticate = async (req, res, next) => {
     const token = authHeader.split(' ')[1];
     const decoded = verifyAccessToken(token);
 
+    if (decoded.user?.id) {
+      req.user = decoded.user;
+      req.token = token;
+      return next();
+    }
+
     let user = getCachedUser(decoded.userId);
     if (!user) {
       user = await findUserById(decoded.userId);
       if (!user) {
         throw new AppError('User account not found or inactive', 401);
       }
+      user = sanitizeUser(user);
       setCachedUser(decoded.userId, user);
     }
 
-    req.user = sanitizeUser(user);
+    req.user = user;
     req.token = token;
     next();
   } catch (error) {

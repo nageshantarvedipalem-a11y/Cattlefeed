@@ -4,8 +4,18 @@ import { asyncHandler, sendSuccess } from '../utils/apiResponse.js';
 import appConfig, { getApiPrefix } from '../../config/app.config.js';
 
 const router = Router();
+let healthCache = { at: 0, payload: null };
 
 router.get('/', asyncHandler(async (_req, res) => {
+  const now = Date.now();
+  if (healthCache.payload && now - healthCache.at < 60000) {
+    return sendSuccess(
+      res,
+      healthCache.payload.data,
+      healthCache.payload.message
+    );
+  }
+
   const payload = {
     status: 'healthy',
     project: appConfig.projectSlug,
@@ -35,6 +45,13 @@ router.get('/', asyncHandler(async (_req, res) => {
   }
 
   sendSuccess(res, payload, payload.database === 'online' ? 'API is running' : 'API is running but database is offline');
+  healthCache = {
+    at: Date.now(),
+    payload: {
+      data: payload,
+      message: payload.database === 'online' ? 'API is running' : 'API is running but database is offline',
+    },
+  };
 }));
 
 export default router;
