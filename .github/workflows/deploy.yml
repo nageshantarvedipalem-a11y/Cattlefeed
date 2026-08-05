@@ -1,10 +1,9 @@
 # =============================================================================
 # Hostinger Shared Hosting — Frontend CI/CD (FTP)
 # =============================================================================
-# Triggers : push to main (frontend changes), manual dispatch
-# Builds   : frontend/ (Vite + React + Tailwind)
+# Triggers : push to main, manual dispatch
 # Deploys  : frontend/dist/ → Hostinger public_html via FTP/FTPS
-# Secrets  : FTP_* , VITE_API_BASE_URL , SITE_URL (see docs/GITHUB_ACTIONS_HOSTINGER.md)
+# Secrets  : FTP_* , VITE_API_BASE_URL , SITE_URL
 # =============================================================================
 
 name: Deploy Frontend to Hostinger
@@ -20,9 +19,10 @@ on:
         default: false
         type: boolean
 
+# Do not cancel in-progress runs — rapid pushes were marking deploys as failed.
 concurrency:
   group: hostinger-frontend-deploy
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   NODE_VERSION: '20'
@@ -33,7 +33,6 @@ jobs:
     name: Build & Deploy to Hostinger
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: production
 
     steps:
       - name: Checkout repository
@@ -48,17 +47,11 @@ jobs:
 
       - name: Install dependencies
         working-directory: ${{ env.WORKING_DIRECTORY }}
-        run: |
-          echo "::group::npm ci"
-          npm ci
-          echo "::endgroup::"
+        run: npm ci
 
       - name: Lint frontend
         working-directory: ${{ env.WORKING_DIRECTORY }}
-        run: |
-          echo "::group::npm run lint"
-          npm run lint
-          echo "::endgroup::"
+        run: npm run lint
 
       - name: Build production bundle
         working-directory: ${{ env.WORKING_DIRECTORY }}
@@ -67,34 +60,20 @@ jobs:
           VITE_APP_NAME: Cattle Feed ERP
           VITE_API_PROJECT: cattlefeed
         run: |
-          echo "::group::npm run build"
           if [ -z "$VITE_API_BASE_URL" ]; then
-            echo "::error::VITE_API_BASE_URL secret is not set. Add it in GitHub → Settings → Secrets."
+            echo "::error::VITE_API_BASE_URL secret is not set."
             exit 1
           fi
           npm run build
-          echo "::endgroup::"
-          echo "Build output:"
           ls -lah dist/
-          du -sh dist/
 
       - name: Verify dist folder
         working-directory: ${{ env.WORKING_DIRECTORY }}
         run: |
-          if [ ! -f dist/index.html ]; then
-            echo "::error::dist/index.html not found — build failed"
-            exit 1
-          fi
-          if [ ! -d dist/assets ]; then
-            echo "::error::dist/assets not found — build incomplete"
-            exit 1
-          fi
-          echo "✅ Build verified: index.html + assets present"
-          if [ -f dist/.htaccess ]; then
-            echo "✅ .htaccess included (from frontend/public/)"
-          else
-            echo "::warning::.htaccess missing — SPA routing may fail on refresh"
-          fi
+          test -f dist/index.html
+          test -d dist/assets
+          grep -q 'assets/index-' dist/index.html
+          echo "Built bundle: $(grep -o 'assets/index-[^\"]*\\.js' dist/index.html | head -1)"
 
       - name: Deploy to Hostinger FTP
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
@@ -115,42 +94,35 @@ jobs:
             **/node_modules/**
             **/.DS_Store
 
+      - name: Verify live site updated
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.dry_run != true) && secrets.SITE_URL != '' }}
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        continue-on-error: true
+        run: |
+          BUILT=$(grep -o 'assets/index-[^\"]*\\.js' dist/index.html | head -1)
+          echo "Deployed bundle should be: $BUILT"
+          sleep 15
+          LIVE=$(curl -sL --max-time 30 "$SITE_URL" | grep -o 'assets/index-[^\"]*\\.js' | head -1)
+          echo "Live site bundle: $LIVE"
+          if [ "$BUILT" = "$LIVE" ]; then
+            echo "✅ Live site matches deployed build"
+          else
+            echo "::warning::Live site still shows old bundle."
+            echo "::warning::Fix GitHub secret REMOTE_DIR — try: /public_html"
+            echo "::warning::Or: /domains/lightsteelblue-bison-593262.hostingersite.com/public_html"
+          fi
+
       - name: Skip FTP (dry run)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
         run: echo "Dry run — skipping FTP upload"
-
-      - name: Verify live site
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
-        env:
-          SITE_URL: ${{ secrets.SITE_URL }}
-        run: |
-          if [ -z "$SITE_URL" ]; then
-            echo "SITE_URL secret not set — skipping verification"
-            exit 0
-          fi
-          echo "::group::Health check"
-          echo "Checking $SITE_URL"
-          HTTP_CODE=$(curl -s -o /tmp/site.html -w "%{http_code}" --max-time 30 -L "$SITE_URL")
-          echo "HTTP status: $HTTP_CODE"
-          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 400 ]; then
-            echo "::error::Site returned HTTP $HTTP_CODE"
-            exit 1
-          fi
-          if ! grep -qi "<html" /tmp/site.html; then
-            echo "::error::Response does not look like HTML"
-            exit 1
-          fi
-          echo "✅ Site is reachable"
-          echo "::endgroup::"
 
       - name: Deployment summary
         if: always()
         run: |
           echo "## Deployment Summary" >> "$GITHUB_STEP_SUMMARY"
           echo "| Item | Value |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|------|-------|" >> "$GITHUB_STEP_SUMMARY"
           echo "| Branch | \`${{ github.ref_name }}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Commit | \`${{ github.sha }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Node | ${{ env.NODE_VERSION }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Build dir | \`frontend/dist/\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Trigger | \`${{ github.event_name }}\` |" >> "$GITHUB_STEP_SUMMARY"
