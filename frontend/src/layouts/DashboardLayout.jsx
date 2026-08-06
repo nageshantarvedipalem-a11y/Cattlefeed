@@ -63,36 +63,26 @@ const Sidebar = ({ expanded = false, onNavigate }) => {
 
   const rowClass = (isActive, extra = '') =>
     [
-      'flex h-10 w-full cursor-pointer items-center rounded-xl text-[13px] font-medium transition-all duration-200',
-      expanded
-        ? 'gap-3 px-3'
-        : 'justify-center px-0 group-hover/sidebar:justify-start group-hover/sidebar:gap-3 group-hover/sidebar:px-3',
+      'flex h-10 w-full cursor-pointer items-center gap-3 px-3 rounded-xl text-[13px] font-medium',
+      'transition-[background-color,color,box-shadow] duration-200 ease-in-out',
       isActive
         ? 'sidebar-nav-active text-white shadow-sm'
         : 'text-emerald-100/80 hover:bg-white/10 hover:text-white',
       extra,
     ].join(' ');
 
-  const textClass = expanded
-    ? 'inline truncate'
-    : 'hidden group-hover/sidebar:inline truncate';
-
-  const contentPad = expanded ? 'px-3' : 'px-2 group-hover/sidebar:px-3';
+  const sidebarClass = expanded
+    ? 'sidebar-shell is-expanded w-64'
+    : 'sidebar-shell w-[4.25rem] hover:w-64 hover:shadow-2xl hover:shadow-primary-950/50';
 
   return (
     <aside
-      className={`group/sidebar flex h-full shrink-0 flex-col overflow-hidden border-r border-primary-800/40 bg-gradient-to-b from-primary-950 via-primary-900 to-primary-950 text-white transition-[width] duration-300 ease-in-out ${
-        expanded ? 'w-64' : 'w-[4.25rem] hover:w-64 hover:shadow-2xl hover:shadow-primary-950/50'
-      }`}
+      className={`group/sidebar flex h-full shrink-0 flex-col overflow-hidden border-r border-primary-800/40 bg-gradient-to-b from-primary-950 via-primary-900 to-primary-950 text-white ${sidebarClass}`}
     >
-      <div className={`flex flex-1 flex-col overflow-hidden ${contentPad}`}>
-        <div
-          className={`flex h-[4.25rem] shrink-0 items-center border-b border-white/10 ${
-            expanded ? 'gap-3' : 'justify-center group-hover/sidebar:justify-start group-hover/sidebar:gap-3'
-          }`}
-        >
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex h-[4.25rem] shrink-0 items-center gap-3 border-b border-white/10 px-3">
           <AppLogo size="sm" imageClassName="bg-white ring-slate-200" />
-          <div className={expanded ? 'min-w-0' : 'hidden min-w-0 group-hover/sidebar:block'}>
+          <div className="sidebar-label min-w-0">
             <p className="truncate text-sm font-bold leading-tight text-white">Cattle Feed ERP</p>
             <p className="truncate text-[10px] font-medium uppercase tracking-wider text-amber-300/80">
               Feed Business Suite
@@ -100,7 +90,7 @@ const Sidebar = ({ expanded = false, onNavigate }) => {
           </div>
         </div>
 
-        <nav className="flex-1 space-y-0.5 overflow-y-auto py-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <nav className="flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden py-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {visibleNavItems.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
@@ -111,7 +101,7 @@ const Sidebar = ({ expanded = false, onNavigate }) => {
               className={({ isActive }) => rowClass(isActive)}
             >
               <Icon className="h-[1.125rem] w-[1.125rem] shrink-0" />
-              <span className={textClass}>{label}</span>
+              <span className="sidebar-label truncate">{label}</span>
             </NavLink>
           ))}
         </nav>
@@ -124,7 +114,7 @@ const Sidebar = ({ expanded = false, onNavigate }) => {
             className={rowClass(false, 'text-red-300 hover:bg-red-950/40 hover:text-red-200')}
           >
             <FiLogOut className="h-[1.125rem] w-[1.125rem] shrink-0" />
-            <span className={textClass}>Logout</span>
+            <span className="sidebar-label truncate">Logout</span>
           </button>
         </div>
       </div>
