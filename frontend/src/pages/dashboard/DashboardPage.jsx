@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
   Cell,
   Legend,
@@ -32,6 +34,11 @@ import toast from 'react-hot-toast';
 import dashboardService from '../../services/dashboardService';
 import { useAuth } from '../../context/AuthContext';
 import { formatCurrency } from '../../utils/format';
+import {
+  formatChartCurrency,
+  prepareTimeSeries,
+  withDisplayLabels,
+} from '../../utils/chartFormat';
 import { getCached } from '../../utils/apiCache';
 import DashboardChartCard from '../../components/dashboard/DashboardChartCard';
 import DashboardStatCard from '../../components/dashboard/DashboardStatCard';
@@ -45,11 +52,15 @@ const statusBadge = {
   pending: 'bg-red-100 text-red-800 ring-1 ring-red-200/60',
 };
 
-const chartLabel = (value) => {
-  if (!value) return '';
-  const str = String(value);
-  return str.length > 10 ? str.slice(5) : str;
+const chartTooltipStyle = {
+  borderRadius: '12px',
+  border: '1px solid #bbf7d0',
+  boxShadow: '0 4px 12px rgb(20 83 45 / 0.12)',
+  fontSize: '12px',
 };
+
+const axisStyle = { fill: '#64748b', fontSize: 11 };
+const chartMargin = { top: 12, right: 16, left: 4, bottom: 28 };
 
 const CHART = {
   green: '#15803d',
@@ -58,6 +69,7 @@ const CHART = {
   amberLight: '#f59e0b',
   teal: '#0d9488',
   red: '#dc2626',
+  blue: '#2563eb',
   grid: '#e2e8f0',
 };
 
@@ -65,13 +77,6 @@ const PIE_COLORS = ['#15803d', '#d97706', '#0d9488', '#16a34a', '#b45309', '#059
 
 const pieLabel = ({ name, percent }) =>
   `${String(name).slice(0, 14)} ${(percent * 100).toFixed(0)}%`;
-
-const chartTooltipStyle = {
-  borderRadius: '12px',
-  border: '1px solid #bbf7d0',
-  boxShadow: '0 4px 12px rgb(20 83 45 / 0.12)',
-  fontSize: '12px',
-};
 
 const SectionHeading = ({ title, subtitle }) => (
   <div className="mb-4">
@@ -249,135 +254,368 @@ const DashboardPage = () => {
         </div>
       </section>
 
-      {/* Analytics charts */}
+      {/* Graph types — bar, line, scatter, histogram, pie */}
       <section>
-        <SectionHeading title="Sales & Profit Analytics" subtitle="Trends across daily, monthly and yearly periods" />
+        <SectionHeading
+          title="Analytics Charts"
+          subtitle="Bar, line, scatter, histogram and pie views of your cattle feed business"
+        />
         <div className="grid gap-5 lg:grid-cols-2">
-          <DashboardChartCard title="Sales Trend" chartKey="sales" defaultPeriod="daily" enabled={chartsEnabled}>
+          <DashboardChartCard
+            title="Purchase vs Sales"
+            chartType="Bar Graph"
+            description="Compare purchase and sales amounts by period — good for comparing groups."
+            chartKey="purchaseVsSales"
+            defaultPeriod="monthly"
+            enabled={chartsEnabled}
+          >
+            {(chartData, period) => {
+              const rows = prepareTimeSeries(chartData, period, ['sales', 'purchases']);
+              return (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={rows} margin={chartMargin}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+                    <XAxis
+                      dataKey="displayLabel"
+                      tick={axisStyle}
+                      axisLine={false}
+                      tickLine={false}
+                      label={{ value: 'Period', position: 'insideBottom', offset: -18, fontSize: 11, fill: '#475569' }}
+                    />
+                    <YAxis
+                      tick={axisStyle}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={formatChartCurrency}
+                      label={{ value: 'Amount (₹)', angle: -90, position: 'insideLeft', offset: 10, fontSize: 11, fill: '#475569' }}
+                    />
+                    <Tooltip formatter={(v) => formatCurrency(v)} contentStyle={chartTooltipStyle} />
+                    <Legend verticalAlign="top" height={28} />
+                    <Bar dataKey="sales" name="Sales" fill={CHART.green} radius={[4, 4, 0, 0]} maxBarSize={36} />
+                    <Bar dataKey="purchases" name="Purchases" fill={CHART.amber} radius={[4, 4, 0, 0]} maxBarSize={36} />
+                  </BarChart>
+                </ResponsiveContainer>
+              );
+            }}
+          </DashboardChartCard>
+
+          <DashboardChartCard
+            title="Sales Trend"
+            chartType="Line Graph"
+            description="Continuous data over time — track daily, monthly or yearly sales."
+            chartKey="sales"
+            defaultPeriod="daily"
+            enabled={chartsEnabled}
+          >
+            {(chartData, period) => {
+              const rows = prepareTimeSeries(chartData, period, ['sales']);
+              return (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={rows} margin={chartMargin}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+                    <XAxis
+                      dataKey="displayLabel"
+                      tick={axisStyle}
+                      axisLine={false}
+                      tickLine={false}
+                      label={{ value: 'Time', position: 'insideBottom', offset: -18, fontSize: 11, fill: '#475569' }}
+                    />
+                    <YAxis
+                      tick={axisStyle}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={formatChartCurrency}
+                      label={{ value: 'Sales (₹)', angle: -90, position: 'insideLeft', offset: 10, fontSize: 11, fill: '#475569' }}
+                    />
+                    <Tooltip formatter={(v) => formatCurrency(v)} contentStyle={chartTooltipStyle} />
+                    <Legend verticalAlign="top" height={28} />
+                    <Line
+                      type="monotone"
+                      dataKey="sales"
+                      name="Sales"
+                      stroke={CHART.green}
+                      strokeWidth={2.5}
+                      dot={{ r: 4, fill: CHART.green, strokeWidth: 2, stroke: '#fff' }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              );
+            }}
+          </DashboardChartCard>
+
+          <DashboardChartCard
+            title="Purchase vs Sales Correlation"
+            chartType="Scatter Plot"
+            description="Shows relationship between purchase spend and sales revenue per period."
+            chartKey="purchaseVsSales"
+            defaultPeriod="monthly"
+            enabled={chartsEnabled}
+          >
+            {(chartData, period) => {
+              const rows = withDisplayLabels(chartData, period);
+              return (
+                <ResponsiveContainer width="100%" height="100%">
+                  <ScatterChart margin={chartMargin}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
+                    <XAxis
+                      type="number"
+                      dataKey="purchases"
+                      name="Purchases"
+                      tick={axisStyle}
+                      tickFormatter={formatChartCurrency}
+                      label={{ value: 'Purchases (₹)', position: 'insideBottom', offset: -18, fontSize: 11, fill: '#475569' }}
+                    />
+                    <YAxis
+                      type="number"
+                      dataKey="sales"
+                      name="Sales"
+                      tick={axisStyle}
+                      tickFormatter={formatChartCurrency}
+                      label={{ value: 'Sales (₹)', angle: -90, position: 'insideLeft', offset: 10, fontSize: 11, fill: '#475569' }}
+                    />
+                    <ZAxis dataKey="displayLabel" name="Period" />
+                    <Tooltip
+                      cursor={{ strokeDasharray: '3 3' }}
+                      formatter={(v) => formatCurrency(v)}
+                      labelFormatter={(_, payload) => payload?.[0]?.payload?.displayLabel || ''}
+                      contentStyle={chartTooltipStyle}
+                    />
+                    <Legend verticalAlign="top" height={28} />
+                    <Scatter name="Period" data={rows} fill={CHART.amber} />
+                  </ScatterChart>
+                </ResponsiveContainer>
+              );
+            }}
+          </DashboardChartCard>
+
+          <DashboardChartCard
+            title="Daily Bill Count"
+            chartType="Histogram"
+            description="Frequency of bills — how often sales occur each day."
+            chartKey="sales"
+            defaultPeriod="daily"
+            enabled={chartsEnabled}
+          >
+            {(chartData, period) => {
+              const rows = prepareTimeSeries(chartData, period, ['count', 'sales']);
+              return (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={rows} margin={chartMargin}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+                    <XAxis
+                      dataKey="displayLabel"
+                      tick={axisStyle}
+                      axisLine={false}
+                      tickLine={false}
+                      label={{ value: 'Date', position: 'insideBottom', offset: -18, fontSize: 11, fill: '#475569' }}
+                    />
+                    <YAxis
+                      tick={axisStyle}
+                      axisLine={false}
+                      tickLine={false}
+                      allowDecimals={false}
+                      label={{ value: 'Number of Bills', angle: -90, position: 'insideLeft', offset: 10, fontSize: 11, fill: '#475569' }}
+                    />
+                    <Tooltip contentStyle={chartTooltipStyle} />
+                    <Legend verticalAlign="top" height={28} />
+                    <Bar
+                      dataKey="count"
+                      name="Bill count"
+                      fill={CHART.teal}
+                      barCategoryGap={0}
+                      maxBarSize={48}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              );
+            }}
+          </DashboardChartCard>
+
+          <DashboardChartCard
+            title="Top Customers Share"
+            chartType="Pie Chart"
+            description="Parts of a whole — share of revenue from top customers."
+            chartKey="topCustomers"
+            defaultPeriod="monthly"
+            enabled={chartsEnabled}
+          >
             {(chartData) => (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
-                  <XAxis dataKey="label" tickFormatter={chartLabel} fontSize={11} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
-                  <YAxis fontSize={11} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                  <Pie
+                    data={chartData}
+                    dataKey="totalSpent"
+                    nameKey="name"
+                    cx="50%"
+                    cy="46%"
+                    outerRadius={88}
+                    label={pieLabel}
+                    labelLine={{ stroke: '#94a3b8', strokeWidth: 1 }}
+                  >
+                    {chartData.map((_, index) => (
+                      <Cell key={`customer-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
                   <Tooltip formatter={(v) => formatCurrency(v)} contentStyle={chartTooltipStyle} />
-                  <Line type="monotone" dataKey="sales" stroke={CHART.green} strokeWidth={2.5} dot={{ r: 4, fill: CHART.green, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
-                </LineChart>
+                  <Legend verticalAlign="bottom" formatter={(value) => String(value).slice(0, 18)} />
+                </PieChart>
               </ResponsiveContainer>
             )}
           </DashboardChartCard>
 
-          <DashboardChartCard title="Profit Trend" chartKey="profit" defaultPeriod="daily" enabled={chartsEnabled}>
+          <DashboardChartCard
+            title="Top Products Share"
+            chartType="Pie Chart"
+            description="Composition of sales volume — which products sell the most."
+            chartKey="topProducts"
+            defaultPeriod="monthly"
+            enabled={chartsEnabled}
+          >
             {(chartData) => (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
-                  <XAxis dataKey="label" tickFormatter={chartLabel} fontSize={11} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
-                  <YAxis fontSize={11} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(v) => formatCurrency(v)} contentStyle={chartTooltipStyle} />
-                  <Line type="monotone" dataKey="profit" stroke={CHART.greenLight} strokeWidth={2.5} dot={{ r: 4, fill: CHART.greenLight, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
-                  <Line type="monotone" dataKey="revenue" stroke={CHART.amber} strokeWidth={2} dot={{ r: 4, fill: CHART.amber, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </DashboardChartCard>
-
-          <DashboardChartCard title="Monthly Sales" chartKey="sales" defaultPeriod="monthly" enabled={chartsEnabled}>
-            {(chartData) => (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
-                  <XAxis dataKey="label" tickFormatter={(v) => String(v).slice(0, 6)} fontSize={10} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
-                  <YAxis fontSize={11} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(v) => formatCurrency(v)} contentStyle={chartTooltipStyle} />
-                  <Line type="monotone" dataKey="sales" stroke={CHART.green} strokeWidth={2.5} dot={{ r: 5, fill: CHART.green, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 7 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </DashboardChartCard>
-
-          <DashboardChartCard title="Purchase vs Sales" chartKey="purchaseVsSales" defaultPeriod="monthly" enabled={chartsEnabled}>
-            {(chartData) => (
-              <ResponsiveContainer width="100%" height="100%">
-                <ScatterChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
-                  <XAxis type="number" dataKey="purchases" name="Purchases" fontSize={11} tick={{ fill: '#64748b' }} tickFormatter={(v) => `₹${Math.round(v / 1000)}k`} />
-                  <YAxis type="number" dataKey="sales" name="Sales" fontSize={11} tick={{ fill: '#64748b' }} tickFormatter={(v) => `₹${Math.round(v / 1000)}k`} />
-                  <ZAxis dataKey="label" name="Period" />
-                  <Tooltip cursor={{ strokeDasharray: '3 3' }} formatter={(v) => formatCurrency(v)} labelFormatter={(_, payload) => payload?.[0]?.payload?.label || ''} contentStyle={chartTooltipStyle} />
-                  <Legend />
-                  <Scatter name="Period data" data={chartData} fill={CHART.amber} />
-                </ScatterChart>
-              </ResponsiveContainer>
-            )}
-          </DashboardChartCard>
-
-          <DashboardChartCard title="Yearly Sales" chartKey="sales" defaultPeriod="yearly" enabled={chartsEnabled}>
-            {(chartData) => (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
-                  <XAxis dataKey="label" fontSize={11} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
-                  <YAxis fontSize={11} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(v) => formatCurrency(v)} contentStyle={chartTooltipStyle} />
-                  <Line type="monotone" dataKey="sales" stroke={CHART.teal} strokeWidth={2.5} dot={{ r: 5, fill: CHART.teal, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 7 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </DashboardChartCard>
-
-          <DashboardChartCard title="Stock In vs Out" chartKey="stockInOut" defaultPeriod="daily" enabled={chartsEnabled}>
-            {(chartData) => (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
-                  <XAxis dataKey="label" tickFormatter={chartLabel} fontSize={11} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
-                  <YAxis fontSize={11} tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                  <Pie
+                    data={chartData}
+                    dataKey="quantity"
+                    nameKey="name"
+                    cx="50%"
+                    cy="46%"
+                    outerRadius={88}
+                    label={pieLabel}
+                    labelLine={{ stroke: '#94a3b8', strokeWidth: 1 }}
+                  >
+                    {chartData.map((_, index) => (
+                      <Cell key={`product-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
                   <Tooltip contentStyle={chartTooltipStyle} />
-                  <Legend />
-                  <Line type="monotone" dataKey="stockIn" name="Stock In" stroke={CHART.greenLight} strokeWidth={2.5} dot={{ r: 4, fill: CHART.greenLight }} activeDot={{ r: 6 }} />
-                  <Line type="monotone" dataKey="stockOut" name="Stock Out" stroke={CHART.red} strokeWidth={2.5} dot={{ r: 4, fill: CHART.red }} activeDot={{ r: 6 }} />
-                </LineChart>
+                  <Legend verticalAlign="bottom" formatter={(value) => String(value).slice(0, 18)} />
+                </PieChart>
               </ResponsiveContainer>
             )}
           </DashboardChartCard>
         </div>
       </section>
 
-      {/* Top performers */}
+      {/* Extended trends */}
       <section>
-        <SectionHeading title="Top Performers" subtitle="Best selling products and highest spending customers" />
+        <SectionHeading title="Profit & Stock Trends" subtitle="Multi-line and bar views for profit and inventory movement" />
         <div className="grid gap-5 lg:grid-cols-2">
-          <DashboardChartCard title="Top Selling Products" chartKey="topProducts" defaultPeriod="monthly" enabled={chartsEnabled}>
+          <DashboardChartCard
+            title="Profit vs Revenue"
+            chartType="Line Graph"
+            description="Compare profit margin against total revenue over time."
+            chartKey="profit"
+            defaultPeriod="daily"
+            enabled={chartsEnabled}
+          >
+            {(chartData, period) => {
+              const rows = prepareTimeSeries(chartData, period, ['profit', 'revenue']);
+              return (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={rows} margin={chartMargin}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+                    <XAxis dataKey="displayLabel" tick={axisStyle} axisLine={false} tickLine={false} />
+                    <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={formatChartCurrency} />
+                    <Tooltip formatter={(v) => formatCurrency(v)} contentStyle={chartTooltipStyle} />
+                    <Legend verticalAlign="top" height={28} />
+                    <Line type="monotone" dataKey="profit" name="Profit" stroke={CHART.greenLight} strokeWidth={2.5} dot={{ r: 4, fill: CHART.greenLight }} />
+                    <Line type="monotone" dataKey="revenue" name="Revenue" stroke={CHART.amber} strokeWidth={2.5} dot={{ r: 4, fill: CHART.amber }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              );
+            }}
+          </DashboardChartCard>
+
+          <DashboardChartCard
+            title="Stock In vs Out"
+            chartType="Bar Graph"
+            description="Grouped comparison of stock received vs stock sold."
+            chartKey="stockInOut"
+            defaultPeriod="daily"
+            enabled={chartsEnabled}
+          >
+            {(chartData, period) => {
+              const rows = prepareTimeSeries(chartData, period, ['stockIn', 'stockOut']);
+              return (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={rows} margin={chartMargin}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+                    <XAxis dataKey="displayLabel" tick={axisStyle} axisLine={false} tickLine={false} />
+                    <YAxis tick={axisStyle} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <Tooltip contentStyle={chartTooltipStyle} />
+                    <Legend verticalAlign="top" height={28} />
+                    <Bar dataKey="stockIn" name="Stock In" fill={CHART.greenLight} radius={[4, 4, 0, 0]} maxBarSize={32} />
+                    <Bar dataKey="stockOut" name="Stock Out" fill={CHART.red} radius={[4, 4, 0, 0]} maxBarSize={32} />
+                  </BarChart>
+                </ResponsiveContainer>
+              );
+            }}
+          </DashboardChartCard>
+
+          <DashboardChartCard
+            title="Top Selling Products"
+            chartType="Bar Graph"
+            description="Categorical comparison — quantity sold per product."
+            chartKey="topProducts"
+            defaultPeriod="monthly"
+            enabled={chartsEnabled}
+          >
             {(chartData) => (
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={chartData} dataKey="quantity" nameKey="name" cx="50%" cy="50%" outerRadius={88} label={pieLabel} labelLine={false}>
-                    {chartData.map((_, index) => (
-                      <Cell key={`product-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
+                <BarChart
+                  layout="vertical"
+                  data={chartData}
+                  margin={{ top: 8, right: 24, left: 8, bottom: 8 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} horizontal={false} />
+                  <XAxis type="number" tick={axisStyle} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={96}
+                    tick={{ ...axisStyle, fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
                   <Tooltip contentStyle={chartTooltipStyle} />
-                  <Legend formatter={(value) => String(value).slice(0, 20)} />
-                </PieChart>
+                  <Legend verticalAlign="top" height={28} />
+                  <Bar dataKey="quantity" name="Qty sold" fill={CHART.teal} radius={[0, 4, 4, 0]} maxBarSize={20} />
+                </BarChart>
               </ResponsiveContainer>
             )}
           </DashboardChartCard>
 
-          <DashboardChartCard title="Top Customers" chartKey="topCustomers" defaultPeriod="monthly" enabled={chartsEnabled}>
-            {(chartData) => (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={chartData} dataKey="totalSpent" nameKey="name" cx="50%" cy="50%" outerRadius={88} label={pieLabel} labelLine={false}>
-                    {chartData.map((_, index) => (
-                      <Cell key={`customer-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(v) => formatCurrency(v)} contentStyle={chartTooltipStyle} />
-                  <Legend formatter={(value) => String(value).slice(0, 20)} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
+          <DashboardChartCard
+            title="Yearly Sales"
+            chartType="Line Graph"
+            description="Long-term sales trend by year."
+            chartKey="sales"
+            defaultPeriod="yearly"
+            enabled={chartsEnabled}
+          >
+            {(chartData, period) => {
+              const rows = withDisplayLabels(chartData, period);
+              return (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={rows} margin={chartMargin}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+                    <XAxis
+                      dataKey="displayLabel"
+                      tick={axisStyle}
+                      axisLine={false}
+                      tickLine={false}
+                      label={{ value: 'Year', position: 'insideBottom', offset: -18, fontSize: 11, fill: '#475569' }}
+                    />
+                    <YAxis tick={axisStyle} axisLine={false} tickLine={false} tickFormatter={formatChartCurrency} />
+                    <Tooltip formatter={(v) => formatCurrency(v)} contentStyle={chartTooltipStyle} />
+                    <Legend verticalAlign="top" height={28} />
+                    <Line type="monotone" dataKey="sales" name="Sales" stroke={CHART.blue} strokeWidth={2.5} dot={{ r: 5, fill: CHART.blue }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              );
+            }}
           </DashboardChartCard>
         </div>
       </section>
