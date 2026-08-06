@@ -13,6 +13,7 @@ import { useAuth } from '../../context/AuthContext';
 import { loginRules } from '../../validations/authValidation';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import PasswordInput from '../../components/common/PasswordInput';
+import AppLogo from '../../components/common/AppLogo';
 
 const features = [
   { icon: FiShoppingCart, label: 'Sales & Billing', desc: 'Fast invoicing for feed orders' },
@@ -47,6 +48,7 @@ const LoginPage = () => {
         <div className="login-brand-overlay absolute inset-0" aria-hidden="true" />
 
         <div className="relative z-10 flex w-full max-w-xl flex-col items-center px-8 py-12 text-center xl:max-w-2xl xl:px-12">
+          <AppLogo size="xl" className="mb-6 justify-center" imageClassName="bg-white shadow-xl ring-2 ring-white/30" />
           <div className="w-full">
             <h1 className="mx-auto max-w-lg text-4xl font-bold leading-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.45)] xl:text-5xl">
               Smart management for your
@@ -87,12 +89,8 @@ const LoginPage = () => {
 
         <div className="relative z-10 w-full max-w-md">
           {/* Mobile brand */}
-          <div className="mb-8 text-center lg:hidden">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-primary-700 shadow-lg shadow-primary-900/20">
-              <span className="text-2xl font-black text-white">CF</span>
-            </div>
-            <h1 className="text-2xl font-bold text-slate-900">Cattle Feed ERP</h1>
-            <p className="mt-1 text-sm text-amber-800/70">Feed selling & business management</p>
+          <div className="mb-8 flex flex-col items-center text-center lg:hidden">
+            <AppLogo size="lg" subtitle="Feed selling & business management" showText />
           </div>
 
           <div className="rounded-2xl border border-amber-100/80 bg-white/90 p-8 shadow-xl shadow-amber-900/5 backdrop-blur-sm sm:p-10">

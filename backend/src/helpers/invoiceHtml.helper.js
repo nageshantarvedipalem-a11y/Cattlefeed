@@ -8,6 +8,16 @@ const formatInvoiceMoney = (amount, currency) => {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const templatePath = join(__dirname, '../templates/invoice.template.html');
+const logoPath = join(__dirname, '../assets/logo.png');
+
+const getCompanyLogoDataUri = () => {
+  try {
+    const logoBuffer = readFileSync(logoPath);
+    return `data:image/jpeg;base64,${logoBuffer.toString('base64')}`;
+  } catch {
+    return '';
+  }
+};
 
 const escapeHtml = (value) => String(value ?? '')
   .replace(/&/g, '&amp;')
@@ -59,6 +69,7 @@ export const buildInvoiceHtml = (sale, company) => {
     INVOICE_NUMBER: escapeHtml(sale.invoiceNumber),
     COMPANY_NAME: escapeHtml(company.company_name || 'Cattle Feed ERP'),
     COMPANY_TAGLINE: 'CATTLE FEED SUPPLY',
+    COMPANY_LOGO: getCompanyLogoDataUri(),
     CUSTOMER_NAME: escapeHtml(sale.customerName || 'Walk-in Customer'),
     CUSTOMER_PHONE: escapeHtml(sale.customerPhone || '—'),
     CUSTOMER_ADDRESS: escapeHtml(buildCustomerAddress(sale)),

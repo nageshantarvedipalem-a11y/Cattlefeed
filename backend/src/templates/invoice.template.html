@@ -40,9 +40,16 @@
   .meta { font-size: 13px; font-weight:700; color:#3d5a2c; line-height: 1.7; }
 
   .logo { text-align:right; }
-  .logo .brand { font-size: 26px; font-weight: 800; color:#6a9445; letter-spacing:1px; }
-  .logo .sub { font-size: 12px; font-weight:700; color:#7ea45f; letter-spacing:2px; }
-  .logo .mark { font-size: 30px; }
+  .logo-img {
+    width: 92px;
+    height: 92px;
+    object-fit: contain;
+    margin-left: auto;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .logo .brand { font-size: 22px; font-weight: 800; color:#6a9445; letter-spacing:1px; }
+  .logo .sub { font-size: 11px; font-weight:700; color:#7ea45f; letter-spacing:2px; }
 
   .parties { display:flex; justify-content:space-between; margin-top: 22px; }
   .party { width: 48%; }
@@ -97,7 +104,7 @@
             <div class="meta">DATE: {{INVOICE_DATE}}<br>INVOICE # {{INVOICE_NUMBER}}</div>
           </div>
           <div class="logo">
-            <div class="mark">🌾</div>
+            <img src="{{COMPANY_LOGO}}" alt="{{COMPANY_NAME}}" class="logo-img" />
             <div class="brand">{{COMPANY_NAME}}</div>
             <div class="sub">{{COMPANY_TAGLINE}}</div>
           </div>

@@ -23,6 +23,7 @@ import {
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+import AppLogo from '../components/common/AppLogo';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: FiHome, module: 'dashboard' },
@@ -90,9 +91,7 @@ const Sidebar = ({ expanded = false, onNavigate }) => {
             expanded ? 'gap-3' : 'justify-center group-hover/sidebar:justify-start group-hover/sidebar:gap-3'
           }`}
         >
-          <div className="sidebar-brand-gradient flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-black text-white shadow-lg shadow-primary-950/40">
-            CF
-          </div>
+          <AppLogo size="sm" imageClassName="ring-white/20" />
           <div className={expanded ? 'min-w-0' : 'hidden min-w-0 group-hover/sidebar:block'}>
             <p className="truncate text-sm font-bold leading-tight text-white">Cattle Feed ERP</p>
             <p className="truncate text-[10px] font-medium uppercase tracking-wider text-amber-300/80">
@@ -187,10 +186,17 @@ const DashboardLayout = () => {
             >
               <FiMenu className="h-5 w-5" />
             </button>
-            <div>
+            <AppLogo size="xs" className="lg:hidden" />
+            <div className="hidden lg:block">
               <p className="text-[10px] font-bold uppercase tracking-widest text-primary-700">
                 Cattle Feed ERP
               </p>
+              <p className="flex items-center gap-1.5 text-sm text-slate-600">
+                <FiCalendar className="h-3.5 w-3.5 text-amber-600" />
+                {todayLabel()}
+              </p>
+            </div>
+            <div className="lg:hidden">
               <p className="flex items-center gap-1.5 text-sm text-slate-600">
                 <FiCalendar className="h-3.5 w-3.5 text-amber-600" />
                 {todayLabel()}
