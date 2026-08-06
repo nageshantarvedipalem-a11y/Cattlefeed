@@ -19,7 +19,7 @@ const AppLogo = ({
     <img
       src="/images/logo.png"
       alt="Cattle Feed ERP"
-      className={`${sizeClasses[size] || sizeClasses.md} shrink-0 rounded-xl object-contain bg-white/95 p-0.5 shadow-sm ring-1 ring-emerald-100 ${imageClassName}`}
+      className={`${sizeClasses[size] || sizeClasses.md} shrink-0 rounded-xl object-contain bg-white p-1 shadow-sm ring-1 ring-slate-200 ${imageClassName}`}
     />
     {showText && (
       <div className="min-w-0">

@@ -91,7 +91,7 @@ const Sidebar = ({ expanded = false, onNavigate }) => {
             expanded ? 'gap-3' : 'justify-center group-hover/sidebar:justify-start group-hover/sidebar:gap-3'
           }`}
         >
-          <AppLogo size="sm" imageClassName="ring-white/20" />
+          <AppLogo size="sm" imageClassName="bg-white ring-slate-200" />
           <div className={expanded ? 'min-w-0' : 'hidden min-w-0 group-hover/sidebar:block'}>
             <p className="truncate text-sm font-bold leading-tight text-white">Cattle Feed ERP</p>
             <p className="truncate text-[10px] font-medium uppercase tracking-wider text-amber-300/80">

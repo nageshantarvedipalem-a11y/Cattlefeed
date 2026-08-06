@@ -48,7 +48,7 @@ const LoginPage = () => {
         <div className="login-brand-overlay absolute inset-0" aria-hidden="true" />
 
         <div className="relative z-10 flex w-full max-w-xl flex-col items-center px-8 py-12 text-center xl:max-w-2xl xl:px-12">
-          <AppLogo size="xl" className="mb-6 justify-center" imageClassName="bg-white shadow-xl ring-2 ring-white/30" />
+          <AppLogo size="xl" className="mb-6 justify-center" imageClassName="bg-white p-2 shadow-xl ring-2 ring-white" />
           <div className="w-full">
             <h1 className="mx-auto max-w-lg text-4xl font-bold leading-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.45)] xl:text-5xl">
               Smart management for your
