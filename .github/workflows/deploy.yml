@@ -78,7 +78,7 @@ jobs:
           test -f dist/index.html
           test -d dist/assets
           grep -q 'assets/index-' dist/index.html
-          echo "Built bundle: $(grep -o 'assets/index-[^\"]*\\.js' dist/index.html | head -1)"
+          echo "Built bundle: $(grep -oE 'assets/index-[A-Za-z0-9_-]+\.js' dist/index.html | head -1)"
 
       - name: Validate frontend FTP credentials
         run: |
@@ -122,40 +122,29 @@ jobs:
 
       - name: Deploy to Hostinger FTP
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          port: ${{ secrets.FTP_PORT || 21 }}
-          protocol: ${{ secrets.FTP_PROTOCOL || 'ftp' }}
-          local-dir: ./frontend/dist/
-          server-dir: ${{ steps.ftp.outputs.server_dir }}
-          state-name: .ftp-deploy-sync-state-v2.json
-          dangerous-clean-slate: false
-          log-level: verbose
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/node_modules/**
-            **/.DS_Store
-
-      - name: Force upload index.html
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
         run: |
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y lftp
           SERVER="${{ secrets.FTP_SERVER }}"
           USER="${{ secrets.FTP_USERNAME }}"
           PASS="${{ secrets.FTP_PASSWORD }}"
+          PORT="${{ secrets.FTP_PORT || 21 }}"
           DIR="${{ steps.ftp.outputs.server_dir }}"
-          TARGET="${DIR}index.html"
-          case "$TARGET" in
-            /*) FTP_PATH="$TARGET" ;;
-            *) FTP_PATH="/$TARGET" ;;
-          esac
-          echo "Uploading index.html to ftp://${SERVER}${FTP_PATH}"
-          curl --ftp-create-dirs -T frontend/dist/index.html \
-            --user "${USER}:${PASS}" \
-            "ftp://${SERVER}${FTP_PATH}"
+          PROTO="${{ secrets.FTP_PROTOCOL || 'ftp' }}"
+          if [ "$PROTO" = "ftps" ] || [ "$PROTO" = "ftps-legacy" ]; then
+            LFTP_SSL="set ftp:ssl-force true; set ssl:verify-certificate no;"
+          else
+            LFTP_SSL="set ftp:ssl-allow false;"
+          fi
+          echo "Mirroring frontend/dist → ftp://${SERVER}${DIR}"
+          lftp -u "${USER}","${PASS}" -p "$PORT" "$SERVER" <<EOF
+          ${LFTP_SSL}
+          set ftp:passive-mode true
+          cd ${DIR}
+          lcd frontend/dist
+          mirror --reverse --parallel=4 --verbose --exclude-glob .DS_Store
+          bye
+          EOF
 
       - name: Verify live site updated
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
@@ -163,24 +152,27 @@ jobs:
           SITE_URL: ${{ secrets.SITE_URL }}
         working-directory: ${{ env.WORKING_DIRECTORY }}
         run: |
-          if [ -z "$SITE_URL" ]; then
-            echo "::warning::SITE_URL secret not set — skipping live verification"
-            exit 0
+          SITE="${SITE_URL:-https://lightsteelblue-bison-593262.hostingersite.com}"
+          SITE="${SITE%/}"
+          BUILT=$(grep -oE 'assets/index-[A-Za-z0-9_-]+\.js' dist/index.html | head -1)
+          if [ -z "$BUILT" ]; then
+            echo "::error::Could not read bundle name from dist/index.html"
+            exit 1
           fi
-          BUILT=$(grep -o 'assets/index-[^\"]*\\.js' dist/index.html | head -1)
           echo "Deployed bundle should be: $BUILT"
           sleep 15
-          LIVE_HTML=$(curl -sL --max-time 30 -H "Cache-Control: no-cache" "$SITE_URL/index.html")
-          LIVE=$(echo "$LIVE_HTML" | grep -o 'assets/index-[^\"]*\\.js' | head -1)
+          LIVE_HTML=$(curl -sL --max-time 30 -H "Cache-Control: no-cache" "$SITE/index.html")
+          LIVE=$(echo "$LIVE_HTML" | grep -oE 'assets/index-[A-Za-z0-9_-]+\.js' | head -1)
           echo "Live site bundle: $LIVE"
-          JS_URL="${SITE_URL%/}/${LIVE}"
-          JS_TYPE=$(curl -sI --max-time 30 "$JS_URL" | grep -i '^content-type:' | tr -d '\r')
-          echo "Live bundle content-type: $JS_TYPE"
-          if [ "$BUILT" = "$LIVE" ] && echo "$JS_TYPE" | grep -qi 'javascript'; then
+          JS_URL="$SITE/$LIVE"
+          JS_TYPE=$(curl -sI --max-time 30 "$JS_URL" | grep -i '^content-type:' | tr -d '\r' || true)
+          JS_SIZE=$(curl -sL --max-time 30 "$JS_URL" | wc -c | tr -d ' ')
+          echo "Live bundle content-type: $JS_TYPE (size: $JS_SIZE bytes)"
+          if [ "$BUILT" = "$LIVE" ] && echo "$JS_TYPE" | grep -qi 'javascript' && [ "$JS_SIZE" -gt 10000 ]; then
             echo "✅ Live site matches deployed build"
           else
-            echo "::error::Live site still shows old or missing bundle ($LIVE vs $BUILT, type: $JS_TYPE)."
-            echo "::error::Re-upload frontend/dist/ via Hostinger File Manager if deploy keeps failing."
+            echo "::error::Live site still shows old or missing bundle ($LIVE vs $BUILT, type: $JS_TYPE, size: $JS_SIZE)."
+            echo "::error::Upload frontend/dist/ via Hostinger File Manager → public_html if deploy keeps failing."
             exit 1
           fi
 
