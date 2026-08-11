@@ -117,47 +117,35 @@ jobs:
             *) DIR="${DIR}/" ;;
           esac
           echo "FTP server-dir: $DIR"
-          # Use GITHUB_OUTPUT — ./ breaks GITHUB_ENV parsing (Invalid format error)
+          # Hostinger: FTP_SERVER is often an IP (82.x.x.x). FTPS + IP fails SSL cert check in curl.
+          # Force plain FTP for IP hosts; use ftps only with the FTP hostname.
+          if echo "${{ secrets.FTP_SERVER }}" | grep -qE '^[0-9.]+$'; then
+            echo "ftp_protocol=ftp" >> "$GITHUB_OUTPUT"
+            echo "Using plain FTP (IP host — avoids SSL certificate mismatch)"
+          else
+            echo "ftp_protocol=${{ secrets.FTP_PROTOCOL || 'ftp' }}" >> "$GITHUB_OUTPUT"
+          fi
           echo "server_dir=$DIR" >> "$GITHUB_OUTPUT"
 
       - name: Deploy to Hostinger FTP
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
-        run: |
-          SERVER="${{ secrets.FTP_SERVER }}"
-          USER="${{ secrets.FTP_USERNAME }}"
-          PASS="${{ secrets.FTP_PASSWORD }}"
-          PORT="${{ secrets.FTP_PORT || 21 }}"
-          DIR="${{ steps.ftp.outputs.server_dir }}"
-          PROTO="${{ secrets.FTP_PROTOCOL || 'ftp' }}"
-          CURL_OPTS=(--ftp-create-dirs --ftp-pasv --connect-timeout 30 --max-time 180 --retry 2 --retry-delay 3 --fail-with-body)
-          if [ "$PROTO" = "ftps" ] || [ "$PROTO" = "ftps-legacy" ]; then
-            CURL_OPTS+=(--ssl-reqd)
-          fi
-          echo "Uploading frontend/dist → ftp://${SERVER}:${PORT}${DIR} (${PROTO}, passive)"
-          cd frontend/dist
-          count=0
-          failed=0
-          while IFS= read -r file; do
-            rel="${file#./}"
-            remote_path="${DIR%/}/${rel}"
-            case "$remote_path" in
-              /*) ;;
-              *) remote_path="/$remote_path" ;;
-            esac
-            echo "↑ $rel"
-            if curl "${CURL_OPTS[@]}" -T "$file" \
-              --user "${USER}:${PASS}" \
-              "ftp://${SERVER}:${PORT}${remote_path}"; then
-              count=$((count + 1))
-            else
-              echo "::error::Failed to upload $rel"
-              failed=$((failed + 1))
-            fi
-          done < <(find . -type f | sort)
-          echo "Uploaded $count files ($failed failed)"
-          if [ "$failed" -gt 0 ]; then
-            exit 1
-          fi
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: ${{ secrets.FTP_PORT || 21 }}
+          protocol: ${{ steps.ftp.outputs.ftp_protocol || 'ftp' }}
+          local-dir: ./frontend/dist/
+          server-dir: ${{ steps.ftp.outputs.server_dir }}
+          state-name: .ftp-deploy-sync-state-${{ github.run_id }}.json
+          dangerous-clean-slate: false
+          log-level: standard
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/.DS_Store
 
       - name: Verify live site updated
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
