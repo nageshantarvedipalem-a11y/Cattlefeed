@@ -76,8 +76,8 @@ jobs:
         run: |
           test -f dist/index.html
           test -d dist/assets
-          grep -q 'assets/index-' dist/index.html
-          echo "Built bundle: $(grep -oE 'assets/index-[A-Za-z0-9_-]+\.js' dist/index.html | head -1)"
+          grep -q 'assets/app-' dist/index.html
+          echo "Built bundle: $(grep -oE 'assets/app-[A-Za-z0-9_-]+\.js' dist/index.html | head -1)"
 
       - name: Validate frontend FTP credentials
         run: |
@@ -166,7 +166,7 @@ jobs:
         run: |
           SITE="${SITE_URL:-https://lightsteelblue-bison-593262.hostingersite.com}"
           SITE="${SITE%/}"
-          BUILT=$(grep -oE 'assets/index-[A-Za-z0-9_-]+\.js' dist/index.html | head -1)
+          BUILT=$(grep -oE 'assets/app-[A-Za-z0-9_-]+\.js' dist/index.html | head -1)
           if [ -z "$BUILT" ]; then
             echo "::error::Could not read bundle name from dist/index.html"
             exit 1
@@ -174,17 +174,16 @@ jobs:
           echo "Deployed bundle should be: $BUILT"
           sleep 15
           LIVE_HTML=$(curl -sL --max-time 30 -H "Cache-Control: no-cache" "$SITE/index.html")
-          LIVE=$(echo "$LIVE_HTML" | grep -oE 'assets/index-[A-Za-z0-9_-]+\.js' | head -1)
+          LIVE=$(echo "$LIVE_HTML" | grep -oE 'assets/app-[A-Za-z0-9_-]+\.js' | head -1)
           echo "Live site bundle: $LIVE"
           JS_URL="$SITE/$LIVE"
-          JS_TYPE=$(curl -sI --max-time 30 "$JS_URL" | grep -i '^content-type:' | tr -d '\r' || true)
+          JS_BODY=$(curl -sL --max-time 30 "$JS_URL" | head -c 20)
           JS_SIZE=$(curl -sL --max-time 30 "$JS_URL" | wc -c | tr -d ' ')
-          echo "Live bundle content-type: $JS_TYPE (size: $JS_SIZE bytes)"
-          if [ "$BUILT" = "$LIVE" ] && echo "$JS_TYPE" | grep -qi 'javascript' && [ "$JS_SIZE" -gt 10000 ]; then
+          echo "Live bundle size: $JS_SIZE bytes (starts with: ${JS_BODY//[$'\n\r']/})"
+          if [ "$BUILT" = "$LIVE" ] && [ "$JS_SIZE" -gt 10000 ] && ! echo "$JS_BODY" | grep -qi '<!doctype'; then
             echo "Live site matches deployed build"
           else
-            echo "::error::Live site still shows old or missing bundle ($LIVE vs $BUILT, type: $JS_TYPE, size: $JS_SIZE)."
-            echo "::error::In GitHub Secrets set REMOTE_DIR=/ and FTP_PROTOCOL=ftp, then re-run deploy."
+            echo "::error::Live bundle missing or invalid ($LIVE vs $BUILT, size: $JS_SIZE)."
             exit 1
           fi
 
