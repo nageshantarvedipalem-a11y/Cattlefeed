@@ -139,6 +139,23 @@ jobs:
             **/node_modules/**
             **/.DS_Store
 
+      - name: Force upload index.html
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
+        run: |
+          SERVER="${{ secrets.FTP_SERVER }}"
+          USER="${{ secrets.FTP_USERNAME }}"
+          PASS="${{ secrets.FTP_PASSWORD }}"
+          DIR="${{ steps.ftp.outputs.server_dir }}"
+          TARGET="${DIR}index.html"
+          case "$TARGET" in
+            /*) FTP_PATH="$TARGET" ;;
+            *) FTP_PATH="/$TARGET" ;;
+          esac
+          echo "Uploading index.html to ftp://${SERVER}${FTP_PATH}"
+          curl --ftp-create-dirs -T frontend/dist/index.html \
+            --user "${USER}:${PASS}" \
+            "ftp://${SERVER}${FTP_PATH}"
+
       - name: Verify live site updated
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
         env:
@@ -152,13 +169,14 @@ jobs:
           BUILT=$(grep -o 'assets/index-[^\"]*\\.js' dist/index.html | head -1)
           echo "Deployed bundle should be: $BUILT"
           sleep 15
-          LIVE=$(curl -sL --max-time 30 "$SITE_URL" | grep -o 'assets/index-[^\"]*\\.js' | head -1)
+          LIVE_HTML=$(curl -sL --max-time 30 -H "Cache-Control: no-cache" "$SITE_URL/index.html")
+          LIVE=$(echo "$LIVE_HTML" | grep -o 'assets/index-[^\"]*\\.js' | head -1)
           echo "Live site bundle: $LIVE"
           if [ "$BUILT" = "$LIVE" ]; then
             echo "✅ Live site matches deployed build"
           else
             echo "::error::Live site still shows old bundle ($LIVE vs $BUILT)."
-            echo "::error::FTP upload did not update the website — check FTP credentials and REMOTE_DIR."
+            echo "::error::index.html was not updated — re-upload index.html from frontend/dist/ via Hostinger File Manager."
             exit 1
           fi
 
