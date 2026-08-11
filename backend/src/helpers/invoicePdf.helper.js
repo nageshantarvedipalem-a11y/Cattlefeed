@@ -1,8 +1,13 @@
 import PDFDocument from 'pdfkit';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import { formatCurrency } from '../utils/formatCurrency.helper.js';
 import { logger } from '../utils/logger.js';
 import { buildInvoiceHtml } from './invoiceHtml.helper.js';
 import { launchBrowser } from './puppeteerBrowser.helper.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const logoPath = join(__dirname, '../assets/logo.png');
 
 let browserPromise = null;
 
@@ -106,6 +111,152 @@ const buildStandardInvoicePdfKit = (sale, company) => new Promise((resolve, reje
   doc.end();
 });
 
+const COLORS = {
+  orange: '#F5A623',
+  sheet: '#eef2e6',
+  darkGreen: '#3d5a2c',
+  midGreen: '#8fae5f',
+  rowGreen: '#e4ead6',
+  text: '#4a4a3f',
+};
+
+const formatInvoiceDate = (dateStr) =>
+  new Date(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+const buildBrandedInvoicePdfKit = (sale, company) => new Promise((resolve, reject) => {
+  const doc = new PDFDocument({ margin: 0, size: 'A4' });
+  const chunks = [];
+  const currency = company.currency_symbol || '₹';
+  const pageWidth = doc.page.width;
+  const pageHeight = doc.page.height;
+  const contentX = 28;
+  const contentWidth = pageWidth - 56;
+
+  doc.on('data', (chunk) => chunks.push(chunk));
+  doc.on('end', () => resolve(Buffer.concat(chunks)));
+  doc.on('error', reject);
+
+  doc.rect(0, 0, pageWidth, pageHeight).fill(COLORS.orange);
+  doc.rect(18, 18, pageWidth - 36, pageHeight - 36).fill(COLORS.sheet);
+  doc.rect(18, 18, contentWidth + 4, 88).fill(COLORS.darkGreen);
+  doc.rect(18, 18, contentWidth + 4, 48).fill(COLORS.midGreen);
+  doc.rect(18, pageHeight - 58, contentWidth + 4, 40).fill(COLORS.midGreen);
+  doc.rect(18, pageHeight - 38, contentWidth + 4, 20).fill(COLORS.darkGreen);
+
+  doc.fillColor(COLORS.darkGreen).font('Helvetica-Bold').fontSize(34)
+    .text('INVOICE', contentX, 108, { width: 240 });
+  doc.font('Helvetica-Bold').fontSize(11)
+    .text(`DATE: ${formatInvoiceDate(sale.saleDate)}`, contentX, 152)
+    .text(`INVOICE # ${sale.invoiceNumber}`, contentX, 168);
+
+  const logoX = pageWidth - contentX - 96;
+  try {
+    doc.image(logoPath, logoX, 98, { width: 72, height: 72 });
+  } catch {
+    /* logo optional */
+  }
+  doc.font('Helvetica-Bold').fontSize(14).fillColor(COLORS.midGreen)
+    .text(company.company_name || 'Cattle Feed ERP', logoX - 20, 176, { width: 116, align: 'right' });
+  doc.font('Helvetica-Bold').fontSize(8).fillColor(COLORS.darkGreen)
+    .text('CATTLE FEED SUPPLY', logoX - 20, 194, { width: 116, align: 'right' });
+
+  const partyTop = 220;
+  doc.font('Helvetica-Bold').fontSize(11).fillColor(COLORS.darkGreen)
+    .text('BILL TO:', contentX, partyTop);
+  doc.font('Helvetica-Bold').fontSize(13)
+    .text((sale.customerName || 'Walk-in Customer').toUpperCase(), contentX, partyTop + 16, { width: 240 });
+  doc.font('Helvetica').fontSize(10).fillColor(COLORS.text)
+    .text(`PHONE: ${sale.customerPhone || '—'}`, contentX, partyTop + 38)
+    .text(`ADDRESS: ${[sale.customerAddress, sale.customerVillage].filter(Boolean).join(', ') || '—'}`, contentX, partyTop + 54, { width: 240 });
+
+  const companyX = pageWidth / 2 + 10;
+  doc.font('Helvetica-Bold').fontSize(11).fillColor(COLORS.darkGreen)
+    .text('COMPANY ADDRESS', companyX, partyTop);
+  doc.font('Helvetica').fontSize(10).fillColor(COLORS.text)
+    .text(`ADDRESS: ${company.company_address || '—'}`, companyX, partyTop + 20, { width: 230 })
+    .text(`PHONE: ${company.company_phone || '—'}`, companyX, partyTop + 50)
+    .text(`GSTIN: ${company.company_gst || '—'}`, companyX, partyTop + 66);
+
+  const tableTop = 310;
+  const colWidths = [34, contentWidth - 234, 66, 54, 80];
+  const headers = ['', 'Item Description', 'Price', 'Qty.', 'Total'];
+  let x = contentX;
+
+  doc.rect(contentX, tableTop, contentWidth, 24).fill(COLORS.midGreen);
+  doc.fillColor(COLORS.darkGreen).font('Helvetica-Bold').fontSize(10);
+  headers.forEach((header, i) => {
+    doc.text(header, x + 4, tableTop + 7, { width: colWidths[i] - 8, align: i >= 2 ? 'right' : 'left' });
+    x += colWidths[i];
+  });
+
+  let rowY = tableTop + 24;
+  doc.font('Helvetica').fontSize(9).fillColor(COLORS.text);
+  (sale.items || []).forEach((item, index) => {
+    const rowHeight = 22;
+    doc.rect(contentX, rowY, contentWidth, rowHeight).fill(COLORS.rowGreen);
+    x = contentX;
+    const cells = [
+      String(index + 1),
+      item.productName,
+      formatCurrency(item.sellingPrice, currency),
+      String(item.quantity),
+      formatCurrency(item.totalAmount, currency),
+    ];
+    cells.forEach((cell, i) => {
+      doc.fillColor(COLORS.text).text(cell, x + 4, rowY + 6, {
+        width: colWidths[i] - 8,
+        align: i >= 2 ? 'right' : 'left',
+      });
+      x += colWidths[i];
+    });
+    rowY += rowHeight + 3;
+  });
+
+  const totalsWidth = 250;
+  const totalsX = contentX + contentWidth - totalsWidth;
+  const totalsTop = rowY + 8;
+  doc.rect(totalsX, totalsTop, totalsWidth, Number(sale.discountAmount) > 0 ? 92 : 76).fill(COLORS.midGreen);
+
+  const addTotalRow = (label, value, y, bold = false) => {
+    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 12 : 10)
+      .fillColor(COLORS.darkGreen)
+      .text(label, totalsX + 14, y, { width: 120 })
+      .text(value, totalsX + totalsWidth - 94, y, { width: 80, align: 'right' });
+  };
+
+  let totalY = totalsTop + 12;
+  addTotalRow('SUBTOTAL', formatCurrency(sale.subtotal, currency), totalY);
+  totalY += 18;
+  if (Number(sale.discountAmount) > 0) {
+    addTotalRow('DISCOUNT', `-${formatCurrency(sale.discountAmount, currency)}`, totalY);
+    totalY += 18;
+  }
+  addTotalRow('GST', formatCurrency(sale.taxAmount, currency), totalY);
+  totalY += 20;
+  addTotalRow('TOTAL', formatCurrency(sale.totalAmount, currency), totalY, true);
+
+  const payTop = totalsTop + 110;
+  doc.font('Helvetica-Bold').fontSize(11).fillColor(COLORS.darkGreen)
+    .text('PAYMENT INFO', contentX, payTop);
+  doc.font('Helvetica').fontSize(10).fillColor(COLORS.text)
+    .text(`Payment Type: ${(sale.primaryPaymentMethod || 'cash').toUpperCase()}`, contentX, payTop + 18)
+    .text(`Paid Amount: ${formatCurrency(sale.paidAmount, currency)}`, contentX, payTop + 34)
+    .text(`Pending: ${formatCurrency(sale.pendingAmount, currency)}`, contentX, payTop + 50)
+    .text(`Status: ${paymentStatusLabel(sale)}`, contentX, payTop + 66);
+
+  doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.darkGreen)
+    .text('Terms and Conditions', companyX, payTop);
+  doc.font('Helvetica').fontSize(8).fillColor(COLORS.text)
+    .text(
+      'Goods once sold will not be taken back. Payment due as per agreed terms. Please check quantity and quality at the time of delivery.',
+      companyX,
+      payTop + 18,
+      { width: 230 }
+    );
+
+  doc.end();
+});
+
 const buildInvoicePdfWithPuppeteer = async (sale, company) => {
   const html = buildInvoiceHtml(sale, company);
   const browser = await getBrowser();
@@ -131,10 +282,8 @@ export const buildInvoicePdf = async (sale, company) => {
     return await buildInvoicePdfWithPuppeteer(sale, company);
   } catch (error) {
     browserPromise = null;
-    logger.error(`Styled invoice PDF generation failed: ${error.message}`);
-    throw new Error(
-      `Could not generate styled invoice PDF. ${error.message}`
-    );
+    logger.warn(`HTML invoice PDF unavailable, using branded PDFKit: ${error.message}`);
+    return buildBrandedInvoicePdfKit(sale, company);
   }
 };
 

@@ -56,7 +56,7 @@ Push any change to `main`, or go to **Actions â†’ Deploy Frontend to Hostinger â
 |---------|-------|
 | Root directory | `backend` |
 | Node.js version | `20` |
-| Build command | `npm ci --omit=dev` |
+| Build command | `npm run build` |
 | Start command | `npm start` |
 | Entry file | `src/server.js` |
 
