@@ -133,6 +133,16 @@ export const formatAiSensyDestination = (phone) => {
   return normalized.startsWith('+') ? normalized : `+${normalized}`;
 };
 
+export const formatAiSensyAmount = (amount) => Number(amount || 0).toFixed(2);
+
+export const buildAiSensyInvoiceTemplateParams = (sale) => [
+  sale.customerName || 'Customer',
+  sale.invoiceNumber,
+  formatAiSensyAmount(sale.totalAmount),
+  formatAiSensyAmount(sale.paidAmount),
+  formatAiSensyAmount(sale.pendingAmount),
+];
+
 export const sendAiSensyCampaign = async ({
   apiKey,
   campaignName,

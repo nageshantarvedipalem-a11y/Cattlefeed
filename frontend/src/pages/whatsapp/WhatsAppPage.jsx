@@ -318,6 +318,12 @@ const WhatsAppPage = () => {
           <ul className="space-y-3 text-sm text-slate-600">
             <li>Complete <strong>Business Verification (KYC)</strong> in AiSensy — required before messages send.</li>
             <li>Create an <strong>approved WhatsApp template</strong> with a document/PDF attachment.</li>
+            <li>
+              Template body must use exactly 5 variables:{' '}
+              <strong>{'{{1}}'}</strong> name, <strong>{'{{2}}'}</strong> invoice no,{' '}
+              <strong>{'{{3}}'}</strong> total, <strong>{'{{4}}'}</strong> paid,{' '}
+              <strong>{'{{5}}'}</strong> balance (amounts without ₹ — template adds it).
+            </li>
             <li>Create a <strong>Live API Campaign</strong> linked to that template and paste its exact name above.</li>
             <li>Paste your <strong>Project API Key</strong> from AiSensy Developer Hub (shown only once when generated).</li>
             <li>After each bill, the invoice PDF link is sent to the customer via your AiSensy campaign.</li>

@@ -22,6 +22,7 @@ import {
   sendWhatsAppText,
   verifyWhatsAppConnection,
   formatAiSensyDestination,
+  buildAiSensyInvoiceTemplateParams,
   sendAiSensyCampaign,
   verifyAiSensyConnection,
 } from '../helpers/whatsapp.helper.js';
@@ -210,7 +211,7 @@ export class WhatsAppService {
         url: pdfUrl,
         filename,
       },
-      templateParams: [sale.customerName || 'Customer', sale.invoiceNumber],
+      templateParams: buildAiSensyInvoiceTemplateParams(sale),
     });
 
     const messageId = result.data?.messageId || result.data?.id || null;
