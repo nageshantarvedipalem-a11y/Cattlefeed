@@ -1,13 +1,15 @@
-const Pagination = ({ page, totalPages, total, limit, onPageChange }) => {
-  if (totalPages <= 1) return null;
+const Pagination = ({ page, totalPages, total = 0, limit = 10, itemLabel = 'items', onPageChange }) => {
+  if (!totalPages || totalPages <= 1) return null;
 
-  const start = (page - 1) * limit + 1;
-  const end = Math.min(page * limit, total);
+  const safeTotal = Number(total) || 0;
+  const safeLimit = Number(limit) || 10;
+  const start = safeTotal === 0 ? 0 : (page - 1) * safeLimit + 1;
+  const end = Math.min(page * safeLimit, safeTotal);
 
   return (
     <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm text-slate-500">
-        Showing {start}–{end} of {total} users
+        Showing {start}–{end} of {safeTotal} {itemLabel}
       </p>
       <div className="flex items-center gap-2">
         <button

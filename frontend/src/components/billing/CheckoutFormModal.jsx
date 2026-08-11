@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import customerService from '../../services/customerService';
 import { formatCurrency } from '../../utils/format';
 import { sanitizePhoneInput, validateIndianMobile } from '../../utils/phoneValidation';
 import LoadingSpinner from '../common/LoadingSpinner';
@@ -25,10 +27,39 @@ const CheckoutFormModal = ({
   onSubmit,
   isSubmitting,
 }) => {
-  if (!isOpen) return null;
+  const [registeredName, setRegisteredName] = useState(null);
 
   const phoneCheck = customer.phone ? validateIndianMobile(customer.phone) : null;
   const phoneError = customer.phone && phoneCheck && !phoneCheck.valid ? phoneCheck.error : null;
+
+  const handlePhoneBlur = async () => {
+    if (!phoneCheck?.valid) {
+      setRegisteredName(null);
+      return;
+    }
+
+    try {
+      const response = await customerService.getCustomers({ search: phoneCheck.normalized, limit: 20 });
+      const match = (response.data.data || []).find((row) => row.phone === phoneCheck.normalized);
+      if (match) {
+        setRegisteredName(match.name);
+        if (!customer.name.trim()) {
+          onCustomerChange({
+            ...customer,
+            name: match.name,
+            village: match.village || customer.village,
+            address: match.address || customer.address,
+          });
+        }
+      } else {
+        setRegisteredName(null);
+      }
+    } catch {
+      setRegisteredName(null);
+    }
+  };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -63,7 +94,11 @@ const CheckoutFormModal = ({
                 inputMode="numeric"
                 maxLength={10}
                 value={customer.phone}
-                onChange={(e) => onCustomerChange({ ...customer, phone: sanitizePhoneInput(e.target.value) })}
+                onChange={(e) => {
+                  setRegisteredName(null);
+                  onCustomerChange({ ...customer, phone: sanitizePhoneInput(e.target.value) });
+                }}
+                onBlur={handlePhoneBlur}
                 placeholder="10-digit mobile (e.g. 9123456789)"
                 className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none focus:ring-1 ${
                   phoneError
@@ -73,8 +108,14 @@ const CheckoutFormModal = ({
               />
               {phoneError ? (
                 <p className="mt-1 text-xs text-red-600">{phoneError}</p>
+              ) : registeredName && registeredName !== customer.name.trim() ? (
+                <p className="mt-1 text-xs text-amber-700">
+                  This number was saved as <strong>{registeredName}</strong>. The name you enter now will be used on the bill and WhatsApp.
+                </p>
+              ) : registeredName ? (
+                <p className="mt-1 text-xs text-slate-500">Existing customer found for this number.</p>
               ) : (
-                <p className="mt-1 text-xs text-slate-400">Enter 10 digits only — starts with 6, 7, 8, or 9</p>
+                <p className="mt-1 text-xs text-slate-400">Customer&apos;s personal WhatsApp number (10 digits). Invoice is sent from your AiSensy business account.</p>
               )}
             </div>
             <div>

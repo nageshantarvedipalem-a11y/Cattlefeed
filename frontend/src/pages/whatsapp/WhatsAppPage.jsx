@@ -380,7 +380,14 @@ const WhatsAppPage = () => {
             </tbody>
           </table>
         </div>
-        <Pagination page={page} totalPages={pagination.totalPages} onPageChange={setPage} />
+        <Pagination
+          page={page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          limit={pagination.limit || 10}
+          itemLabel="messages"
+          onPageChange={setPage}
+        />
       </div>
     </div>
   );

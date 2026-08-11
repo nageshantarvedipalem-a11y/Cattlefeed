@@ -136,8 +136,8 @@ export const formatAiSensyDestination = (phone) => {
 export const formatAiSensyAmount = (amount) => Number(amount || 0).toFixed(2);
 
 export const buildAiSensyInvoiceTemplateParams = (sale) => [
-  sale.customerName || 'Customer',
-  sale.invoiceNumber,
+  String(sale.customerName || 'Customer').trim() || 'Customer',
+  String(sale.invoiceNumber || ''),
   formatAiSensyAmount(sale.totalAmount),
   formatAiSensyAmount(sale.paidAmount),
   formatAiSensyAmount(sale.pendingAmount),
@@ -195,6 +195,10 @@ export const sendAiSensyCampaign = async ({
       data?.errorMessage ||
       `AiSensy campaign request failed (${response.status})`;
     throw new Error(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+  }
+
+  if (data?.success === false || data?.status === 'error') {
+    throw new Error(data?.message || data?.error || 'AiSensy campaign failed');
   }
 
   return {

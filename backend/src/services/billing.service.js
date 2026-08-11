@@ -31,6 +31,7 @@ import {
   findCustomerById,
   findCustomerByPhone,
   createCustomerRecord,
+  updateCustomerRecord,
 } from '../repositories/customer.repository.js';
 import { getNextInvoiceNumber, getCompanySettings } from '../repositories/settings.repository.js';
 import { buildInvoicePdf, buildThermalInvoicePdf } from '../helpers/invoicePdf.helper.js';
@@ -162,6 +163,14 @@ export class BillingService {
 
         if (existing) {
           customerId = existing.id;
+          const newName = String(data.customer.name || '').trim();
+          if (newName) {
+            await updateCustomerRecord(connection, customerId, {
+              name: newName,
+              village: data.customer.village?.trim() || null,
+              address: data.customer.address?.trim() || null,
+            });
+          }
         } else {
           customerId = await createCustomerRecord(connection, {
             name: String(data.customer.name || 'Customer').trim(),
