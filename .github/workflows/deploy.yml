@@ -24,7 +24,6 @@ on:
         default: false
         type: boolean
 
-# Do not cancel in-progress runs — rapid pushes were marking deploys as failed.
 concurrency:
   group: hostinger-frontend-deploy
   cancel-in-progress: true
@@ -91,7 +90,6 @@ jobs:
           if echo "$SERVER$USER" | grep -qi 'yellow-cobra'; then
             echo "::error::These look like BACKEND (yellow-cobra) FTP credentials."
             echo "::error::This workflow deploys the FRONTEND site (lightsteelblue) only."
-            echo "::error::In GitHub Secrets, use FTP from: Websites → lightsteelblue → FTP Accounts"
             exit 1
           fi
           echo "Using frontend FTP host (masked by GitHub)"
@@ -101,27 +99,18 @@ jobs:
         run: |
           DIR="${{ secrets.REMOTE_DIR }}"
           USER="${{ secrets.FTP_USERNAME }}"
-          # Hostinger "domain" FTP users (username ends with hostingersite.com) land
-          # directly in public_html — there is no nested /public_html folder.
-          if [ -z "$DIR" ] || [ "$DIR" = "/public_html" ] || [ "$DIR" = "/public_html/" ] || [ "$DIR" = "./" ] || [ "$DIR" = "." ]; then
-            if echo "$USER" | grep -q 'hostingersite.com'; then
-              echo "Hostinger domain FTP account detected — using / (FTP root is already public_html)"
-              DIR="/"
-            elif [ -z "$DIR" ]; then
-              echo "::error::REMOTE_DIR secret is not set."
-              exit 1
-            fi
+          # Hostinger: FTP login root IS public_html. Always deploy to /, never /public_html/.
+          if [ -z "$DIR" ] || [ "$DIR" = "/public_html" ] || [ "$DIR" = "/public_html/" ] || [ "$DIR" = "./" ] || [ "$DIR" = "." ] || echo "$USER" | grep -q 'hostingersite.com'; then
+            DIR="/"
           fi
           case "$DIR" in
             */) ;;
             *) DIR="${DIR}/" ;;
           esac
           echo "FTP server-dir: $DIR"
-          # Hostinger: FTP_SERVER is often an IP (82.x.x.x). FTPS + IP fails SSL cert check in curl.
-          # Force plain FTP for IP hosts; use ftps only with the FTP hostname.
           if echo "${{ secrets.FTP_SERVER }}" | grep -qE '^[0-9.]+$'; then
             echo "ftp_protocol=ftp" >> "$GITHUB_OUTPUT"
-            echo "Using plain FTP (IP host — avoids SSL certificate mismatch)"
+            echo "Using plain FTP (IP host avoids SSL certificate mismatch)"
           else
             echo "ftp_protocol=${{ secrets.FTP_PROTOCOL || 'ftp' }}" >> "$GITHUB_OUTPUT"
           fi
@@ -170,10 +159,10 @@ jobs:
           JS_SIZE=$(curl -sL --max-time 30 "$JS_URL" | wc -c | tr -d ' ')
           echo "Live bundle content-type: $JS_TYPE (size: $JS_SIZE bytes)"
           if [ "$BUILT" = "$LIVE" ] && echo "$JS_TYPE" | grep -qi 'javascript' && [ "$JS_SIZE" -gt 10000 ]; then
-            echo "✅ Live site matches deployed build"
+            echo "Live site matches deployed build"
           else
             echo "::error::Live site still shows old or missing bundle ($LIVE vs $BUILT, type: $JS_TYPE, size: $JS_SIZE)."
-            echo "::error::Upload frontend/dist/ via Hostinger File Manager → public_html if deploy keeps failing."
+            echo "::error::In GitHub Secrets set REMOTE_DIR=/ and FTP_PROTOCOL=ftp, then re-run deploy."
             exit 1
           fi
 
