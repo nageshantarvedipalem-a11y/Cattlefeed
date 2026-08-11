@@ -131,6 +131,7 @@ jobs:
           protocol: ${{ secrets.FTP_PROTOCOL || 'ftp' }}
           local-dir: ./frontend/dist/
           server-dir: ${{ steps.ftp.outputs.server_dir }}
+          state-name: .ftp-deploy-sync-state-v2.json
           dangerous-clean-slate: false
           log-level: verbose
           exclude: |
@@ -172,11 +173,14 @@ jobs:
           LIVE_HTML=$(curl -sL --max-time 30 -H "Cache-Control: no-cache" "$SITE_URL/index.html")
           LIVE=$(echo "$LIVE_HTML" | grep -o 'assets/index-[^\"]*\\.js' | head -1)
           echo "Live site bundle: $LIVE"
-          if [ "$BUILT" = "$LIVE" ]; then
+          JS_URL="${SITE_URL%/}/${LIVE}"
+          JS_TYPE=$(curl -sI --max-time 30 "$JS_URL" | grep -i '^content-type:' | tr -d '\r')
+          echo "Live bundle content-type: $JS_TYPE"
+          if [ "$BUILT" = "$LIVE" ] && echo "$JS_TYPE" | grep -qi 'javascript'; then
             echo "✅ Live site matches deployed build"
           else
-            echo "::error::Live site still shows old bundle ($LIVE vs $BUILT)."
-            echo "::error::index.html was not updated — re-upload index.html from frontend/dist/ via Hostinger File Manager."
+            echo "::error::Live site still shows old or missing bundle ($LIVE vs $BUILT, type: $JS_TYPE)."
+            echo "::error::Re-upload frontend/dist/ via Hostinger File Manager if deploy keeps failing."
             exit 1
           fi
 
