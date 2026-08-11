@@ -12,6 +12,14 @@ const statusBadge = {
   pending: 'bg-amber-100 text-amber-700',
 };
 
+const formatLogPhone = (phone) => {
+  if (!phone) return '—';
+  const digits = String(phone).replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) return `+${digits}`;
+  if (digits.length === 10) return `+91${digits}`;
+  return phone;
+};
+
 const typeLabels = {
   invoice: 'Invoice',
   reminder: 'Reminder',
@@ -114,7 +122,11 @@ const WhatsAppPage = () => {
       const response = await whatsappService.testConnection();
       const data = response.data.data;
       if (data.provider === 'aisensy') {
-        toast.success(`AiSensy configured: campaign "${data.campaignName}"`);
+        toast.success(
+          data.pdfVerified
+            ? `AiSensy OK — campaign "${data.campaignName}", public PDF verified (${data.pdfBytes} bytes)`
+            : `AiSensy configured: campaign "${data.campaignName}"`
+        );
       } else {
         toast.success(
           data.verifiedName
@@ -327,6 +339,11 @@ const WhatsAppPage = () => {
             <li>Create a <strong>Live API Campaign</strong> linked to that template and paste its exact name above.</li>
             <li>Paste your <strong>Project API Key</strong> from AiSensy Developer Hub (shown only once when generated).</li>
             <li>After each bill, the invoice PDF link is sent to the customer via your AiSensy campaign.</li>
+            <li>
+              <strong>Sent</strong> in this log means AiSensy accepted the message. If the customer does not receive it,
+              open AiSensy → Campaigns and confirm KYC is approved, campaign is <strong>LIVE</strong>, and delivery is not 0%.
+            </li>
+            <li>The customer number must be their personal WhatsApp mobile (10 digits). Messages are sent from your AiSensy business account.</li>
             <li>Use <strong>Send WhatsApp</strong> on the invoice screen to resend manually.</li>
           </ul>
         </div>
@@ -362,11 +379,16 @@ const WhatsAppPage = () => {
                     <td className="px-4 py-3">{typeLabels[msg.messageType] || msg.messageType}</td>
                     <td className="px-4 py-3">{msg.customerName || '—'}</td>
                     <td className="px-4 py-3">{msg.invoiceNumber || '—'}</td>
-                    <td className="px-4 py-3">{msg.phone}</td>
+                    <td className="px-4 py-3">{formatLogPhone(msg.phone)}</td>
                     <td className="px-4 py-3">
                       <span className={`rounded-full px-2 py-0.5 text-xs capitalize ${statusBadge[msg.status]}`}>
-                        {msg.status}
+                        {msg.status === 'sent' && !msg.whatsappMessageId ? 'queued' : msg.status}
                       </span>
+                      {msg.messageBody && msg.status === 'sent' && (
+                        <p className="mt-1 max-w-xs text-xs text-slate-500" title={msg.messageBody}>
+                          {msg.messageBody}
+                        </p>
+                      )}
                       {msg.errorMessage && (
                         <p className="mt-1 max-w-xs truncate text-xs text-red-500" title={msg.errorMessage}>
                           {msg.errorMessage}

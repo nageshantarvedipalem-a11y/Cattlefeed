@@ -56,7 +56,8 @@ const PosBillSuccessModal = ({
         {whatsappResult && (
           <div className={`mx-6 mb-2 rounded-xl p-3 text-xs ${whatsappResult.sent ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>
             {whatsappResult.sent
-              ? `Invoice PDF sent to WhatsApp (${whatsappResult.phone || sale.customerPhone || 'customer'})`
+              ? (whatsappResult.deliveryNote
+                || `Invoice submitted to WhatsApp (${whatsappResult.phone || sale.customerPhone || 'customer'}). Delivery may take 1–2 minutes.`)
               : (whatsappResult.reason || 'WhatsApp delivery failed. Check the 10-digit mobile number and resend.')}
           </div>
         )}

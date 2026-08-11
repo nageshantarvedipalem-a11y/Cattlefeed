@@ -41,12 +41,21 @@ export const createWhatsAppMessage = async (data) => {
   return result.insertId;
 };
 
-export const updateWhatsAppMessageStatus = async (id, status, whatsappMessageId = null, errorMessage = null) => {
+export const updateWhatsAppMessageStatus = async (
+  id,
+  status,
+  whatsappMessageId = null,
+  errorMessage = null,
+  messageBody = null
+) => {
   await query(
     `UPDATE whatsapp_messages
-     SET status = ?, whatsapp_message_id = COALESCE(?, whatsapp_message_id), error_message = ?
+     SET status = ?,
+         whatsapp_message_id = COALESCE(?, whatsapp_message_id),
+         error_message = ?,
+         message_body = COALESCE(?, message_body)
      WHERE id = ?`,
-    [status, whatsappMessageId, errorMessage, id]
+    [status, whatsappMessageId, errorMessage, messageBody, id]
   );
 };
 

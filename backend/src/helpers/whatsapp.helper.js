@@ -1,3 +1,9 @@
+import { query } from '../../config/database.js';
+import { getApiPrefix } from '../../config/app.config.js';
+import {
+  assertPublicInvoicePdfReachable,
+  createInvoicePublicToken,
+} from './invoicePublicToken.helper.js';
 import { normalizeIndianMobile } from '../utils/phoneValidation.js';
 
 const DEFAULT_API_VERSION = 'v21.0';
@@ -201,10 +207,22 @@ export const sendAiSensyCampaign = async ({
     throw new Error(data?.message || data?.error || 'AiSensy campaign failed');
   }
 
+  const deliveryMessage =
+    (typeof data?.message === 'string' && data.message)
+    || (typeof data?.status === 'string' && data.status)
+    || 'Submitted to AiSensy';
+
   return {
     success: true,
     status: response.status,
     data,
+    messageId:
+      data?.messageId
+      || data?.id
+      || data?.submitted_message_id
+      || data?.message_id
+      || null,
+    deliveryMessage,
   };
 };
 
@@ -216,9 +234,25 @@ export const verifyAiSensyConnection = async (config) => {
     throw new Error('APP_PUBLIC_URL is not set on the server (required for invoice PDF links)');
   }
 
+  const rows = await query('SELECT id FROM sales ORDER BY id DESC LIMIT 1');
+  const latestSaleId = rows[0]?.id;
+  if (latestSaleId) {
+    const token = createInvoicePublicToken(latestSaleId);
+    const pdfUrl = `${config.publicAppUrl}${getApiPrefix()}/public/invoices/${latestSaleId}.pdf?token=${encodeURIComponent(token)}`;
+    const pdfBytes = await assertPublicInvoicePdfReachable(pdfUrl);
+    return {
+      provider: 'aisensy',
+      campaignName: config.aisensyInvoiceCampaign,
+      publicAppUrl: config.publicAppUrl,
+      pdfVerified: true,
+      pdfBytes,
+    };
+  }
+
   return {
     provider: 'aisensy',
     campaignName: config.aisensyInvoiceCampaign,
     publicAppUrl: config.publicAppUrl,
+    pdfVerified: false,
   };
 };

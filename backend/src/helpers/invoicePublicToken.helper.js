@@ -33,3 +33,37 @@ export const verifyInvoicePublicToken = (saleId, token) => {
 
   return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
 };
+
+export const assertPublicInvoicePdfReachable = async (pdfUrl) => {
+  let response;
+  try {
+    response = await fetch(pdfUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; AiSensyMediaBot/1.0)',
+        Accept: 'application/pdf,*/*',
+      },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(25000),
+    });
+  } catch (error) {
+    throw new Error(
+      `Invoice PDF URL is not reachable (${error.message}). Set APP_PUBLIC_URL on the backend to your live API domain.`
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      `Invoice PDF URL returned HTTP ${response.status}. AiSensy cannot download the invoice attachment.`
+    );
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (buffer.length < 100 || buffer.slice(0, 4).toString() !== '%PDF') {
+    throw new Error(
+      'Invoice PDF URL did not return a valid PDF. AiSensy cannot send the WhatsApp invoice.'
+    );
+  }
+
+  return buffer.length;
+};

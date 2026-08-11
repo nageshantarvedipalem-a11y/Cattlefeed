@@ -12,7 +12,7 @@ import {
 } from '../repositories/whatsapp.repository.js';
 import { logActivity } from '../repositories/activityLog.repository.js';
 import { buildInvoicePdf } from '../helpers/invoicePdf.helper.js';
-import { createInvoicePublicToken } from '../helpers/invoicePublicToken.helper.js';
+import { createInvoicePublicToken, assertPublicInvoicePdfReachable } from '../helpers/invoicePublicToken.helper.js';
 import { getApiPrefix } from '../../config/app.config.js';
 import {
   normalizePhoneNumber,
@@ -201,6 +201,7 @@ export class WhatsAppService {
     }
 
     const pdfUrl = buildPublicInvoicePdfUrl(sale.id, config);
+    await assertPublicInvoicePdfReachable(pdfUrl);
 
     const result = await sendAiSensyCampaign({
       apiKey: config.aisensyApiKey,
@@ -214,8 +215,17 @@ export class WhatsAppService {
       templateParams: buildAiSensyInvoiceTemplateParams(sale),
     });
 
-    const messageId = result.data?.messageId || result.data?.id || null;
-    await updateWhatsAppMessageStatus(logId, 'sent', messageId);
+    const messageId = result.messageId || result.data?.messageId || result.data?.id || null;
+    const deliveryNote = result.deliveryMessage
+      || 'Submitted to AiSensy. If the customer does not receive it, complete WhatsApp Business KYC in AiSensy and check the campaign dashboard.';
+
+    await updateWhatsAppMessageStatus(
+      logId,
+      'sent',
+      messageId,
+      null,
+      deliveryNote
+    );
 
     await logActivity({
       userId: currentUser?.id,
@@ -238,6 +248,8 @@ export class WhatsAppService {
       messageId,
       phone: destination,
       invoiceNumber: sale.invoiceNumber,
+      deliveryNote,
+      queued: !messageId,
     };
   }
 
