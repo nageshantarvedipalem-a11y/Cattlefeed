@@ -1,5 +1,5 @@
 import PDFDocument from 'pdfkit';
-import { formatCurrency } from '../utils/formatCurrency.helper.js';
+import { formatCurrencyForPdf } from '../utils/formatCurrency.helper.js';
 
 export const buildPaymentReceiptPdf = (payment, sale, company) => new Promise((resolve, reject) => {
   const doc = new PDFDocument({ margin: 40, size: 'A4' });
@@ -33,7 +33,7 @@ export const buildPaymentReceiptPdf = (payment, sale, company) => new Promise((r
   doc.moveDown();
 
   doc.font('Helvetica-Bold').fontSize(11);
-  doc.text(`Amount Received: ${formatCurrency(payment.amount, currency)}`);
+  doc.text(`Amount Received: ${formatCurrencyForPdf(payment.amount, currency)}`);
   doc.font('Helvetica').fontSize(10);
   doc.text(`Payment Method: ${payment.paymentMethod.toUpperCase()}`);
   if (payment.referenceNumber) {
@@ -47,9 +47,9 @@ export const buildPaymentReceiptPdf = (payment, sale, company) => new Promise((r
     doc.moveDown();
     doc.font('Helvetica-Bold').text('Invoice Summary');
     doc.font('Helvetica');
-    doc.text(`Invoice Total: ${formatCurrency(sale.totalAmount, currency)}`);
-    doc.text(`Total Paid: ${formatCurrency(sale.paidAmount, currency)}`);
-    doc.text(`Remaining Pending: ${formatCurrency(sale.pendingAmount, currency)}`);
+    doc.text(`Invoice Total: ${formatCurrencyForPdf(sale.totalAmount, currency)}`);
+    doc.text(`Total Paid: ${formatCurrencyForPdf(sale.paidAmount, currency)}`);
+    doc.text(`Remaining Pending: ${formatCurrencyForPdf(sale.pendingAmount, currency)}`);
   }
 
   doc.moveDown(2);

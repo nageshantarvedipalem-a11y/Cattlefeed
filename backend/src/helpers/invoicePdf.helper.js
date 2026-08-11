@@ -1,7 +1,7 @@
 import PDFDocument from 'pdfkit';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { formatCurrency } from '../utils/formatCurrency.helper.js';
+import { formatCurrencyForPdf } from '../utils/formatCurrency.helper.js';
 import { logger } from '../utils/logger.js';
 import { buildInvoiceHtml } from './invoiceHtml.helper.js';
 import { launchBrowser } from './puppeteerBrowser.helper.js';
@@ -75,9 +75,9 @@ const buildStandardInvoicePdfKit = (sale, company) => new Promise((resolve, reje
     const cells = [
       String(index + 1),
       item.productName,
-      formatCurrency(item.sellingPrice, currency),
+      formatCurrencyForPdf(item.sellingPrice, currency),
       String(item.quantity),
-      formatCurrency(item.totalAmount, currency),
+      formatCurrencyForPdf(item.totalAmount, currency),
     ];
     cells.forEach((cell, i) => {
       doc.text(cell, x, rowY, { width: colWidths[i], align: i >= 2 ? 'right' : 'left' });
@@ -95,14 +95,14 @@ const buildStandardInvoicePdfKit = (sale, company) => new Promise((resolve, reje
     doc.moveDown(0.3);
   };
 
-  addTotalRow('Subtotal', formatCurrency(sale.subtotal, currency));
+  addTotalRow('Subtotal', formatCurrencyForPdf(sale.subtotal, currency));
   if (Number(sale.discountAmount) > 0) {
-    addTotalRow('Discount', `-${formatCurrency(sale.discountAmount, currency)}`);
+    addTotalRow('Discount', `-${formatCurrencyForPdf(sale.discountAmount, currency)}`);
   }
-  addTotalRow('GST', formatCurrency(sale.taxAmount, currency));
-  addTotalRow('Grand Total', formatCurrency(sale.totalAmount, currency), true);
-  addTotalRow('Paid', formatCurrency(sale.paidAmount, currency));
-  addTotalRow('Pending', formatCurrency(sale.pendingAmount, currency));
+  addTotalRow('GST', formatCurrencyForPdf(sale.taxAmount, currency));
+  addTotalRow('Grand Total', formatCurrencyForPdf(sale.totalAmount, currency), true);
+  addTotalRow('Paid', formatCurrencyForPdf(sale.paidAmount, currency));
+  addTotalRow('Pending', formatCurrencyForPdf(sale.pendingAmount, currency));
   addTotalRow('Payment', (sale.primaryPaymentMethod || 'cash').toUpperCase());
   addTotalRow('Status', paymentStatusLabel(sale));
 
@@ -198,9 +198,9 @@ const buildBrandedInvoicePdfKit = (sale, company) => new Promise((resolve, rejec
     const cells = [
       String(index + 1),
       item.productName,
-      formatCurrency(item.sellingPrice, currency),
+      formatCurrencyForPdf(item.sellingPrice, currency),
       String(item.quantity),
-      formatCurrency(item.totalAmount, currency),
+      formatCurrencyForPdf(item.totalAmount, currency),
     ];
     cells.forEach((cell, i) => {
       doc.fillColor(COLORS.text).text(cell, x + 4, rowY + 6, {
@@ -225,23 +225,23 @@ const buildBrandedInvoicePdfKit = (sale, company) => new Promise((resolve, rejec
   };
 
   let totalY = totalsTop + 12;
-  addTotalRow('SUBTOTAL', formatCurrency(sale.subtotal, currency), totalY);
+  addTotalRow('SUBTOTAL', formatCurrencyForPdf(sale.subtotal, currency), totalY);
   totalY += 18;
   if (Number(sale.discountAmount) > 0) {
-    addTotalRow('DISCOUNT', `-${formatCurrency(sale.discountAmount, currency)}`, totalY);
+    addTotalRow('DISCOUNT', `-${formatCurrencyForPdf(sale.discountAmount, currency)}`, totalY);
     totalY += 18;
   }
-  addTotalRow('GST', formatCurrency(sale.taxAmount, currency), totalY);
+  addTotalRow('GST', formatCurrencyForPdf(sale.taxAmount, currency), totalY);
   totalY += 20;
-  addTotalRow('TOTAL', formatCurrency(sale.totalAmount, currency), totalY, true);
+  addTotalRow('TOTAL', formatCurrencyForPdf(sale.totalAmount, currency), totalY, true);
 
   const payTop = totalsTop + 110;
   doc.font('Helvetica-Bold').fontSize(11).fillColor(COLORS.darkGreen)
     .text('PAYMENT INFO', contentX, payTop);
   doc.font('Helvetica').fontSize(10).fillColor(COLORS.text)
     .text(`Payment Type: ${(sale.primaryPaymentMethod || 'cash').toUpperCase()}`, contentX, payTop + 18)
-    .text(`Paid Amount: ${formatCurrency(sale.paidAmount, currency)}`, contentX, payTop + 34)
-    .text(`Pending: ${formatCurrency(sale.pendingAmount, currency)}`, contentX, payTop + 50)
+    .text(`Paid Amount: ${formatCurrencyForPdf(sale.paidAmount, currency)}`, contentX, payTop + 34)
+    .text(`Pending: ${formatCurrencyForPdf(sale.pendingAmount, currency)}`, contentX, payTop + 50)
     .text(`Status: ${paymentStatusLabel(sale)}`, contentX, payTop + 66);
 
   doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.darkGreen)
@@ -316,19 +316,19 @@ export const buildThermalInvoicePdf = (sale, company) => new Promise((resolve, r
   sale.items.forEach((item) => {
     doc.font('Helvetica-Bold').text(item.productName, { width });
     doc.font('Helvetica').text(
-      `${item.quantity} x ${formatCurrency(item.sellingPrice, currency)} = ${formatCurrency(item.totalAmount, currency)}`,
+      `${item.quantity} x ${formatCurrencyForPdf(item.sellingPrice, currency)} = ${formatCurrencyForPdf(item.totalAmount, currency)}`,
       { width }
     );
   });
 
   doc.text('--------------------------------', { align: 'center', width });
-  doc.text(`Subtotal: ${formatCurrency(sale.subtotal, currency)}`, { align: 'right', width });
-  doc.text(`Discount: ${formatCurrency(sale.discountAmount, currency)}`, { align: 'right', width });
-  doc.text(`GST: ${formatCurrency(sale.taxAmount, currency)}`, { align: 'right', width });
-  doc.font('Helvetica-Bold').text(`Grand Total: ${formatCurrency(sale.totalAmount, currency)}`, { align: 'right', width });
+  doc.text(`Subtotal: ${formatCurrencyForPdf(sale.subtotal, currency)}`, { align: 'right', width });
+  doc.text(`Discount: ${formatCurrencyForPdf(sale.discountAmount, currency)}`, { align: 'right', width });
+  doc.text(`GST: ${formatCurrencyForPdf(sale.taxAmount, currency)}`, { align: 'right', width });
+  doc.font('Helvetica-Bold').text(`Grand Total: ${formatCurrencyForPdf(sale.totalAmount, currency)}`, { align: 'right', width });
   doc.font('Helvetica');
-  doc.text(`Paid: ${formatCurrency(sale.paidAmount, currency)}`, { align: 'right', width });
-  doc.text(`Pending: ${formatCurrency(sale.pendingAmount, currency)}`, { align: 'right', width });
+  doc.text(`Paid: ${formatCurrencyForPdf(sale.paidAmount, currency)}`, { align: 'right', width });
+  doc.text(`Pending: ${formatCurrencyForPdf(sale.pendingAmount, currency)}`, { align: 'right', width });
   doc.text(`Payment: ${sale.primaryPaymentMethod?.toUpperCase() || 'CASH'}`, { align: 'right', width });
   doc.text(`Status: ${paymentStatusLabel(sale)}`, { align: 'right', width });
   doc.moveDown(0.5);
