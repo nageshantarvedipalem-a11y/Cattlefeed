@@ -27,7 +27,7 @@ on:
 # Do not cancel in-progress runs — rapid pushes were marking deploys as failed.
 concurrency:
   group: hostinger-frontend-deploy
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   NODE_VERSION: '20'
@@ -123,28 +123,33 @@ jobs:
       - name: Deploy to Hostinger FTP
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -qq -y lftp
           SERVER="${{ secrets.FTP_SERVER }}"
           USER="${{ secrets.FTP_USERNAME }}"
           PASS="${{ secrets.FTP_PASSWORD }}"
           PORT="${{ secrets.FTP_PORT || 21 }}"
           DIR="${{ steps.ftp.outputs.server_dir }}"
           PROTO="${{ secrets.FTP_PROTOCOL || 'ftp' }}"
+          CURL_OPTS=(--ftp-create-dirs --connect-timeout 30 --max-time 180 --retry 2 --retry-delay 3)
           if [ "$PROTO" = "ftps" ] || [ "$PROTO" = "ftps-legacy" ]; then
-            LFTP_SSL="set ftp:ssl-force true; set ssl:verify-certificate no;"
-          else
-            LFTP_SSL="set ftp:ssl-allow false;"
+            CURL_OPTS+=(--ssl-reqd)
           fi
-          echo "Mirroring frontend/dist → ftp://${SERVER}${DIR}"
-          lftp -u "${USER}","${PASS}" -p "$PORT" "$SERVER" <<EOF
-          ${LFTP_SSL}
-          set ftp:passive-mode true
-          cd ${DIR}
-          lcd frontend/dist
-          mirror --reverse --parallel=4 --verbose --exclude-glob .DS_Store
-          bye
-          EOF
+          echo "Uploading frontend/dist → ftp://${SERVER}:${PORT}${DIR} (${PROTO})"
+          cd frontend/dist
+          count=0
+          while IFS= read -r file; do
+            rel="${file#./}"
+            target="${DIR%/}/${rel}"
+            case "$target" in
+              /*) remote_path="$target" ;;
+              *) remote_path="/$target" ;;
+            esac
+            echo "↑ $rel"
+            curl "${CURL_OPTS[@]}" -T "$file" \
+              --user "${USER}:${PASS}" \
+              "ftp://${SERVER}:${PORT}${remote_path}"
+            count=$((count + 1))
+          done < <(find . -type f | sort)
+          echo "Uploaded $count files"
 
       - name: Verify live site updated
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
