@@ -118,23 +118,45 @@ jobs:
 
       - name: Deploy to Hostinger FTP
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          port: ${{ secrets.FTP_PORT || 21 }}
-          protocol: ${{ steps.ftp.outputs.ftp_protocol || 'ftp' }}
-          local-dir: ./frontend/dist/
-          server-dir: ${{ steps.ftp.outputs.server_dir }}
-          state-name: .ftp-deploy-sync-state-${{ github.run_id }}.json
-          dangerous-clean-slate: false
-          log-level: standard
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/node_modules/**
-            **/.DS_Store
+        run: |
+          set -euo pipefail
+          SERVER="${{ secrets.FTP_SERVER }}"
+          USER="${{ secrets.FTP_USERNAME }}"
+          PASS="${{ secrets.FTP_PASSWORD }}"
+          PORT="${{ secrets.FTP_PORT || 21 }}"
+          # Plain FTP only — never TLS when host is an IP (SSL cert mismatch).
+          echo "Deploying frontend/dist via passive FTP to ftp://${SERVER}:${PORT}/"
+          cd frontend/dist
+          file_count=$(find . -type f | wc -l | tr -d ' ')
+          echo "Files to upload: $file_count"
+          failed=0
+          uploaded=0
+          upload_file() {
+            local file="$1"
+            local rel="${file#./}"
+            local remote="/${rel}"
+            echo "↑ ${rel}"
+            if curl --ftp-create-dirs --ftp-pasv --connect-timeout 30 --max-time 300 --retry 2 --fail \
+              -T "$file" --user "${USER}:${PASS}" \
+              "ftp://${SERVER}:${PORT}${remote}"; then
+              uploaded=$((uploaded + 1))
+            else
+              echo "::error::FTP upload failed: ${rel}"
+              failed=$((failed + 1))
+            fi
+          }
+          # Upload /assets first so index.html never points at missing JS/CSS.
+          while IFS= read -r file; do
+            upload_file "$file"
+          done < <(find ./assets -type f 2>/dev/null | sort)
+          while IFS= read -r file; do
+            upload_file "$file"
+          done < <(find . -type f ! -path './assets/*' ! -name 'index.html' | sort)
+          upload_file "./index.html"
+          echo "Uploaded ${uploaded}/${file_count} files (${failed} failed)"
+          if [ "$failed" -gt 0 ]; then
+            exit 1
+          fi
 
       - name: Verify live site updated
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
