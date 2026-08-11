@@ -21,7 +21,8 @@ import reportRoutes from './routes/report.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
 import whatsappRoutes from './routes/whatsapp.routes.js';
 import publicRoutes from './routes/public.routes.js';
-import { getApiPrefix } from '../config/app.config.js';
+import appConfig, { getApiPrefix } from '../config/app.config.js';
+import { sendSuccess } from './utils/apiResponse.js';
 
 dotenv.config();
 
@@ -59,6 +60,16 @@ app.use(`${API_PREFIX}/profit`, profitRoutes);
 app.use(`${API_PREFIX}/reports`, reportRoutes);
 app.use(`${API_PREFIX}/dashboard`, dashboardRoutes);
 app.use(`${API_PREFIX}/whatsapp`, whatsappRoutes);
+
+app.get('/', (req, res) => {
+  sendSuccess(res, {
+    service: appConfig.name,
+    message: 'This is the API server. Use the endpoints below — there is no website at /.',
+    api: `${req.protocol}://${req.get('host')}${API_PREFIX}`,
+    health: `${req.protocol}://${req.get('host')}${API_PREFIX}/health`,
+    frontend: process.env.CORS_ORIGIN || null,
+  }, `${appConfig.name} API`);
+});
 
 app.use(notFoundHandler);
 app.use(errorHandler);
