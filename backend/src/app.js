@@ -20,6 +20,7 @@ import profitRoutes from './routes/profit.routes.js';
 import reportRoutes from './routes/report.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
 import whatsappRoutes from './routes/whatsapp.routes.js';
+import publicRoutes from './routes/public.routes.js';
 import { getApiPrefix } from '../config/app.config.js';
 
 dotenv.config();
@@ -40,6 +41,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 app.use(`${API_PREFIX}/health`, healthRoutes);
+app.use(`${API_PREFIX}/public`, publicRoutes);
 app.use(apiRateLimiter);
 
 app.use(API_PREFIX, indexRoutes);

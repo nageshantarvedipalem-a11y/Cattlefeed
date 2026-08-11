@@ -124,3 +124,87 @@ export const verifyWhatsAppConnection = async (config) => {
     verifiedName: data.verified_name || null,
   };
 };
+
+const AISENSY_API_URL = process.env.AISENSY_API_URL || 'https://backend.aisensy.com/campaign/t1/api/v2';
+
+export const formatAiSensyDestination = (phone) => {
+  const normalized = normalizePhoneNumber(phone);
+  if (!normalized) return null;
+  return normalized.startsWith('+') ? normalized : `+${normalized}`;
+};
+
+export const sendAiSensyCampaign = async ({
+  apiKey,
+  campaignName,
+  destination,
+  userName,
+  source = 'Cattle Feed ERP',
+  media = null,
+  templateParams = [],
+  tags = [],
+  attributes = null,
+}) => {
+  const payload = {
+    apiKey,
+    campaignName,
+    destination,
+    userName,
+    source,
+  };
+
+  if (media?.url && media?.filename) {
+    payload.media = media;
+  }
+  if (templateParams.length) {
+    payload.templateParams = templateParams;
+  }
+  if (tags.length) {
+    payload.tags = tags;
+  }
+  if (attributes && Object.keys(attributes).length) {
+    payload.attributes = attributes;
+  }
+
+  const response = await fetch(AISENSY_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    const errorMessage =
+      data?.message ||
+      data?.error ||
+      data?.errorMessage ||
+      `AiSensy campaign request failed (${response.status})`;
+    throw new Error(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+  }
+
+  return {
+    success: true,
+    status: response.status,
+    data,
+  };
+};
+
+export const verifyAiSensyConnection = async (config) => {
+  if (!config.aisensyApiKey || !config.aisensyInvoiceCampaign) {
+    throw new Error('AiSensy API key and invoice campaign name are required');
+  }
+  if (!config.publicAppUrl) {
+    throw new Error('APP_PUBLIC_URL is not set on the server (required for invoice PDF links)');
+  }
+
+  return {
+    provider: 'aisensy',
+    campaignName: config.aisensyInvoiceCampaign,
+    publicAppUrl: config.publicAppUrl,
+  };
+};

@@ -30,8 +30,12 @@ const WhatsAppPage = () => {
   const [form, setForm] = useState({
     enabled: false,
     autoSendInvoice: true,
+    provider: 'meta',
     apiToken: '',
     phoneNumberId: '',
+    aisensyApiKey: '',
+    aisensyInvoiceCampaign: '',
+    aisensyReminderCampaign: '',
   });
   const [messages, setMessages] = useState([]);
   const [page, setPage] = useState(1);
@@ -46,7 +50,10 @@ const WhatsAppPage = () => {
         ...prev,
         enabled: data.enabled,
         autoSendInvoice: data.autoSendInvoice,
+        provider: data.provider || 'meta',
         phoneNumberId: data.phoneNumberId || '',
+        aisensyInvoiceCampaign: data.aisensyInvoiceCampaign || '',
+        aisensyReminderCampaign: data.aisensyReminderCampaign || '',
       }));
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to load WhatsApp settings');
@@ -79,14 +86,20 @@ const WhatsAppPage = () => {
       const payload = {
         enabled: form.enabled,
         autoSendInvoice: form.autoSendInvoice,
+        provider: form.provider,
         phoneNumberId: form.phoneNumberId,
+        aisensyInvoiceCampaign: form.aisensyInvoiceCampaign,
+        aisensyReminderCampaign: form.aisensyReminderCampaign,
       };
       if (form.apiToken.trim()) {
         payload.apiToken = form.apiToken.trim();
       }
+      if (form.aisensyApiKey.trim()) {
+        payload.aisensyApiKey = form.aisensyApiKey.trim();
+      }
       const response = await whatsappService.updateSettings(payload);
       setConfig(response.data.data);
-      setForm((prev) => ({ ...prev, apiToken: '' }));
+      setForm((prev) => ({ ...prev, apiToken: '', aisensyApiKey: '' }));
       toast.success('WhatsApp settings saved');
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to save settings');
@@ -100,11 +113,15 @@ const WhatsAppPage = () => {
     try {
       const response = await whatsappService.testConnection();
       const data = response.data.data;
-      toast.success(
-        data.verifiedName
-          ? `Connected: ${data.verifiedName} (${data.displayPhoneNumber || 'verified'})`
-          : 'WhatsApp API connection successful'
-      );
+      if (data.provider === 'aisensy') {
+        toast.success(`AiSensy configured: campaign "${data.campaignName}"`);
+      } else {
+        toast.success(
+          data.verifiedName
+            ? `Connected: ${data.verifiedName} (${data.displayPhoneNumber || 'verified'})`
+            : 'WhatsApp API connection successful'
+        );
+      }
       fetchMessages();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Connection test failed');
@@ -113,6 +130,8 @@ const WhatsAppPage = () => {
     }
   };
 
+  const isAiSensy = form.provider === 'aisensy';
+
   if (loading) return <LoadingSpinner />;
 
   return (
@@ -120,7 +139,7 @@ const WhatsAppPage = () => {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">WhatsApp Integration</h1>
         <p className="mt-1 text-slate-600">
-          Send invoice PDFs and payment reminders via WhatsApp Cloud API.
+          Send invoice PDFs and payment reminders via Meta Cloud API or AiSensy.
         </p>
       </div>
 
@@ -170,35 +189,106 @@ const WhatsAppPage = () => {
             </label>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Phone Number ID</label>
-              <input
-                type="text"
-                value={form.phoneNumberId}
-                onChange={(e) => setForm({ ...form, phoneNumberId: e.target.value })}
+              <label className="mb-1 block text-xs font-medium text-slate-600">Provider</label>
+              <select
+                value={form.provider}
+                onChange={(e) => setForm({ ...form, provider: e.target.value })}
                 disabled={!canEdit}
-                placeholder="From Meta Business Manager"
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 disabled:bg-slate-50"
-              />
+              >
+                <option value="aisensy">AiSensy (recommended)</option>
+                <option value="meta">Meta WhatsApp Cloud API</option>
+              </select>
             </div>
 
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">
-                API Token {config?.hasApiToken && `(saved: ${config.apiTokenMasked})`}
-              </label>
-              <input
-                type="password"
-                value={form.apiToken}
-                onChange={(e) => setForm({ ...form, apiToken: e.target.value })}
-                disabled={!canEdit}
-                placeholder={config?.hasApiToken ? 'Leave blank to keep current token' : 'Permanent access token'}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 disabled:bg-slate-50"
-              />
-            </div>
+            {isAiSensy ? (
+              <>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">
+                    Project API Key {config?.hasAisensyApiKey && `(saved: ${config.aisensyApiKeyMasked})`}
+                  </label>
+                  <input
+                    type="password"
+                    value={form.aisensyApiKey}
+                    onChange={(e) => setForm({ ...form, aisensyApiKey: e.target.value })}
+                    disabled={!canEdit}
+                    placeholder={config?.hasAisensyApiKey ? 'Leave blank to keep current key' : 'From AiSensy Developer Hub'}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 disabled:bg-slate-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">Invoice API Campaign Name</label>
+                  <input
+                    type="text"
+                    value={form.aisensyInvoiceCampaign}
+                    onChange={(e) => setForm({ ...form, aisensyInvoiceCampaign: e.target.value })}
+                    disabled={!canEdit}
+                    placeholder="Exact Live campaign name from AiSensy"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 disabled:bg-slate-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">
+                    Reminder API Campaign Name (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={form.aisensyReminderCampaign}
+                    onChange={(e) => setForm({ ...form, aisensyReminderCampaign: e.target.value })}
+                    disabled={!canEdit}
+                    placeholder="Leave empty to use wa.me links for reminders"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 disabled:bg-slate-50"
+                  />
+                </div>
+
+                {config?.publicAppUrl ? (
+                  <p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+                    Backend public URL: <strong>{config.publicAppUrl}</strong>
+                  </p>
+                ) : (
+                  <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-700">
+                    Set <strong>APP_PUBLIC_URL</strong> on the backend server (e.g. your Hostinger backend domain) so AiSensy can download invoice PDFs.
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">Phone Number ID</label>
+                  <input
+                    type="text"
+                    value={form.phoneNumberId}
+                    onChange={(e) => setForm({ ...form, phoneNumberId: e.target.value })}
+                    disabled={!canEdit}
+                    placeholder="From Meta Business Manager"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 disabled:bg-slate-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">
+                    API Token {config?.hasApiToken && `(saved: ${config.apiTokenMasked})`}
+                  </label>
+                  <input
+                    type="password"
+                    value={form.apiToken}
+                    onChange={(e) => setForm({ ...form, apiToken: e.target.value })}
+                    disabled={!canEdit}
+                    placeholder={config?.hasApiToken ? 'Leave blank to keep current token' : 'Permanent access token'}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 disabled:bg-slate-50"
+                  />
+                </div>
+              </>
+            )}
 
             <div className={`rounded-lg p-3 text-xs ${config?.configured ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
               {config?.configured
-                ? 'WhatsApp Cloud API is configured. Invoices can be sent automatically and manually.'
-                : 'Configure API token and Phone Number ID from Meta WhatsApp Business Platform. Without API, payment reminders fall back to wa.me links.'}
+                ? `${isAiSensy ? 'AiSensy' : 'Meta Cloud API'} is configured. Invoices can be sent automatically and manually.`
+                : isAiSensy
+                  ? 'Configure AiSensy API key, Live invoice campaign name, and backend APP_PUBLIC_URL.'
+                  : 'Configure API token and Phone Number ID from Meta WhatsApp Business Platform. Without API, payment reminders fall back to wa.me links.'}
             </div>
           </div>
 
@@ -224,12 +314,14 @@ const WhatsAppPage = () => {
         </form>
 
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-sm font-semibold text-slate-700">How it works</h2>
+          <h2 className="mb-4 text-sm font-semibold text-slate-700">How it works (AiSensy)</h2>
           <ul className="space-y-3 text-sm text-slate-600">
-            <li>After each bill, the invoice PDF is automatically sent to the customer&apos;s WhatsApp if enabled and configured.</li>
-            <li>Use the <strong>Send WhatsApp</strong> button on the invoice screen to resend manually.</li>
-            <li>Pending payment reminders are sent via API when configured, otherwise a wa.me link opens.</li>
-            <li>Get credentials from <a href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started" target="_blank" rel="noreferrer" className="text-primary-700 underline">Meta WhatsApp Cloud API</a>.</li>
+            <li>Complete <strong>Business Verification (KYC)</strong> in AiSensy — required before messages send.</li>
+            <li>Create an <strong>approved WhatsApp template</strong> with a document/PDF attachment.</li>
+            <li>Create a <strong>Live API Campaign</strong> linked to that template and paste its exact name above.</li>
+            <li>Paste your <strong>Project API Key</strong> from AiSensy Developer Hub (shown only once when generated).</li>
+            <li>After each bill, the invoice PDF link is sent to the customer via your AiSensy campaign.</li>
+            <li>Use <strong>Send WhatsApp</strong> on the invoice screen to resend manually.</li>
           </ul>
         </div>
       </div>

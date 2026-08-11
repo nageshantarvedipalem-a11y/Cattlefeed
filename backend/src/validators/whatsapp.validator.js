@@ -3,8 +3,12 @@ import { body, param, query } from 'express-validator';
 export const updateWhatsAppConfigValidation = [
   body('enabled').optional().isBoolean().toBoolean(),
   body('autoSendInvoice').optional().isBoolean().toBoolean(),
+  body('provider').optional().isIn(['meta', 'aisensy']),
   body('apiToken').optional({ values: 'falsy' }).trim().isLength({ max: 500 }),
   body('phoneNumberId').optional({ values: 'falsy' }).trim().isLength({ max: 100 }),
+  body('aisensyApiKey').optional({ values: 'falsy' }).trim().isLength({ max: 500 }),
+  body('aisensyInvoiceCampaign').optional({ values: 'falsy' }).trim().isLength({ max: 200 }),
+  body('aisensyReminderCampaign').optional({ values: 'falsy' }).trim().isLength({ max: 200 }),
 ];
 
 export const listWhatsAppMessagesValidation = [

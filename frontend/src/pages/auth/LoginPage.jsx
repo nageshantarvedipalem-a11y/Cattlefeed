@@ -166,6 +166,18 @@ const LoginPage = () => {
 
           <p className="mt-6 text-center text-xs text-slate-400">
             © {new Date().getFullYear()} Cattle Feed ERP · Inventory & Billing System
+            {' '}
+            <span className="text-slate-300">|</span>
+            {' '}
+            Designed by{' '}
+            <a
+              href="https://thewebsitemakers.in/"
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-amber-600 transition hover:text-amber-700 hover:underline"
+            >
+              The Website Makers
+            </a>
           </p>
         </div>
       </div>

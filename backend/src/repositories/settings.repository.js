@@ -71,20 +71,33 @@ export const getSettingsByKeys = async (keys) => {
 export const getWhatsAppSettings = async () => {
   const keys = [
     'whatsapp_enabled',
+    'whatsapp_provider',
     'whatsapp_api_token',
     'whatsapp_phone_number_id',
     'whatsapp_auto_send_invoice',
+    'whatsapp_aisensy_api_key',
+    'whatsapp_aisensy_invoice_campaign',
+    'whatsapp_aisensy_reminder_campaign',
   ];
   const dbSettings = await getSettingsByKeys(keys);
 
   const apiToken = dbSettings.whatsapp_api_token || process.env.WHATSAPP_API_TOKEN || '';
   const phoneNumberId = dbSettings.whatsapp_phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || '';
+  const aisensyApiKey = dbSettings.whatsapp_aisensy_api_key || process.env.AISENSY_API_KEY || '';
+  const provider = dbSettings.whatsapp_provider || process.env.WHATSAPP_PROVIDER || 'meta';
 
   return {
     enabled: dbSettings.whatsapp_enabled === 'true',
+    provider: provider === 'aisensy' ? 'aisensy' : 'meta',
     apiToken,
     phoneNumberId,
     autoSendInvoice: dbSettings.whatsapp_auto_send_invoice !== 'false',
     apiVersion: process.env.WHATSAPP_API_VERSION || 'v21.0',
+    aisensyApiKey,
+    aisensyInvoiceCampaign:
+      dbSettings.whatsapp_aisensy_invoice_campaign || process.env.AISENSY_INVOICE_CAMPAIGN || '',
+    aisensyReminderCampaign:
+      dbSettings.whatsapp_aisensy_reminder_campaign || process.env.AISENSY_REMINDER_CAMPAIGN || '',
+    publicAppUrl: (process.env.APP_PUBLIC_URL || '').replace(/\/$/, ''),
   };
 };

@@ -18,4 +18,6 @@ export const getApiUrl = (req) => {
   return `${protocol}://${host}${getApiPrefix()}`;
 };
 
+export const getPublicAppUrl = () => (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
+
 export default appConfig;
