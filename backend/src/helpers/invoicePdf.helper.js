@@ -131,8 +131,10 @@ export const buildInvoicePdf = async (sale, company) => {
     return await buildInvoicePdfWithPuppeteer(sale, company);
   } catch (error) {
     browserPromise = null;
-    logger.warn(`Puppeteer invoice PDF failed, using PDFKit fallback: ${error.message}`);
-    return buildStandardInvoicePdfKit(sale, company);
+    logger.error(`Styled invoice PDF generation failed: ${error.message}`);
+    throw new Error(
+      `Could not generate styled invoice PDF. ${error.message}`
+    );
   }
 };
 

@@ -13,7 +13,7 @@ const logoPath = join(__dirname, '../assets/logo.png');
 const getCompanyLogoDataUri = () => {
   try {
     const logoBuffer = readFileSync(logoPath);
-    return `data:image/jpeg;base64,${logoBuffer.toString('base64')}`;
+    return `data:image/png;base64,${logoBuffer.toString('base64')}`;
   } catch {
     return '';
   }
