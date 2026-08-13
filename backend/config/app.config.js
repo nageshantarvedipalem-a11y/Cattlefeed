@@ -33,11 +33,7 @@ export const getCorsOrigins = () => {
     .map((origin) => origin.trim())
     .filter(Boolean);
 
-  if (appConfig.env === 'production') {
-    return [...new Set([...fromEnv, ...PRODUCTION_FRONTEND_ORIGINS])];
-  }
-
-  return fromEnv;
+  return [...new Set([...fromEnv, ...PRODUCTION_FRONTEND_ORIGINS])];
 };
 
 export default appConfig;
