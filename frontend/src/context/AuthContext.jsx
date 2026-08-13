@@ -74,6 +74,12 @@ export const AuthProvider = ({ children }) => {
     [user]
   );
 
+  const updateSession = useCallback((accessToken, updatedUser) => {
+    setAuthSession(accessToken, updatedUser);
+    setUser(updatedUser);
+    setToken(accessToken);
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
@@ -84,8 +90,9 @@ export const AuthProvider = ({ children }) => {
       logout,
       checkPermission,
       refreshUser: bootstrapAuth,
+      updateSession,
     }),
-    [user, token, loading, isAuthenticated, checkPermission, bootstrapAuth]
+    [user, token, loading, isAuthenticated, checkPermission, bootstrapAuth, updateSession]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

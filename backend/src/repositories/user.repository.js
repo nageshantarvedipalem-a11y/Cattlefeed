@@ -1,10 +1,18 @@
 import crypto from 'crypto';
 import { query } from '../../config/database.js';
+import { getPublicAppUrl } from '../../config/app.config.js';
+
+export const buildProfileImageUrl = (profileImage) => {
+  if (!profileImage) return null;
+  if (profileImage.startsWith('http')) return profileImage;
+  const base = getPublicAppUrl();
+  return base ? `${base}${profileImage}` : profileImage;
+};
 
 export const findUserByIdentifier = async (identifier) => {
   const rows = await query(
     `SELECT u.id, u.role_id, u.username, u.email, u.password_hash, u.full_name,
-            u.phone, u.is_active, u.last_login_at, r.name AS role_name, r.permissions
+            u.phone, u.profile_image, u.is_active, u.last_login_at, r.name AS role_name, r.permissions
      FROM users u
      INNER JOIN roles r ON r.id = u.role_id
      WHERE (u.username = ? OR u.email = ?) AND u.is_active = 1
@@ -16,7 +24,7 @@ export const findUserByIdentifier = async (identifier) => {
 
 export const findUserById = async (userId) => {
   const rows = await query(
-    `SELECT u.id, u.role_id, u.username, u.email, u.full_name, u.phone,
+    `SELECT u.id, u.role_id, u.username, u.email, u.full_name, u.phone, u.profile_image,
             u.is_active, u.last_login_at, u.created_at, r.name AS role_name, r.permissions
      FROM users u
      INNER JOIN roles r ON r.id = u.role_id
@@ -58,6 +66,41 @@ export const updatePassword = async (userId, passwordHash) => {
     'UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?',
     [passwordHash, userId]
   );
+};
+
+export const findConflictingUser = async (username, email, excludeUserId) => {
+  const rows = await query(
+    `SELECT id, username, email
+     FROM users
+     WHERE id <> ? AND (username = ? OR email = ?)
+     LIMIT 1`,
+    [excludeUserId, username, email]
+  );
+  return rows[0] || null;
+};
+
+export const updateUserProfile = async (userId, { fullName, username, email, phone }) => {
+  await query(
+    `UPDATE users
+     SET full_name = ?, username = ?, email = ?, phone = ?, updated_at = NOW()
+     WHERE id = ?`,
+    [fullName, username, email, phone || null, userId]
+  );
+};
+
+export const updateUserProfileImage = async (userId, profileImage) => {
+  await query(
+    'UPDATE users SET profile_image = ?, updated_at = NOW() WHERE id = ?',
+    [profileImage, userId]
+  );
+};
+
+export const getUserProfileImage = async (userId) => {
+  const rows = await query(
+    'SELECT profile_image FROM users WHERE id = ? LIMIT 1',
+    [userId]
+  );
+  return rows[0]?.profile_image || null;
 };
 
 export const createPasswordResetToken = async (userId, token, expiresAt) => {
@@ -110,6 +153,8 @@ export const sanitizeUser = (user) => {
     email: user.email,
     fullName: user.full_name,
     phone: user.phone,
+    profileImage: user.profile_image || null,
+    profileImageUrl: buildProfileImageUrl(user.profile_image),
     isActive: Boolean(user.is_active),
     lastLoginAt: user.last_login_at,
     permissions,

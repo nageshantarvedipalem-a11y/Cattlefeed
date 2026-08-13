@@ -13,6 +13,7 @@ const ForgotPasswordPage = lazy(() => import('../pages/auth/ForgotPasswordPage')
 const ResetPasswordPage = lazy(() => import('../pages/auth/ResetPasswordPage'));
 const DashboardPage = lazy(() => import('../pages/dashboard/DashboardPage'));
 const ChangePasswordPage = lazy(() => import('../pages/auth/ChangePasswordPage'));
+const ProfilePage = lazy(() => import('../pages/auth/ProfilePage'));
 const UsersPage = lazy(() => import('../pages/users/UsersPage'));
 const CustomersPage = lazy(() => import('../pages/customers/CustomersPage'));
 const CustomerDetailPage = lazy(() => import('../pages/customers/CustomerDetailPage'));
@@ -123,6 +124,7 @@ const AppRoutes = () => {
                   <WhatsAppPage />
                 </PermissionRoute>
               } />
+              <Route path="/profile" element={<ProfilePage />} />
               <Route path="/change-password" element={<ChangePasswordPage />} />
             </Route>
           </Route>

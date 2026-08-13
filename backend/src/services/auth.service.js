@@ -10,11 +10,17 @@ import {
   generateResetToken,
   sanitizeUser,
   findUserWithPasswordById,
+  findConflictingUser,
+  updateUserProfile,
+  updateUserProfileImage,
+  getUserProfileImage,
 } from '../repositories/user.repository.js';
 import { logActivity } from '../repositories/activityLog.repository.js';
 import { comparePassword, hashPassword, validatePasswordStrength } from '../helpers/password.helper.js';
 import { signAccessToken } from '../helpers/jwt.helper.js';
 import { AppError } from '../utils/apiResponse.js';
+import { invalidateCachedUser } from '../utils/authCache.js';
+import { deleteAvatarFile, getAvatarPublicPath } from '../middlewares/upload.middleware.js';
 
 export class AuthService {
   async login(identifier, password, ipAddress) {
@@ -168,6 +174,76 @@ export class AuthService {
     });
 
     return { message: 'Password changed successfully' };
+  }
+
+  async updateProfile(userId, payload, ipAddress) {
+    const user = await findUserById(userId);
+    if (!user) {
+      throw new AppError('User not found', 404);
+    }
+
+    const { fullName, username, email, phone } = payload;
+    const conflict = await findConflictingUser(username, email, userId);
+    if (conflict) {
+      if (conflict.username === username) {
+        throw new AppError('Username is already taken', 409);
+      }
+      throw new AppError('Email is already in use', 409);
+    }
+
+    await updateUserProfile(userId, { fullName, username, email, phone });
+
+    await logActivity({
+      userId,
+      action: 'profile_updated',
+      entityType: 'user',
+      entityId: userId,
+      details: { username, email },
+      ipAddress,
+    });
+
+    invalidateCachedUser(userId);
+
+    const updatedUser = sanitizeUser(await findUserById(userId));
+    const token = signAccessToken({ userId: updatedUser.id, user: updatedUser });
+
+    return { user: updatedUser, token, message: 'Profile updated successfully' };
+  }
+
+  async uploadAvatar(userId, file, ipAddress) {
+    if (!file) {
+      throw new AppError('Profile image is required', 400);
+    }
+
+    const user = await findUserById(userId);
+    if (!user) {
+      throw new AppError('User not found', 404);
+    }
+
+    const previousImage = await getUserProfileImage(userId);
+    const profileImage = getAvatarPublicPath(file.filename);
+
+    await updateUserProfileImage(userId, profileImage);
+    deleteAvatarFile(previousImage);
+
+    await logActivity({
+      userId,
+      action: 'profile_image_updated',
+      entityType: 'user',
+      entityId: userId,
+      ipAddress,
+    });
+
+    invalidateCachedUser(userId);
+
+    const updatedUser = sanitizeUser(await findUserById(userId));
+    const token = signAccessToken({ userId: updatedUser.id, user: updatedUser });
+
+    return {
+      user: updatedUser,
+      token,
+      message: 'Profile photo updated successfully',
+    };
   }
 }
 

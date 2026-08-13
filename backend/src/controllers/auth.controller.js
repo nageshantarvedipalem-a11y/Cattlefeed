@@ -9,7 +9,8 @@ export const login = asyncHandler(async (req, res) => {
 });
 
 export const me = asyncHandler(async (req, res) => {
-  sendSuccess(res, { user: req.user }, 'Profile fetched successfully');
+  const user = await authService.getProfile(req.user.id);
+  sendSuccess(res, { user }, 'Profile fetched successfully');
 });
 
 export const logout = asyncHandler(async (req, res) => {
@@ -36,5 +37,15 @@ export const changePassword = asyncHandler(async (req, res) => {
     newPassword,
     getClientIp(req)
   );
+  sendSuccess(res, result, result.message);
+});
+
+export const updateProfile = asyncHandler(async (req, res) => {
+  const result = await authService.updateProfile(req.user.id, req.body, getClientIp(req));
+  sendSuccess(res, result, result.message);
+});
+
+export const uploadAvatar = asyncHandler(async (req, res) => {
+  const result = await authService.uploadAvatar(req.user.id, req.file, getClientIp(req));
   sendSuccess(res, result, result.message);
 });

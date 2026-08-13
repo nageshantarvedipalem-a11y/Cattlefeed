@@ -19,6 +19,14 @@ export const errorHandler = (err, req, res, _next) => {
     message = 'Database connection limit reached. Please wait a few minutes and try again.';
   }
 
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    statusCode = 400;
+    message = 'Image must be smaller than 2 MB';
+  } else if (err.message?.includes('Only JPEG, PNG, WebP, or GIF')) {
+    statusCode = 400;
+    message = err.message;
+  }
+
   if (!err.isOperational) {
     logger.error(`${req.method} ${req.originalUrl} - ${err.message}`, { stack: err.stack });
   }

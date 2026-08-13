@@ -1,7 +1,6 @@
 import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom';
 import {
   FiHome,
-  FiKey,
   FiLogOut,
   FiMenu,
   FiUsers,
@@ -24,6 +23,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import AppLogo from '../components/common/AppLogo';
+import UserMenu from '../components/common/UserMenu';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: FiHome, module: 'dashboard' },
@@ -39,7 +39,7 @@ const navItems = [
   { to: '/profit', label: 'Profit', icon: FiTrendingUp, module: 'reports' },
   { to: '/reports', label: 'Reports', icon: FiFileText, module: 'reports' },
   { to: '/whatsapp', label: 'WhatsApp', icon: FiMessageCircle, module: 'settings' },
-  { to: '/change-password', label: 'Change Password', icon: FiKey, module: null },
+  { to: '/profile', label: 'My Profile', icon: FiUser, module: null },
 ];
 
 const Sidebar = ({ expanded = false, onNavigate }) => {
@@ -131,16 +131,9 @@ const todayLabel = () =>
   });
 
 const DashboardLayout = () => {
-  const { user, checkPermission } = useAuth();
+  const { checkPermission } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const canBill = checkPermission('billing', 'view');
-
-  const initials = user?.fullName
-    ?.split(' ')
-    .map((n) => n[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase() || 'CF';
 
   return (
     <div className="flex h-full overflow-hidden bg-slate-50">
@@ -204,15 +197,7 @@ const DashboardLayout = () => {
                 New Bill
               </Link>
             )}
-            <div className="flex items-center gap-2 rounded-xl border border-emerald-100 bg-white/90 px-2.5 py-1.5 shadow-sm">
-              <div className="sidebar-brand-gradient flex h-8 w-8 items-center justify-center rounded-lg text-[10px] font-bold text-white">
-                {initials}
-              </div>
-              <div className="hidden min-w-0 sm:block">
-                <p className="truncate text-xs font-semibold text-slate-800">{user?.fullName}</p>
-                <p className="truncate text-[10px] capitalize text-slate-400">{user?.role}</p>
-              </div>
-            </div>
+            <UserMenu />
           </div>
         </header>
 

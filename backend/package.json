@@ -14,6 +14,8 @@
     "db:schema": "node database/migrate.js schema",
     "db:seed": "node database/migrate.js seed",
     "db:setup": "node database/migrate.js all",
+    "db:clear": "node database/clear-test-data.js",
+    "db:migrate": "node database/run-migration.js",
     "hash-password": "node scripts/hashPassword.js"
   },
   "keywords": [
@@ -35,6 +37,7 @@
     "express-validator": "^7.2.1",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^2.2.0",
     "mysql2": "^3.12.0",
     "pdfkit": "^0.19.1",
     "puppeteer": "^24.43.1",

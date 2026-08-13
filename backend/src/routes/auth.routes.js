@@ -8,7 +8,9 @@ import {
   forgotPasswordValidation,
   resetPasswordValidation,
   changePasswordValidation,
+  updateProfileValidation,
 } from '../validators/auth.validator.js';
+import { avatarUpload } from '../middlewares/upload.middleware.js';
 
 const router = Router();
 
@@ -18,6 +20,13 @@ router.post('/reset-password', authRateLimiter, validate(resetPasswordValidation
 
 router.get('/me', authenticate, authController.me);
 router.post('/logout', authenticate, authController.logout);
+router.patch('/me', authenticate, validate(updateProfileValidation), authController.updateProfile);
+router.post(
+  '/me/avatar',
+  authenticate,
+  avatarUpload.single('avatar'),
+  authController.uploadAvatar
+);
 router.post('/change-password', authenticate, validate(changePasswordValidation), authController.changePassword);
 
 export default router;
