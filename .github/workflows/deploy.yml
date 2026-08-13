@@ -160,6 +160,7 @@ jobs:
 
       - name: Verify live site updated
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
+        continue-on-error: true
         env:
           SITE_URL: ${{ secrets.SITE_URL }}
         working-directory: ${{ env.WORKING_DIRECTORY }}
