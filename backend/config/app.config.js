@@ -20,12 +20,24 @@ export const getApiUrl = (req) => {
 
 export const getPublicAppUrl = () => (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
 
+const PRODUCTION_FRONTEND_ORIGINS = [
+  'https://dineshcattlefeed.com',
+  'https://www.dineshcattlefeed.com',
+  'https://lightsteelblue-bison-593262.hostingersite.com',
+];
+
 export const getCorsOrigins = () => {
   const raw = process.env.CORS_ORIGIN || 'http://localhost:5173';
-  return raw
+  const fromEnv = raw
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
+
+  if (appConfig.env === 'production') {
+    return [...new Set([...fromEnv, ...PRODUCTION_FRONTEND_ORIGINS])];
+  }
+
+  return fromEnv;
 };
 
 export default appConfig;
