@@ -20,4 +20,12 @@ export const getApiUrl = (req) => {
 
 export const getPublicAppUrl = () => (process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
 
+export const getCorsOrigins = () => {
+  const raw = process.env.CORS_ORIGIN || 'http://localhost:5173';
+  return raw
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+};
+
 export default appConfig;

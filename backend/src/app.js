@@ -23,7 +23,7 @@ import reportRoutes from './routes/report.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
 import whatsappRoutes from './routes/whatsapp.routes.js';
 import publicRoutes from './routes/public.routes.js';
-import appConfig, { getApiPrefix } from '../config/app.config.js';
+import appConfig, { getApiPrefix, getCorsOrigins } from '../config/app.config.js';
 import { sendSuccess } from './utils/apiResponse.js';
 
 dotenv.config();
@@ -35,8 +35,16 @@ const API_PREFIX = getApiPrefix();
 app.set('trust proxy', 1);
 
 app.use(helmet());
+const corsOrigins = getCorsOrigins();
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    if (!origin || corsOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(null, false);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -71,7 +79,7 @@ app.get('/', (req, res) => {
     message: 'This is the API server. Use the endpoints below — there is no website at /.',
     api: `${req.protocol}://${req.get('host')}${API_PREFIX}`,
     health: `${req.protocol}://${req.get('host')}${API_PREFIX}/health`,
-    frontend: process.env.CORS_ORIGIN || null,
+    frontend: getCorsOrigins(),
   }, `${appConfig.name} API`);
 });
 
