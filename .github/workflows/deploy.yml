@@ -164,7 +164,7 @@ jobs:
           SITE_URL: ${{ secrets.SITE_URL }}
         working-directory: ${{ env.WORKING_DIRECTORY }}
         run: |
-          SITE="${SITE_URL:-https://lightsteelblue-bison-593262.hostingersite.com}"
+          SITE="${SITE_URL:-https://dineshcattlefeed.com}"
           SITE="${SITE%/}"
           BUILT=$(grep -oE 'assets/app-[A-Za-z0-9_-]+\.js' dist/index.html | head -1)
           if [ -z "$BUILT" ]; then
