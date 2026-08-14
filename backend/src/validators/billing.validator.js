@@ -50,6 +50,7 @@ export const createSaleValidation = [
   body('discountAmount').optional().isFloat({ min: 0 }),
   body('dueDate').optional({ nullable: true }).isISO8601().toDate(),
   body('remarks').optional({ values: 'falsy' }).trim(),
+  body('trackPendingBalance').optional().isBoolean().withMessage('trackPendingBalance must be true or false'),
   body('items').isArray({ min: 1 }).withMessage('At least one item is required'),
   body('items.*.productId').isInt({ min: 1 }),
   body('items.*.quantity').isFloat({ gt: 0 }),

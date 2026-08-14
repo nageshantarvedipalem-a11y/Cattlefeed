@@ -260,7 +260,18 @@ export class BillingService {
         throw new AppError('Paid amount cannot exceed total amount', 400);
       }
 
-      const pendingAmount = Math.max(totalAmount - paidAmount, 0);
+      const trackPendingBalance = data.trackPendingBalance !== false;
+      let finalTotalAmount = totalAmount;
+      let finalDiscountAmount = discountAmount;
+      let finalPaidAmount = paidAmount;
+      let pendingAmount = Math.max(totalAmount - paidAmount, 0);
+
+      if (!trackPendingBalance && pendingAmount > 0) {
+        finalDiscountAmount += pendingAmount;
+        finalTotalAmount = paidAmount;
+        pendingAmount = 0;
+      }
+
       const hasCreditPayment = payments.some((p) => p.paymentMethod === 'credit');
 
       if (pendingAmount > 0 && !customerId) {
@@ -269,6 +280,10 @@ export class BillingService {
 
       if (hasCreditPayment && !customerId) {
         throw new AppError('Customer name and mobile are required for credit bills', 400);
+      }
+
+      if (hasCreditPayment && !trackPendingBalance) {
+        throw new AppError('Credit bills must track pending balance', 400);
       }
 
       const invoiceNumber = await getNextInvoiceNumber(connection);
@@ -280,11 +295,11 @@ export class BillingService {
         saleDate,
         subtotal,
         taxAmount,
-        discountAmount,
-        totalAmount,
-        paidAmount,
+        discountAmount: finalDiscountAmount,
+        totalAmount: finalTotalAmount,
+        paidAmount: finalPaidAmount,
         pendingAmount,
-        paymentStatus: resolvePaymentStatus(paidAmount, totalAmount),
+        paymentStatus: resolvePaymentStatus(finalPaidAmount, finalTotalAmount),
         primaryPaymentMethod: resolvePrimaryPaymentMethod(payments),
         dueDate: data.dueDate || null,
         remarks: data.remarks?.trim() || null,
@@ -377,7 +392,7 @@ export class BillingService {
         action: 'sale_created',
         entityType: 'sale',
         entityId: saleId,
-        details: { invoiceNumber, totalAmount, paidAmount, pendingAmount },
+        details: { invoiceNumber, totalAmount: finalTotalAmount, paidAmount: finalPaidAmount, pendingAmount },
         ipAddress,
       });
 

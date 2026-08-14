@@ -22,8 +22,11 @@ const CheckoutFormModal = ({
   totals,
   effectivePaidAmount,
   pendingAmount,
+  rawPendingAmount = 0,
   balanceReturn,
   paymentStatus,
+  trackPendingBalance,
+  onTrackPendingBalanceChange,
   onSubmit,
   isSubmitting,
 }) => {
@@ -166,6 +169,25 @@ const CheckoutFormModal = ({
             </div>
           </div>
 
+          {paymentMethod !== 'credit' && rawPendingAmount > 0 && (
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+              <input
+                type="checkbox"
+                checked={trackPendingBalance}
+                onChange={(e) => onTrackPendingBalanceChange(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              <span>
+                <span className="block text-sm font-medium text-slate-800">
+                  Add unpaid balance to Pending Payments
+                </span>
+                <span className="mt-1 block text-xs text-slate-500">
+                  Uncheck for friends or relatives — the remaining {formatCurrency(rawPendingAmount)} will be treated as a discount and the bill will be marked as fully paid.
+                </span>
+              </span>
+            </label>
+          )}
+
           <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
             <div>
               <p className="text-xs text-slate-500">Pending</p>
@@ -181,12 +203,17 @@ const CheckoutFormModal = ({
             </div>
           </div>
 
-          {paymentStatus !== 'PAID' && (
+          {paymentStatus !== 'PAID' && trackPendingBalance && (
             <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              Partial or credit payment — customer will appear in <strong>Pending Payments</strong> until fully paid.
+              Partial payment — customer will appear in <strong>Pending Payments</strong> until fully paid.
             </p>
           )}
-          {paymentStatus === 'PAID' && (
+          {!trackPendingBalance && rawPendingAmount > 0 && (
+            <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-800">
+              Friend/relative discount — remaining {formatCurrency(rawPendingAmount)} will <strong>not</strong> be added to pending balance.
+            </p>
+          )}
+          {paymentStatus === 'PAID' && trackPendingBalance && (
             <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
               Full payment — bill will be marked as <strong>PAID</strong> and saved to customer records.
             </p>

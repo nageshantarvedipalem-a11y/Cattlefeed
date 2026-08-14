@@ -101,8 +101,11 @@ const BillingPage = () => {
         totals={pos.totals}
         effectivePaidAmount={pos.effectivePaidAmount}
         pendingAmount={pos.pendingAmount}
+        rawPendingAmount={pos.rawPendingAmount}
         balanceReturn={pos.balanceReturn}
         paymentStatus={pos.paymentStatus}
+        trackPendingBalance={pos.trackPendingBalance}
+        onTrackPendingBalanceChange={pos.setTrackPendingBalance}
         onSubmit={pos.generateBill}
         isSubmitting={pos.isSubmitting}
       />
