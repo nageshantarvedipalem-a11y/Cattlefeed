@@ -33,6 +33,7 @@ import {
   createCustomerRecord,
   updateCustomerRecord,
 } from '../repositories/customer.repository.js';
+import { createPaymentRecord } from '../repositories/payment.repository.js';
 import { getNextInvoiceNumber, getCompanySettings } from '../repositories/settings.repository.js';
 import { buildInvoicePdf, buildThermalInvoicePdf } from '../helpers/invoicePdf.helper.js';
 import { buildInvoiceHtml } from '../helpers/invoiceHtml.helper.js';
@@ -192,6 +193,13 @@ export class BillingService {
         if (!customer.is_active) {
           throw new AppError('Selected customer is inactive', 400);
         }
+        if (data.customer?.name?.trim() || data.customer?.village?.trim() || data.customer?.address?.trim()) {
+          await updateCustomerRecord(connection, customerId, {
+            name: data.customer?.name?.trim() || customer.name,
+            village: data.customer?.village?.trim() || customer.village || null,
+            address: data.customer?.address?.trim() || customer.address || null,
+          });
+        }
       }
 
       const payments = Array.isArray(data.payments) ? data.payments : [];
@@ -249,28 +257,50 @@ export class BillingService {
       const discountAmount = itemsDiscount + billDiscount;
       const totalAmount = Math.max(subtotal + taxAmount - billDiscount, 0);
 
-      const paidAmount = payments
+      const previousPendingBalance = customerId
+        ? await getLatestCustomerBalance(connection, customerId)
+        : 0;
+
+      const amountReceived = payments
         .filter((p) => p.paymentMethod !== 'credit')
         .reduce((sum, p) => sum + Number(p.amount), 0);
       const creditAmount = payments
         .filter((p) => p.paymentMethod === 'credit')
         .reduce((sum, p) => sum + Number(p.amount), 0);
 
-      if (paidAmount + creditAmount > totalAmount + 0.01) {
-        throw new AppError('Paid amount cannot exceed total amount', 400);
+      const maxPayable = totalAmount + (customerId ? previousPendingBalance : 0);
+      if (amountReceived + creditAmount > maxPayable + 0.01) {
+        throw new AppError(
+          customerId
+            ? `Paid amount cannot exceed bill total plus existing pending balance (${maxPayable.toFixed(2)})`
+            : 'Paid amount cannot exceed total amount',
+          400
+        );
+      }
+
+      if (amountReceived > totalAmount + 0.01 && !customerId) {
+        throw new AppError('Select an existing customer to apply extra payment toward old pending balance', 400);
       }
 
       const trackPendingBalance = data.trackPendingBalance !== false;
       let finalTotalAmount = totalAmount;
       let finalDiscountAmount = discountAmount;
-      let finalPaidAmount = paidAmount;
-      let pendingAmount = Math.max(totalAmount - paidAmount, 0);
+
+      let paidOnNewBill = Math.min(amountReceived, finalTotalAmount);
+      let pendingAmount = Math.max(finalTotalAmount - paidOnNewBill, 0);
 
       if (!trackPendingBalance && pendingAmount > 0) {
         finalDiscountAmount += pendingAmount;
-        finalTotalAmount = paidAmount;
+        finalTotalAmount = paidOnNewBill;
         pendingAmount = 0;
       }
+
+      const remainingAfterNewBill = Math.max(amountReceived - paidOnNewBill, 0);
+      const oldBalancePaid = customerId
+        ? Math.min(remainingAfterNewBill, Math.max(previousPendingBalance, 0))
+        : 0;
+      const finalPaidAmount = paidOnNewBill;
+      const totalPendingAfter = previousPendingBalance - oldBalancePaid + pendingAmount;
 
       const hasCreditPayment = payments.some((p) => p.paymentMethod === 'credit');
 
@@ -299,6 +329,10 @@ export class BillingService {
         totalAmount: finalTotalAmount,
         paidAmount: finalPaidAmount,
         pendingAmount,
+        previousPendingBalance,
+        oldBalancePaid,
+        amountReceived,
+        totalPendingAfter: customerId ? totalPendingAfter : null,
         paymentStatus: resolvePaymentStatus(finalPaidAmount, finalTotalAmount),
         primaryPaymentMethod: resolvePrimaryPaymentMethod(payments),
         dueDate: data.dueDate || null,
@@ -339,19 +373,37 @@ export class BillingService {
         });
       }
 
+      let recordedSalePayment = 0;
       for (const payment of payments) {
+        if (payment.paymentMethod === 'credit') {
+          await createSalePaymentRecord(connection, {
+            saleId,
+            paymentMethod: payment.paymentMethod,
+            amount: Number(payment.amount),
+            referenceNumber: payment.referenceNumber?.trim() || null,
+          });
+          continue;
+        }
+
+        const salePaymentAmount = Math.min(
+          Number(payment.amount),
+          Math.max(finalPaidAmount - recordedSalePayment, 0)
+        );
+        if (salePaymentAmount <= 0) continue;
+
+        recordedSalePayment += salePaymentAmount;
         await createSalePaymentRecord(connection, {
           saleId,
           paymentMethod: payment.paymentMethod,
-          amount: Number(payment.amount),
+          amount: salePaymentAmount,
           referenceNumber: payment.referenceNumber?.trim() || null,
         });
       }
 
-      if (customerId && pendingAmount > 0) {
-        const previousBalance = await getLatestCustomerBalance(connection, customerId);
-        const newBalance = previousBalance + pendingAmount;
+      let runningBalance = previousPendingBalance;
 
+      if (customerId && pendingAmount > 0) {
+        runningBalance += pendingAmount;
         await createLedgerEntry(connection, {
           customerId,
           transactionDate: saleDate,
@@ -360,26 +412,76 @@ export class BillingService {
           referenceId: saleId,
           debit: pendingAmount,
           credit: 0,
-          balance: newBalance,
+          balance: runningBalance,
           remarks: `Sale ${invoiceNumber} — pending amount`,
           createdBy: currentUser.id,
         });
       }
 
+      if (customerId && oldBalancePaid > 0) {
+        const paymentDate = saleDate.toISOString().slice(0, 10);
+        const primaryMethod = payments.find((p) => p.paymentMethod !== 'credit')?.paymentMethod || 'cash';
+
+        const paymentId = await createPaymentRecord(connection, {
+          customerId,
+          saleId,
+          paymentDate,
+          amount: oldBalancePaid,
+          paymentMethod: primaryMethod,
+          referenceNumber: null,
+          remarks: `Old balance payment via sale ${invoiceNumber}`,
+          createdBy: currentUser.id,
+        });
+
+        runningBalance -= oldBalancePaid;
+        await createLedgerEntry(connection, {
+          customerId,
+          transactionDate: saleDate,
+          transactionType: 'payment',
+          referenceType: 'payment',
+          referenceId: paymentId,
+          debit: 0,
+          credit: oldBalancePaid,
+          balance: runningBalance,
+          remarks: `Old balance payment via sale ${invoiceNumber}`,
+          createdBy: currentUser.id,
+        });
+      }
+
       let cashBalance = await getLatestCashBalance(connection);
-      for (const payment of payments) {
-        if (CASH_BOOK_METHODS.includes(payment.paymentMethod)) {
-          cashBalance += Number(payment.amount);
+      if (finalPaidAmount > 0) {
+        const primaryMethod = payments.find((p) => p.paymentMethod !== 'credit')?.paymentMethod || 'cash';
+        if (CASH_BOOK_METHODS.includes(primaryMethod)) {
+          cashBalance += finalPaidAmount;
           await createCashBookEntry(connection, {
             transactionDate: saleDate.toISOString().slice(0, 10),
             transactionType: 'income',
             category: 'Sales',
-            amount: Number(payment.amount),
-            paymentMethod: payment.paymentMethod,
+            amount: finalPaidAmount,
+            paymentMethod: primaryMethod,
             referenceType: 'sale',
             referenceId: saleId,
             balanceAfter: cashBalance,
-            remarks: `Sale ${invoiceNumber} — ${payment.paymentMethod}`,
+            remarks: `Sale ${invoiceNumber} — ${primaryMethod}`,
+            createdBy: currentUser.id,
+          });
+        }
+      }
+
+      if (oldBalancePaid > 0) {
+        const primaryMethod = payments.find((p) => p.paymentMethod !== 'credit')?.paymentMethod || 'cash';
+        if (CASH_BOOK_METHODS.includes(primaryMethod)) {
+          cashBalance += oldBalancePaid;
+          await createCashBookEntry(connection, {
+            transactionDate: saleDate.toISOString().slice(0, 10),
+            transactionType: 'income',
+            category: 'Customer Payment',
+            amount: oldBalancePaid,
+            paymentMethod: primaryMethod,
+            referenceType: 'payment',
+            referenceId: saleId,
+            balanceAfter: cashBalance,
+            remarks: `Old balance via sale ${invoiceNumber}`,
             createdBy: currentUser.id,
           });
         }

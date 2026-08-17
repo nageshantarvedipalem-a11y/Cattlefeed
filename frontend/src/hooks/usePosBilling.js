@@ -7,6 +7,7 @@ import {
   buildSalePayments,
   calculateBillTotals,
   calculateCartLine,
+  calculatePaymentAllocation,
   resolvePaymentStatus,
 } from '../utils/posCalculations';
 
@@ -33,6 +34,9 @@ export const usePosBilling = () => {
   const [cart, setCart] = useState([]);
   const [billDiscount, setBillDiscount] = useState(0);
   const [customer, setCustomer] = useState(emptyCustomer);
+  const [customerMode, setCustomerMode] = useState('new');
+  const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+  const [previousPendingBalance, setPreviousPendingBalance] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [paidAmount, setPaidAmount] = useState('');
   const [trackPendingBalance, setTrackPendingBalance] = useState(true);
@@ -122,9 +126,19 @@ export const usePosBilling = () => {
     return Math.max(Number(paidAmount) || 0, 0);
   }, [paymentMethod, paidAmount, totals.grandTotal]);
 
+  const paymentAllocation = useMemo(
+    () => calculatePaymentAllocation({
+      previousPending: previousPendingBalance,
+      newBillTotal: totals.grandTotal,
+      amountReceived: effectivePaidAmount,
+      trackPendingBalance,
+    }),
+    [previousPendingBalance, totals.grandTotal, effectivePaidAmount, trackPendingBalance]
+  );
+
   const rawPendingAmount = useMemo(
-    () => Math.max(totals.grandTotal - effectivePaidAmount, 0),
-    [totals.grandTotal, effectivePaidAmount]
+    () => paymentAllocation.newBillPending,
+    [paymentAllocation.newBillPending]
   );
 
   const pendingAmount = useMemo(
@@ -133,8 +147,8 @@ export const usePosBilling = () => {
   );
 
   const balanceReturn = useMemo(
-    () => Math.max(effectivePaidAmount - totals.grandTotal, 0),
-    [effectivePaidAmount, totals.grandTotal]
+    () => paymentAllocation.balanceReturn,
+    [paymentAllocation.balanceReturn]
   );
 
   const paymentStatus = useMemo(() => {
@@ -144,7 +158,32 @@ export const usePosBilling = () => {
     return resolvePaymentStatus(effectivePaidAmount, totals.grandTotal);
   }, [trackPendingBalance, rawPendingAmount, paymentMethod, effectivePaidAmount, totals.grandTotal]);
 
-  const customerRequired = pendingAmount > 0 || paymentMethod === 'credit';
+  const customerRequired = pendingAmount > 0 || paymentMethod === 'credit' || selectedCustomerId;
+
+  const switchCustomerMode = useCallback((mode) => {
+    setCustomerMode(mode);
+    setSelectedCustomerId(null);
+    setPreviousPendingBalance(0);
+    setCustomer(emptyCustomer);
+  }, []);
+
+  const selectExistingCustomer = useCallback((existingCustomer) => {
+    setSelectedCustomerId(existingCustomer.id);
+    setPreviousPendingBalance(Number(existingCustomer.currentBalance) || 0);
+    setCustomer({
+      name: existingCustomer.name || '',
+      phone: existingCustomer.phone || '',
+      village: existingCustomer.village || '',
+      address: existingCustomer.address || '',
+      notes: existingCustomer.notes || '',
+    });
+  }, []);
+
+  const clearSelectedCustomer = useCallback(() => {
+    setSelectedCustomerId(null);
+    setPreviousPendingBalance(0);
+    setCustomer(emptyCustomer);
+  }, []);
 
   const addToCart = useCallback((product, quantity = 1) => {
     const qty = Number(quantity);
@@ -291,6 +330,9 @@ export const usePosBilling = () => {
     setCart([]);
     setBillDiscount(0);
     setCustomer(emptyCustomer);
+    setCustomerMode('new');
+    setSelectedCustomerId(null);
+    setPreviousPendingBalance(0);
     setPaymentMethod('cash');
     setPaidAmount('');
     setTrackPendingBalance(true);
@@ -306,15 +348,23 @@ export const usePosBilling = () => {
       return;
     }
 
-    if (!customer.name.trim() || !customer.phone.trim()) {
+    if (customerMode === 'existing') {
+      if (!selectedCustomerId) {
+        toast.error('Please select an existing customer');
+        return;
+      }
+    } else if (!customer.name.trim() || !customer.phone.trim()) {
       toast.error('Customer name and WhatsApp mobile number are required');
       return;
     }
 
-    const phoneCheck = validateIndianMobile(customer.phone);
-    if (!phoneCheck.valid) {
-      toast.error(phoneCheck.error);
-      return;
+    let phoneCheck = null;
+    if (customerMode === 'new') {
+      phoneCheck = validateIndianMobile(customer.phone);
+      if (!phoneCheck.valid) {
+        toast.error(phoneCheck.error);
+        return;
+      }
     }
 
     const payments = buildSalePayments(paymentMethod, effectivePaidAmount, totals.grandTotal);
@@ -332,9 +382,10 @@ export const usePosBilling = () => {
           gstRate: Number(item.gstRate),
         })),
         payments,
+        customerId: customerMode === 'existing' ? selectedCustomerId : undefined,
         customer: {
           name: customer.name.trim(),
-          phone: phoneCheck.normalized,
+          phone: customerMode === 'new' ? phoneCheck.normalized : undefined,
           village: customer.village.trim() || undefined,
           address: customer.address.trim() || undefined,
           notes: customer.notes.trim() || undefined,
@@ -414,6 +465,13 @@ export const usePosBilling = () => {
     setBillDiscount,
     customer,
     setCustomer,
+    customerMode,
+    switchCustomerMode,
+    selectedCustomerId,
+    selectExistingCustomer,
+    clearSelectedCustomer,
+    previousPendingBalance,
+    paymentAllocation,
     paymentMethod,
     setPaymentMethod,
     paidAmount,

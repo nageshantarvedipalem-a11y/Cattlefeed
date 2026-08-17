@@ -94,6 +94,13 @@ const BillingPage = () => {
         onClose={pos.closeCheckout}
         customer={pos.customer}
         onCustomerChange={pos.setCustomer}
+        customerMode={pos.customerMode}
+        onCustomerModeChange={pos.switchCustomerMode}
+        selectedCustomerId={pos.selectedCustomerId}
+        onSelectExistingCustomer={pos.selectExistingCustomer}
+        onClearSelectedCustomer={pos.clearSelectedCustomer}
+        previousPendingBalance={pos.previousPendingBalance}
+        paymentAllocation={pos.paymentAllocation}
         paymentMethod={pos.paymentMethod}
         onPaymentMethodChange={pos.setPaymentMethod}
         paidAmount={pos.paidAmount}

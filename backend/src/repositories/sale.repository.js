@@ -50,6 +50,12 @@ export const formatSale = (row, items = [], payments = []) => ({
   totalAmount: Number(row.total_amount),
   paidAmount: Number(row.paid_amount),
   pendingAmount: Number(row.pending_amount),
+  previousPendingBalance: Number(row.previous_pending_balance ?? 0),
+  oldBalancePaid: Number(row.old_balance_paid ?? 0),
+  amountReceived: Number(row.amount_received ?? row.paid_amount ?? 0),
+  totalPendingAfter: row.total_pending_after !== null && row.total_pending_after !== undefined
+    ? Number(row.total_pending_after)
+    : null,
   paymentStatus: row.payment_status,
   primaryPaymentMethod: row.primary_payment_method,
   dueDate: row.due_date,
@@ -67,7 +73,8 @@ const saleSelect = `
   SELECT s.id, s.invoice_number, s.customer_id, c.name AS customer_name, c.phone AS customer_phone,
          c.village AS customer_village, c.address AS customer_address,
          s.sale_date, s.subtotal, s.tax_amount, s.discount_amount, s.total_amount,
-         s.paid_amount, s.pending_amount, s.payment_status, s.primary_payment_method,
+         s.paid_amount, s.pending_amount, s.previous_pending_balance, s.old_balance_paid,
+         s.amount_received, s.total_pending_after, s.payment_status, s.primary_payment_method,
          s.due_date, s.remarks, s.created_by, u.full_name AS created_by_name,
          s.created_at, s.updated_at
   FROM sales s
@@ -165,9 +172,10 @@ export const createSaleRecord = async (connection, data) => {
   const [result] = await connection.execute(
     `INSERT INTO sales (
        invoice_number, customer_id, sale_date, subtotal, tax_amount, discount_amount,
-       total_amount, paid_amount, pending_amount, payment_status, primary_payment_method,
+       total_amount, paid_amount, pending_amount, previous_pending_balance, old_balance_paid,
+       amount_received, total_pending_after, payment_status, primary_payment_method,
        due_date, remarks, created_by
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       data.invoiceNumber,
       data.customerId || null,
@@ -178,6 +186,10 @@ export const createSaleRecord = async (connection, data) => {
       data.totalAmount,
       data.paidAmount,
       data.pendingAmount,
+      data.previousPendingBalance ?? 0,
+      data.oldBalancePaid ?? 0,
+      data.amountReceived ?? data.paidAmount ?? 0,
+      data.totalPendingAfter ?? null,
       data.paymentStatus,
       data.primaryPaymentMethod,
       data.dueDate || null,

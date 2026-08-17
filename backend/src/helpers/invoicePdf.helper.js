@@ -28,6 +28,23 @@ const paymentStatusLabel = (sale) => {
   return String(sale.paymentStatus || '').toUpperCase();
 };
 
+const buildPaymentAllocationLines = (sale, currency) => {
+  const lines = [];
+  if (Number(sale.previousPendingBalance) > 0) {
+    lines.push(['Previous Pending', formatCurrencyForPdf(sale.previousPendingBalance, currency)]);
+  }
+  if (Number(sale.amountReceived) > 0) {
+    lines.push(['Amount Received', formatCurrencyForPdf(sale.amountReceived, currency)]);
+  }
+  if (Number(sale.oldBalancePaid) > 0) {
+    lines.push(['Paid to Old Balance', formatCurrencyForPdf(sale.oldBalancePaid, currency)]);
+  }
+  if (sale.totalPendingAfter !== null && sale.totalPendingAfter !== undefined) {
+    lines.push(['Total Pending Now', formatCurrencyForPdf(sale.totalPendingAfter, currency)]);
+  }
+  return lines;
+};
+
 const buildStandardInvoicePdfKit = (sale, company) => new Promise((resolve, reject) => {
   const doc = new PDFDocument({ margin: 50, size: 'A4' });
   const chunks = [];
@@ -101,8 +118,9 @@ const buildStandardInvoicePdfKit = (sale, company) => new Promise((resolve, reje
   }
   addTotalRow('GST', formatCurrencyForPdf(sale.taxAmount, currency));
   addTotalRow('Grand Total', formatCurrencyForPdf(sale.totalAmount, currency), true);
-  addTotalRow('Paid', formatCurrencyForPdf(sale.paidAmount, currency));
-  addTotalRow('Pending', formatCurrencyForPdf(sale.pendingAmount, currency));
+  addTotalRow('Paid on This Bill', formatCurrencyForPdf(sale.paidAmount, currency));
+  addTotalRow('This Bill Pending', formatCurrencyForPdf(sale.pendingAmount, currency));
+  buildPaymentAllocationLines(sale, currency).forEach(([label, value]) => addTotalRow(label, value));
   addTotalRow('Payment', (sale.primaryPaymentMethod || 'cash').toUpperCase());
   addTotalRow('Status', paymentStatusLabel(sale));
 
@@ -238,11 +256,17 @@ const buildBrandedInvoicePdfKit = (sale, company) => new Promise((resolve, rejec
   const payTop = totalsTop + 110;
   doc.font('Helvetica-Bold').fontSize(11).fillColor(COLORS.darkGreen)
     .text('PAYMENT INFO', contentX, payTop);
-  doc.font('Helvetica').fontSize(10).fillColor(COLORS.text)
-    .text(`Payment Type: ${(sale.primaryPaymentMethod || 'cash').toUpperCase()}`, contentX, payTop + 18)
-    .text(`Paid Amount: ${formatCurrencyForPdf(sale.paidAmount, currency)}`, contentX, payTop + 34)
-    .text(`Pending: ${formatCurrencyForPdf(sale.pendingAmount, currency)}`, contentX, payTop + 50)
-    .text(`Status: ${paymentStatusLabel(sale)}`, contentX, payTop + 66);
+  let payLineY = payTop + 18;
+  const addPayLine = (label, value) => {
+    doc.font('Helvetica').fontSize(10).fillColor(COLORS.text)
+      .text(`${label}: ${value}`, contentX, payLineY);
+    payLineY += 16;
+  };
+  addPayLine('Payment Type', (sale.primaryPaymentMethod || 'cash').toUpperCase());
+  addPayLine('Paid on This Bill', formatCurrencyForPdf(sale.paidAmount, currency));
+  addPayLine('This Bill Pending', formatCurrencyForPdf(sale.pendingAmount, currency));
+  buildPaymentAllocationLines(sale, currency).forEach(([label, value]) => addPayLine(label, value));
+  addPayLine('Status', paymentStatusLabel(sale));
 
   doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.darkGreen)
     .text('Terms and Conditions', companyX, payTop);
@@ -327,8 +351,11 @@ export const buildThermalInvoicePdf = (sale, company) => new Promise((resolve, r
   doc.text(`GST: ${formatCurrencyForPdf(sale.taxAmount, currency)}`, { align: 'right', width });
   doc.font('Helvetica-Bold').text(`Grand Total: ${formatCurrencyForPdf(sale.totalAmount, currency)}`, { align: 'right', width });
   doc.font('Helvetica');
-  doc.text(`Paid: ${formatCurrencyForPdf(sale.paidAmount, currency)}`, { align: 'right', width });
-  doc.text(`Pending: ${formatCurrencyForPdf(sale.pendingAmount, currency)}`, { align: 'right', width });
+  doc.text(`Paid on This Bill: ${formatCurrencyForPdf(sale.paidAmount, currency)}`, { align: 'right', width });
+  doc.text(`This Bill Pending: ${formatCurrencyForPdf(sale.pendingAmount, currency)}`, { align: 'right', width });
+  buildPaymentAllocationLines(sale, currency).forEach(([label, value]) => {
+    doc.text(`${label}: ${value}`, { align: 'right', width });
+  });
   doc.text(`Payment: ${sale.primaryPaymentMethod?.toUpperCase() || 'CASH'}`, { align: 'right', width });
   doc.text(`Status: ${paymentStatusLabel(sale)}`, { align: 'right', width });
   doc.moveDown(0.5);

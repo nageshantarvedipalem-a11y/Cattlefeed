@@ -51,6 +51,23 @@ const buildItemRows = (items, currency) => items.map((item, index) => `
     <td class="num">${formatInvoiceMoney(item.totalAmount, currency)}</td>
   </tr>`).join('');
 
+const buildPaymentAllocationRows = (sale, currency) => {
+  const rows = [];
+  if (Number(sale.previousPendingBalance) > 0) {
+    rows.push(`<div class="kv"><span class="k">Previous Pending:</span><span class="v">${formatInvoiceMoney(sale.previousPendingBalance, currency)}</span></div>`);
+  }
+  if (Number(sale.amountReceived) > 0) {
+    rows.push(`<div class="kv"><span class="k">Amount Received:</span><span class="v">${formatInvoiceMoney(sale.amountReceived, currency)}</span></div>`);
+  }
+  if (Number(sale.oldBalancePaid) > 0) {
+    rows.push(`<div class="kv"><span class="k">Paid to Old Balance:</span><span class="v">${formatInvoiceMoney(sale.oldBalancePaid, currency)}</span></div>`);
+  }
+  if (sale.totalPendingAfter !== null && sale.totalPendingAfter !== undefined) {
+    rows.push(`<div class="kv"><span class="k">Total Pending Now:</span><span class="v">${formatInvoiceMoney(sale.totalPendingAfter, currency)}</span></div>`);
+  }
+  return rows.join('');
+};
+
 export const buildInvoiceHtml = (sale, company) => {
   const currency = company.currency_symbol || '₹';
   const template = readFileSync(templatePath, 'utf8');
@@ -84,7 +101,13 @@ export const buildInvoiceHtml = (sale, company) => {
     TOTAL: formatInvoiceMoney(sale.totalAmount, currency),
     PAYMENT_METHOD: escapeHtml((sale.primaryPaymentMethod || 'cash').toUpperCase()),
     PAID_AMOUNT: formatInvoiceMoney(sale.paidAmount, currency),
-    PENDING_AMOUNT: formatInvoiceMoney(sale.pendingAmount, currency),
+    PAYMENT_ALLOCATION_ROWS: buildPaymentAllocationRows(sale, currency),
+    PENDING_AMOUNT: formatInvoiceMoney(
+      sale.totalPendingAfter !== null && sale.totalPendingAfter !== undefined
+        ? sale.totalPendingAfter
+        : sale.pendingAmount,
+      currency
+    ),
     PAYMENT_STATUS: paymentStatusLabel(sale),
   };
 

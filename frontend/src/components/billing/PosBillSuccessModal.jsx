@@ -33,6 +33,9 @@ const PosBillSuccessModal = ({
   const whatsappFailed = whatsappResult && !whatsappResult.sent;
   const statusLabel = formatPaymentStatus(sale.paymentStatus, sale.paidAmount);
   const isPaid = statusLabel === 'PAID';
+  const hasAllocation = Number(sale.previousPendingBalance) > 0
+    || Number(sale.oldBalancePaid) > 0
+    || sale.totalPendingAfter !== null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 print:hidden">
@@ -47,9 +50,24 @@ const PosBillSuccessModal = ({
 
         <div className="space-y-2 px-6 py-4 text-sm">
           <div className="flex justify-between"><span className="text-slate-500">Customer</span><span>{sale.customerName || 'Walk-in'}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Grand Total</span><span className="font-semibold">{formatCurrency(sale.totalAmount)}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Paid</span><span>{formatCurrency(sale.paidAmount)}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Pending</span><span>{formatCurrency(sale.pendingAmount)}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">New Purchase</span><span className="font-semibold">{formatCurrency(sale.totalAmount)}</span></div>
+          {hasAllocation && Number(sale.previousPendingBalance) > 0 && (
+            <div className="flex justify-between"><span className="text-slate-500">Previous Pending</span><span>{formatCurrency(sale.previousPendingBalance)}</span></div>
+          )}
+          {hasAllocation && Number(sale.amountReceived) > 0 && (
+            <div className="flex justify-between"><span className="text-slate-500">Amount Received</span><span>{formatCurrency(sale.amountReceived)}</span></div>
+          )}
+          <div className="flex justify-between"><span className="text-slate-500">Paid on This Bill</span><span>{formatCurrency(sale.paidAmount)}</span></div>
+          {Number(sale.oldBalancePaid) > 0 && (
+            <div className="flex justify-between"><span className="text-slate-500">Paid to Old Balance</span><span className="text-emerald-700">{formatCurrency(sale.oldBalancePaid)}</span></div>
+          )}
+          <div className="flex justify-between"><span className="text-slate-500">This Bill Pending</span><span>{formatCurrency(sale.pendingAmount)}</span></div>
+          {sale.totalPendingAfter !== null && sale.totalPendingAfter !== undefined && (
+            <div className="flex justify-between border-t border-slate-100 pt-2">
+              <span className="font-medium text-slate-600">Total Pending Now</span>
+              <span className="font-bold text-amber-700">{formatCurrency(sale.totalPendingAfter)}</span>
+            </div>
+          )}
           <div className="flex justify-between"><span className="text-slate-500">Status</span><span className="font-semibold uppercase">{formatPaymentStatus(sale.paymentStatus, sale.paidAmount)}</span></div>
         </div>
 
