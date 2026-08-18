@@ -90,7 +90,10 @@ const SuppliersPage = () => {
   };
 
   const handleDelete = async (supplier) => {
-    if (!window.confirm(`Delete supplier "${supplier.name}"?`)) return;
+    const purchaseNote = supplier.totalPurchases > 0
+      ? `\n\nThis supplier has ${supplier.totalPurchases} purchase record(s). Purchase/stock data will be kept; only the supplier profile will be removed.`
+      : '';
+    if (!window.confirm(`Delete supplier "${supplier.name}"?${purchaseNote}`)) return;
     try {
       await supplierService.deleteSupplier(supplier.id);
       toast.success('Supplier deleted successfully');

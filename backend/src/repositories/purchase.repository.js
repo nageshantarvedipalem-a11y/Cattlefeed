@@ -27,7 +27,7 @@ export const formatPurchaseItem = (row) => ({
 export const formatPurchase = (row, items = []) => ({
   id: row.id,
   supplierId: row.supplier_id,
-  supplierName: row.supplier_name,
+  supplierName: row.supplier_name || null,
   invoiceNumber: row.invoice_number,
   purchaseDate: row.purchase_date,
   subtotal: Number(row.subtotal),
@@ -47,14 +47,14 @@ export const formatPurchase = (row, items = []) => ({
 });
 
 const purchaseSelect = `
-  SELECT p.id, p.supplier_id, s.name AS supplier_name, p.invoice_number,
+  SELECT p.id, p.supplier_id, COALESCE(s.name, 'Unknown Supplier') AS supplier_name, p.invoice_number,
          p.purchase_date, p.subtotal, p.tax_amount, p.discount_amount,
          p.total_amount, p.paid_amount, p.payment_status, p.remarks,
          p.created_by, u.full_name AS created_by_name,
          p.created_at, p.updated_at,
          (SELECT COUNT(*) FROM purchase_items pi WHERE pi.purchase_id = p.id) AS item_count
   FROM purchases p
-  INNER JOIN suppliers s ON s.id = p.supplier_id
+  LEFT JOIN suppliers s ON s.id = p.supplier_id
   LEFT JOIN users u ON u.id = p.created_by
 `;
 
@@ -98,7 +98,7 @@ export const findPurchases = async ({
   }
 
   const countRows = await query(
-    `SELECT COUNT(*) AS total FROM purchases p INNER JOIN suppliers s ON s.id = p.supplier_id ${whereClause}`,
+    `SELECT COUNT(*) AS total FROM purchases p LEFT JOIN suppliers s ON s.id = p.supplier_id ${whereClause}`,
     params
   );
 

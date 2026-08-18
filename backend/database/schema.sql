@@ -169,7 +169,7 @@ CREATE TABLE customers (
 
 CREATE TABLE purchases (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  supplier_id INT UNSIGNED NOT NULL,
+  supplier_id INT UNSIGNED DEFAULT NULL,
   invoice_number VARCHAR(50) NOT NULL,
   purchase_date DATE NOT NULL,
   subtotal DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
@@ -188,7 +188,7 @@ CREATE TABLE purchases (
   KEY idx_purchases_purchase_date (purchase_date),
   KEY idx_purchases_created_by (created_by),
   CONSTRAINT fk_purchases_supplier_id FOREIGN KEY (supplier_id) REFERENCES suppliers (id)
-    ON UPDATE CASCADE ON DELETE RESTRICT,
+    ON UPDATE CASCADE ON DELETE SET NULL,
   CONSTRAINT fk_purchases_created_by FOREIGN KEY (created_by) REFERENCES users (id)
     ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

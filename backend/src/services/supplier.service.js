@@ -4,8 +4,6 @@ import {
   findSupplierByName,
   createSupplierRecord,
   updateSupplierRecord,
-  deleteSupplierRecord,
-  countSupplierPurchases,
   findSupplierPurchases,
   formatSupplier,
   getConnection,
@@ -180,26 +178,32 @@ export class SupplierService {
       throw new AppError('Supplier not found', 404);
     }
 
-    const purchaseCount = await countSupplierPurchases(supplierId);
-    if (purchaseCount > 0) {
-      throw new AppError(
-        'Cannot delete supplier with existing purchases. Disable the supplier instead.',
-        400
+    const connection = await getConnection();
+    try {
+      await connection.beginTransaction();
+      await connection.execute(
+        'UPDATE purchases SET supplier_id = NULL WHERE supplier_id = ?',
+        [supplierId]
       );
+      await connection.execute('DELETE FROM suppliers WHERE id = ?', [supplierId]);
+      await connection.commit();
+
+      await logActivity({
+        userId: currentUser.id,
+        action: 'supplier_deleted',
+        entityType: 'supplier',
+        entityId: supplierId,
+        details: { name: existing.name },
+        ipAddress,
+      });
+
+      return { message: 'Supplier deleted successfully' };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
     }
-
-    await deleteSupplierRecord(supplierId);
-
-    await logActivity({
-      userId: currentUser.id,
-      action: 'supplier_deleted',
-      entityType: 'supplier',
-      entityId: supplierId,
-      details: { name: existing.name },
-      ipAddress,
-    });
-
-    return { message: 'Supplier deleted successfully' };
   }
 }
 

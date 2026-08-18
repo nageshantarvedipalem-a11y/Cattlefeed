@@ -15,18 +15,18 @@ export const findAvailableStockBatches = async (search = '') => {
        p.id,
        p.invoice_number AS batch_number,
        p.purchase_date,
-       s.name AS supplier_name,
+       COALESCE(s.name, 'Unknown Supplier') AS supplier_name,
        COUNT(DISTINCT pi.product_id) AS product_count,
        COALESCE(SUM(pi.quantity), 0) AS received_quantity,
        COALESCE(SUM(pi.quantity * pi.purchase_price), 0) AS stock_value,
        MIN(pi.purchase_price) AS min_purchase_price,
        MAX(pi.selling_price) AS max_selling_price
      FROM purchases p
-     INNER JOIN suppliers s ON s.id = p.supplier_id
+     LEFT JOIN suppliers s ON s.id = p.supplier_id
      INNER JOIN purchase_items pi ON pi.purchase_id = p.id
      INNER JOIN products pr ON pr.id = pi.product_id
      ${whereClause}
-     GROUP BY p.id, p.invoice_number, p.purchase_date, s.name
+     GROUP BY p.id, p.invoice_number, p.purchase_date, supplier_name
      ORDER BY p.purchase_date DESC, p.id DESC`,
     params
   );
@@ -71,12 +71,12 @@ export const findStockBatchProducts = async (purchaseId, search = '', barcode = 
        pi.selling_price,
        pi.quantity AS batch_quantity,
        p.invoice_number AS batch_number,
-       s.name AS supplier_name,
+       COALESCE(s.name, 'Unknown Supplier') AS supplier_name,
        p.purchase_date
      FROM purchase_items pi
      INNER JOIN products pr ON pr.id = pi.product_id
      INNER JOIN purchases p ON p.id = pi.purchase_id
-     INNER JOIN suppliers s ON s.id = p.supplier_id
+     LEFT JOIN suppliers s ON s.id = p.supplier_id
      ${whereClause}
      ORDER BY pr.name ASC`,
     params
