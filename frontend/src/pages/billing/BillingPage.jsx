@@ -72,8 +72,6 @@ const BillingPage = () => {
           onUpdateCartItem={pos.updateCartItem}
           onRemoveCartItem={pos.removeFromCart}
           onEditCartItem={pos.editCartItem}
-          billDiscount={pos.billDiscount}
-          onBillDiscountChange={pos.setBillDiscount}
           totals={pos.totals}
           onProceed={pos.openCheckout}
         />
@@ -106,13 +104,13 @@ const BillingPage = () => {
         paidAmount={pos.paidAmount}
         onPaidAmountChange={pos.setPaidAmount}
         totals={pos.totals}
+        billDiscount={pos.billDiscount}
+        onBillDiscountChange={pos.setBillDiscount}
         effectivePaidAmount={pos.effectivePaidAmount}
         pendingAmount={pos.pendingAmount}
         rawPendingAmount={pos.rawPendingAmount}
         balanceReturn={pos.balanceReturn}
         paymentStatus={pos.paymentStatus}
-        trackPendingBalance={pos.trackPendingBalance}
-        onTrackPendingBalanceChange={pos.setTrackPendingBalance}
         onSubmit={pos.generateBill}
         isSubmitting={pos.isSubmitting}
       />

@@ -27,13 +27,13 @@ const CheckoutFormModal = ({
   paidAmount,
   onPaidAmountChange,
   totals,
+  billDiscount,
+  onBillDiscountChange,
   effectivePaidAmount,
   pendingAmount,
   rawPendingAmount = 0,
   balanceReturn,
   paymentStatus,
-  trackPendingBalance,
-  onTrackPendingBalanceChange,
   onSubmit,
   isSubmitting,
 }) => {
@@ -48,6 +48,7 @@ const CheckoutFormModal = ({
     : null;
 
   const maxPayable = totals.grandTotal + (selectedCustomerId ? previousPendingBalance : 0);
+  const maxDiscount = Math.max(totals.subtotal + totals.tax, 0);
   const showAllocation = selectedCustomerId && (
     previousPendingBalance > 0
     || paymentAllocation.oldBalancePaid > 0
@@ -116,9 +117,23 @@ const CheckoutFormModal = ({
         </div>
 
         <div className="space-y-4 px-6 py-4">
-          <div className="rounded-xl bg-emerald-50 px-4 py-3 text-center">
-            <p className="text-xs uppercase text-emerald-700">New Purchase Amount</p>
-            <p className="text-2xl font-bold text-emerald-800">{formatCurrency(totals.grandTotal)}</p>
+          <div className="rounded-xl bg-emerald-50 px-4 py-3">
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between text-slate-600">
+                <span>Subtotal + GST</span>
+                <span>{formatCurrency(totals.subtotal + totals.tax)}</span>
+              </div>
+              {Number(billDiscount) > 0 && (
+                <div className="flex justify-between text-red-600">
+                  <span>Discount</span>
+                  <span>-{formatCurrency(totals.discount)}</span>
+                </div>
+              )}
+            </div>
+            <div className="mt-2 border-t border-emerald-200 pt-2 text-center">
+              <p className="text-xs uppercase text-emerald-700">Bill Total</p>
+              <p className="text-2xl font-bold text-emerald-800">{formatCurrency(totals.grandTotal)}</p>
+            </div>
           </div>
 
           <div>
@@ -282,6 +297,25 @@ const CheckoutFormModal = ({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Discount Amount (₹)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max={maxDiscount}
+                value={billDiscount}
+                onChange={(e) => {
+                  const value = Math.max(Number(e.target.value) || 0, 0);
+                  onBillDiscountChange(String(Math.min(value, maxDiscount)));
+                }}
+                placeholder="0"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
+              />
+              <p className="mt-1 text-xs text-slate-400">
+                Enter discount in rupees — reduces bill total (max {formatCurrency(maxDiscount)}).
+              </p>
+            </div>
+            <div>
               <label className="mb-1 block text-xs font-medium text-slate-600">Payment Type *</label>
               <select
                 value={paymentMethod}
@@ -293,7 +327,7 @@ const CheckoutFormModal = ({
                 ))}
               </select>
             </div>
-            <div>
+            <div className="sm:col-span-2">
               <label className="mb-1 block text-xs font-medium text-slate-600">Amount Received *</label>
               <input
                 type="number"
@@ -307,30 +341,11 @@ const CheckoutFormModal = ({
               />
               {selectedCustomerId && previousPendingBalance > 0 && paymentMethod !== 'credit' && (
                 <p className="mt-1 text-xs text-slate-500">
-                  Can pay up to {formatCurrency(maxPayable)} (new bill + old pending).
+                  Can pay up to {formatCurrency(maxPayable)} (bill total + old pending).
                 </p>
               )}
             </div>
           </div>
-
-          {paymentMethod !== 'credit' && rawPendingAmount > 0 && (
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
-              <input
-                type="checkbox"
-                checked={trackPendingBalance}
-                onChange={(e) => onTrackPendingBalanceChange(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-              />
-              <span>
-                <span className="block text-sm font-medium text-slate-800">
-                  Add unpaid balance to Pending Payments
-                </span>
-                <span className="mt-1 block text-xs text-slate-500">
-                  Uncheck for friends or relatives — the remaining {formatCurrency(rawPendingAmount)} will be treated as a discount and the bill will be marked as fully paid.
-                </span>
-              </span>
-            </label>
-          )}
 
           {showAllocation && (
             <div className="space-y-2 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm">
@@ -342,7 +357,7 @@ const CheckoutFormModal = ({
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-slate-600">New Purchase</span>
+                <span className="text-slate-600">Bill Total</span>
                 <span className="font-medium">{formatCurrency(totals.grandTotal)}</span>
               </div>
               <div className="flex justify-between">
@@ -383,19 +398,14 @@ const CheckoutFormModal = ({
             </div>
           </div>
 
-          {paymentStatus !== 'PAID' && trackPendingBalance && (
+          {paymentStatus !== 'PAID' && rawPendingAmount > 0 && (
             <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
               Partial payment — customer will appear in <strong>Pending Payments</strong> until fully paid.
             </p>
           )}
-          {!trackPendingBalance && rawPendingAmount > 0 && (
-            <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-800">
-              Friend/relative discount — remaining {formatCurrency(rawPendingAmount)} will <strong>not</strong> be added to pending balance.
-            </p>
-          )}
-          {paymentStatus === 'PAID' && trackPendingBalance && (
+          {paymentStatus === 'PAID' && (
             <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-              Full payment — bill will be marked as <strong>PAID</strong> and saved to customer records.
+              Full payment — bill will be marked as <strong>PAID</strong>.
             </p>
           )}
         </div>

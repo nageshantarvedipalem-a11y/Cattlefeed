@@ -22,8 +22,6 @@ const PosSummaryPanel = ({
   onUpdateCartItem,
   onRemoveCartItem,
   onEditCartItem,
-  billDiscount,
-  onBillDiscountChange,
   totals,
   onProceed,
 }) => {
@@ -189,19 +187,8 @@ const PosSummaryPanel = ({
               <div className="space-y-1 border-b border-slate-200 px-5 py-3">
                 <SummaryRow label="Subtotal" value={formatCurrency(totals.subtotal)} />
                 <SummaryRow label="GST" value={formatCurrency(totals.tax)} />
-                <div className="flex items-center justify-between gap-4 py-1 text-sm">
-                  <span className="text-slate-600">Bill Discount (₹)</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={billDiscount}
-                    onChange={(e) => onBillDiscountChange(e.target.value)}
-                    className="w-28 rounded-lg border border-slate-300 bg-white px-2 py-1 text-right text-sm tabular-nums outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                  />
-                </div>
                 {totals.discount > 0 && (
-                  <SummaryRow label="Discount Applied" value={`-${formatCurrency(totals.discount)}`} />
+                  <SummaryRow label="Discount" value={`-${formatCurrency(totals.discount)}`} />
                 )}
                 <div className="border-t border-slate-300 pt-2">
                   <SummaryRow label="Grand Total" value={formatCurrency(totals.grandTotal)} bold accent />

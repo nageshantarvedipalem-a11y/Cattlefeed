@@ -39,7 +39,6 @@ export const usePosBilling = () => {
   const [previousPendingBalance, setPreviousPendingBalance] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [paidAmount, setPaidAmount] = useState('');
-  const [trackPendingBalance, setTrackPendingBalance] = useState(true);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [completedSale, setCompletedSale] = useState(null);
@@ -48,12 +47,6 @@ export const usePosBilling = () => {
 
   const productSearchRef = useRef(null);
   const barcodeRef = useRef(null);
-
-  useEffect(() => {
-    if (paymentMethod === 'credit') {
-      setTrackPendingBalance(true);
-    }
-  }, [paymentMethod]);
 
   const fetchStockBatches = useCallback(async () => {
     setBatchesLoading(true);
@@ -131,9 +124,8 @@ export const usePosBilling = () => {
       previousPending: previousPendingBalance,
       newBillTotal: totals.grandTotal,
       amountReceived: effectivePaidAmount,
-      trackPendingBalance,
     }),
-    [previousPendingBalance, totals.grandTotal, effectivePaidAmount, trackPendingBalance]
+    [previousPendingBalance, totals.grandTotal, effectivePaidAmount]
   );
 
   const rawPendingAmount = useMemo(
@@ -141,22 +133,27 @@ export const usePosBilling = () => {
     [paymentAllocation.newBillPending]
   );
 
-  const pendingAmount = useMemo(
-    () => (trackPendingBalance ? rawPendingAmount : 0),
-    [trackPendingBalance, rawPendingAmount]
-  );
+  const pendingAmount = rawPendingAmount;
 
   const balanceReturn = useMemo(
     () => paymentAllocation.balanceReturn,
     [paymentAllocation.balanceReturn]
   );
 
-  const paymentStatus = useMemo(() => {
-    if (!trackPendingBalance && rawPendingAmount > 0 && paymentMethod !== 'credit') {
-      return 'PAID';
-    }
-    return resolvePaymentStatus(effectivePaidAmount, totals.grandTotal);
-  }, [trackPendingBalance, rawPendingAmount, paymentMethod, effectivePaidAmount, totals.grandTotal]);
+  const paymentStatus = useMemo(
+    () => resolvePaymentStatus(effectivePaidAmount, totals.grandTotal),
+    [effectivePaidAmount, totals.grandTotal]
+  );
+
+  useEffect(() => {
+    if (!checkoutOpen) return;
+    setPaidAmount((prev) => {
+      if (prev === '' || prev === null) return String(totals.grandTotal);
+      const paid = Number(prev) || 0;
+      if (paid > totals.grandTotal) return String(totals.grandTotal);
+      return prev;
+    });
+  }, [totals.grandTotal, checkoutOpen]);
 
   const customerRequired = pendingAmount > 0 || paymentMethod === 'credit' || selectedCustomerId;
 
@@ -335,7 +332,6 @@ export const usePosBilling = () => {
     setPreviousPendingBalance(0);
     setPaymentMethod('cash');
     setPaidAmount('');
-    setTrackPendingBalance(true);
     setCheckoutOpen(false);
     setCompletedSale(null);
     setWhatsappResult(null);
@@ -390,7 +386,7 @@ export const usePosBilling = () => {
           address: customer.address.trim() || undefined,
           notes: customer.notes.trim() || undefined,
         },
-        trackPendingBalance: paymentMethod === 'credit' ? true : trackPendingBalance,
+        trackPendingBalance: true,
       };
 
       const response = await billingService.createSale(payload);
@@ -400,9 +396,7 @@ export const usePosBilling = () => {
       setWhatsappResult(result.whatsapp || null);
       setCheckoutOpen(false);
 
-      const status = trackPendingBalance
-        ? resolvePaymentStatus(effectivePaidAmount, totals.grandTotal)
-        : 'PAID';
+      const status = resolvePaymentStatus(effectivePaidAmount, totals.grandTotal);
       if (result.whatsapp?.sent) {
         toast.success(status === 'PAID'
           ? 'Bill paid. Invoice sent on WhatsApp.'
@@ -476,8 +470,6 @@ export const usePosBilling = () => {
     setPaymentMethod,
     paidAmount,
     setPaidAmount,
-    trackPendingBalance,
-    setTrackPendingBalance,
     rawPendingAmount,
     totals,
     effectivePaidAmount,

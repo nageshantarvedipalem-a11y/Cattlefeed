@@ -37,23 +37,17 @@ export const calculatePaymentAllocation = ({
   previousPending = 0,
   newBillTotal = 0,
   amountReceived = 0,
-  trackPendingBalance = true,
 }) => {
   const prev = Math.max(Number(previousPending) || 0, 0);
   const newTotal = Math.max(Number(newBillTotal) || 0, 0);
   const received = Math.max(Number(amountReceived) || 0, 0);
 
-  let paidOnNewBill = Math.min(received, newTotal);
-  let newBillPending = Math.max(newTotal - paidOnNewBill, 0);
-
-  if (!trackPendingBalance && newBillPending > 0) {
-    newBillPending = 0;
-  }
-
+  const paidOnNewBill = Math.min(received, newTotal);
+  const newBillPending = Math.max(newTotal - paidOnNewBill, 0);
   const remaining = Math.max(received - paidOnNewBill, 0);
   const oldBalancePaid = Math.min(remaining, prev);
   const balanceReturn = Math.max(remaining - oldBalancePaid, 0);
-  const totalPendingAfter = prev - oldBalancePaid + (trackPendingBalance ? newBillPending : 0);
+  const totalPendingAfter = prev - oldBalancePaid + newBillPending;
 
   return {
     previousPending: prev,
@@ -61,7 +55,7 @@ export const calculatePaymentAllocation = ({
     amountReceived: received,
     paidOnNewBill,
     oldBalancePaid,
-    newBillPending: trackPendingBalance ? newBillPending : 0,
+    newBillPending,
     totalPendingAfter,
     balanceReturn,
   };
