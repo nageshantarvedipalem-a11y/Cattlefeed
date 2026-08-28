@@ -89,31 +89,37 @@ export const buildCashBookWorkbook = async (entries, summary = null) => {
     { header: 'Date', key: 'date', width: 14 },
     { header: 'Type', key: 'type', width: 12 },
     { header: 'Category', key: 'category', width: 18 },
+    { header: 'Description', key: 'description', width: 24 },
     { header: 'Method', key: 'method', width: 10 },
-    { header: 'Amount', key: 'amount', width: 12 },
+    { header: 'Jama', key: 'jama', width: 12 },
+    { header: 'Karchulu', key: 'karchulu', width: 12 },
     { header: 'Balance', key: 'balance', width: 12 },
-    { header: 'Reference', key: 'reference', width: 16 },
-    { header: 'Remarks', key: 'remarks', width: 30 },
+    { header: 'Added By', key: 'addedBy', width: 16 },
+    { header: 'Remarks', key: 'remarks', width: 28 },
   ];
 
   sheet.getRow(1).font = { bold: true };
 
   if (summary) {
     sheet.addRow({ date: 'Opening Balance', balance: summary.openingBalance });
-    sheet.addRow({ date: 'Total Inflow', amount: summary.totalInflow });
-    sheet.addRow({ date: 'Total Outflow', amount: summary.totalOutflow });
+    sheet.addRow({ date: 'Total Jama', jama: summary.totalJama ?? summary.totalInflow });
+    sheet.addRow({ date: 'Total Karchulu', karchulu: summary.totalKarchulu ?? summary.totalOutflow });
+    sheet.addRow({ date: 'Closing Balance', balance: summary.closingBalance });
     sheet.addRow({});
   }
 
   entries.forEach((entry) => {
+    const isJama = entry.bookSide === 'jama' || ['cash_in', 'income'].includes(entry.transactionType);
     sheet.addRow({
       date: entry.transactionDate,
-      type: entry.transactionType,
+      type: isJama ? 'JAMA' : 'KARCHULU',
       category: entry.category || '',
+      description: entry.description || entry.remarks || '',
       method: entry.paymentMethod,
-      amount: entry.amount,
+      jama: isJama ? entry.amount : '',
+      karchulu: isJama ? '' : entry.amount,
       balance: entry.balanceAfter,
-      reference: `${entry.referenceType || ''}${entry.referenceId ? ` #${entry.referenceId}` : ''}`,
+      addedBy: entry.createdByName || '',
       remarks: entry.remarks || '',
     });
   });

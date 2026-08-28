@@ -155,18 +155,21 @@ export const buildCashBookPdf = (entries, summary = null) => new Promise((resolv
 
   if (summary) {
     doc.fontSize(10).font('Helvetica');
-    doc.text(`Opening: ${summary.openingBalance.toFixed(2)} | Inflow: ${summary.totalInflow.toFixed(2)} | Outflow: ${summary.totalOutflow.toFixed(2)} | Closing: ${summary.closingBalance.toFixed(2)}`);
+    const jama = summary.totalJama ?? summary.totalInflow;
+    const karchulu = summary.totalKarchulu ?? summary.totalOutflow;
+    doc.text(`Opening: ${summary.openingBalance.toFixed(2)} | Jama: ${Number(jama).toFixed(2)} | Karchulu: ${Number(karchulu).toFixed(2)} | Closing: ${summary.closingBalance.toFixed(2)}`);
     doc.moveDown();
   }
 
   const columns = [
     { label: 'Date', width: 70 },
-    { label: 'Type', width: 60 },
-    { label: 'Category', width: 80 },
-    { label: 'Method', width: 50 },
-    { label: 'Amount', width: 55 },
-    { label: 'Balance', width: 55 },
-    { label: 'Remarks', width: 180 },
+    { label: 'Type', width: 70 },
+    { label: 'Category', width: 90 },
+    { label: 'Description', width: 120 },
+    { label: 'Jama', width: 60 },
+    { label: 'Karchulu', width: 60 },
+    { label: 'Balance', width: 60 },
+    { label: 'By', width: 80 },
   ];
 
   let y = doc.y;
@@ -183,17 +186,19 @@ export const buildCashBookPdf = (entries, summary = null) => new Promise((resolv
       doc.font('Helvetica').fontSize(7);
     }
 
-    let x = doc.page.margins.left;
+    const isJama = entry.bookSide === 'jama' || ['cash_in', 'income'].includes(entry.transactionType);
     const row = [
-      String(entry.transactionDate),
-      entry.transactionType,
+      String(entry.transactionDate).slice(0, 10),
+      isJama ? 'JAMA' : 'KARCHULU',
       entry.category || '',
-      entry.paymentMethod,
-      entry.amount.toFixed(2),
+      entry.description || entry.remarks || '',
+      isJama ? entry.amount.toFixed(2) : '-',
+      isJama ? '-' : entry.amount.toFixed(2),
       entry.balanceAfter.toFixed(2),
-      entry.remarks || '',
+      entry.createdByName || '',
     ];
 
+    let x = doc.page.margins.left;
     row.forEach((cell, i) => {
       doc.text(String(cell).slice(0, 40), x, y, { width: columns[i].width, lineBreak: false });
       x += columns[i].width;

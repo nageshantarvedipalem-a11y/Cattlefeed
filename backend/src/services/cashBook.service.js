@@ -1,36 +1,84 @@
 import {
   findCashBookEntries,
   findCashBookEntriesForExport,
+  findCashBookEntryById,
   getCashBookPeriodSummary,
+  getCategoryBreakdown,
+  getOpeningBalanceBefore,
   getLatestCashBalance,
   createCashBookEntry,
+  updateCashBookEntryRecord,
+  deleteCashBookEntryRecord,
+  recalculateCashBalances,
   isInflowType,
   isOutflowType,
+  toSqlDate,
   getConnection,
 } from '../repositories/cashBook.repository.js';
+import {
+  JAMA_CATEGORIES,
+  KARCHULU_CATEGORIES,
+} from '../helpers/cashBookPeriod.helper.js';
 import { createExpenseRecord } from '../repositories/expense.repository.js';
 import { logActivity } from '../repositories/activityLog.repository.js';
 import { buildCashBookWorkbook } from '../helpers/exportExcel.helper.js';
 import { buildCashBookPdf } from '../helpers/exportPdf.helper.js';
 import { AppError } from '../utils/apiResponse.js';
 
-const VALID_TYPES = ['cash_in', 'cash_out', 'income', 'expense', 'transfer'];
-const VALID_METHODS = ['cash', 'upi', 'card', 'bank'];
+const VALID_METHODS = ['cash', 'upi', 'card', 'bank', 'other'];
 const MANUAL_TYPES = ['cash_in', 'cash_out', 'expense', 'transfer'];
+
+const listFilters = (queryParams) => ({
+  search: queryParams.search?.trim() || '',
+  transactionType: queryParams.transactionType || null,
+  bookSide: queryParams.bookSide || null,
+  paymentMethod: queryParams.paymentMethod || null,
+  period: queryParams.period || null,
+  dateFrom: queryParams.dateFrom || null,
+  dateTo: queryParams.dateTo || null,
+});
+
+const resolveManualType = (data) => {
+  if (data.bookSide === 'jama') return 'cash_in';
+  if (data.bookSide === 'karchulu') return 'expense';
+  return data.transactionType;
+};
+
+const parseAmount = (value) => {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new AppError('Amount must be greater than 0', 400);
+  }
+  return amount;
+};
+
+const parseEntryDate = (value) => {
+  if (!value) return toSqlDate();
+  return toSqlDate(value);
+};
+
+const assertManualEntry = (entry) => {
+  if (!entry) {
+    throw new AppError('Cash book entry not found', 404);
+  }
+  if (!entry.isManual) {
+    throw new AppError('Sale and payment entries cannot be edited from the cash book', 400);
+  }
+};
+
+const ensureNonNegativeBook = async (connection) => {
+  const closing = await recalculateCashBalances(connection);
+  if (closing < -0.01) {
+    throw new AppError('This change would make the cash balance negative', 400);
+  }
+  return closing;
+};
 
 export class CashBookService {
   async getCashBook(queryParams) {
     const page = Math.max(parseInt(queryParams.page, 10) || 1, 1);
-    const limit = Math.min(Math.max(parseInt(queryParams.limit, 10) || 10, 1), 100);
-
-    const filters = {
-      search: queryParams.search?.trim() || '',
-      transactionType: queryParams.transactionType || null,
-      paymentMethod: queryParams.paymentMethod || null,
-      period: queryParams.period || null,
-      dateFrom: queryParams.dateFrom || null,
-      dateTo: queryParams.dateTo || null,
-    };
+    const limit = Math.min(Math.max(parseInt(queryParams.limit, 10) || 15, 1), 100);
+    const filters = listFilters(queryParams);
 
     const [summary, { entries, total }] = await Promise.all([
       getCashBookPeriodSummary(filters),
@@ -40,68 +88,122 @@ export class CashBookService {
     return {
       summary,
       entries,
+      categories: { jama: JAMA_CATEGORIES, karchulu: KARCHULU_CATEGORIES },
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
   }
 
+  async getBalance(queryParams) {
+    const date = queryParams.date ? toSqlDate(queryParams.date) : toSqlDate();
+    const openingBalance = await getOpeningBalanceBefore(date);
+    const summary = await getCashBookPeriodSummary({ dateFrom: date, dateTo: date });
+    const currentBalance = await getLatestCashBalance();
+    return {
+      date,
+      openingBalance,
+      currentBalance,
+      ...summary,
+    };
+  }
+
+  async getDailyReport(queryParams) {
+    const date = queryParams.date ? toSqlDate(queryParams.date) : toSqlDate();
+    const filters = { dateFrom: date, dateTo: date };
+    const [summary, { entries }, breakdown] = await Promise.all([
+      getCashBookPeriodSummary(filters),
+      findCashBookEntries({ ...filters, page: 1, limit: 10000, sortOrder: 'asc' }),
+      getCategoryBreakdown(date, date),
+    ]);
+
+    return {
+      date,
+      summary,
+      breakdown,
+      entries,
+    };
+  }
+
+  async getMonthlySummary(queryParams) {
+    const now = new Date();
+    const year = parseInt(queryParams.year, 10) || now.getFullYear();
+    const month = parseInt(queryParams.month, 10) || now.getMonth() + 1;
+    const monthStr = String(month).padStart(2, '0');
+    const periodStart = `${year}-${monthStr}-01`;
+    const lastDayNum = new Date(year, month, 0).getDate();
+    const lastDay = `${year}-${monthStr}-${String(lastDayNum).padStart(2, '0')}`;
+    const today = toSqlDate();
+    const periodEnd = periodStart.slice(0, 7) === today.slice(0, 7) ? today : lastDay;
+
+    const filters = { dateFrom: periodStart, dateTo: periodEnd };
+    const [summary, breakdown] = await Promise.all([
+      getCashBookPeriodSummary(filters),
+      getCategoryBreakdown(periodStart, periodEnd),
+    ]);
+
+    return {
+      year,
+      month,
+      periodStart,
+      periodEnd,
+      summary,
+      breakdown,
+    };
+  }
+
   async createEntry(currentUser, data, ipAddress) {
-    if (!MANUAL_TYPES.includes(data.transactionType)) {
+    const transactionType = resolveManualType(data);
+    if (!MANUAL_TYPES.includes(transactionType)) {
       throw new AppError('Invalid transaction type for manual entry', 400);
     }
-
     if (!VALID_METHODS.includes(data.paymentMethod)) {
       throw new AppError('Invalid payment method', 400);
     }
 
-    const amount = Number(data.amount);
-    if (amount <= 0) {
-      throw new AppError('Amount must be greater than 0', 400);
+    const category = data.category?.trim();
+    if (!category) {
+      throw new AppError('Category is required', 400);
     }
+
+    const description = (data.description || data.remarks || '').trim();
+    if (description.length < 2) {
+      throw new AppError('Description is required', 400);
+    }
+
+    const amount = parseAmount(data.amount);
+    const transactionDate = parseEntryDate(data.transactionDate);
 
     const connection = await getConnection();
     try {
       await connection.beginTransaction();
 
-      const previousBalance = await getLatestCashBalance(connection);
-      let newBalance = previousBalance;
-
-      if (isInflowType(data.transactionType)) {
-        newBalance += amount;
-      } else if (isOutflowType(data.transactionType)) {
-        if (previousBalance < amount) {
-          throw new AppError(`Insufficient cash balance. Available: ${previousBalance}`, 400);
-        }
-        newBalance -= amount;
-      }
-
-      const transactionDate = data.transactionDate
-        ? (typeof data.transactionDate === 'string' ? data.transactionDate.slice(0, 10) : new Date(data.transactionDate).toISOString().slice(0, 10))
-        : new Date().toISOString().slice(0, 10);
-
       const entryId = await createCashBookEntry(connection, {
         transactionDate,
-        transactionType: data.transactionType,
-        category: data.category?.trim() || null,
+        transactionType,
+        category,
+        description,
         amount,
         paymentMethod: data.paymentMethod,
         referenceType: 'manual',
         referenceId: null,
-        balanceAfter: newBalance,
-        remarks: data.remarks?.trim() || null,
+        referenceNumber: data.referenceNumber?.trim() || null,
+        remarks: data.remarks?.trim() || description,
+        sortIndex: 1,
+        balanceAfter: 0,
         createdBy: currentUser.id,
       });
 
-      if (data.transactionType === 'expense') {
+      if (isOutflowType(transactionType)) {
         await createExpenseRecord(connection, {
           expenseDate: transactionDate,
-          category: data.category?.trim() || 'General',
+          category,
           amount,
-          paymentMethod: data.paymentMethod,
-          description: data.remarks?.trim() || null,
+          paymentMethod: data.paymentMethod === 'other' ? 'cash' : data.paymentMethod,
+          description,
           createdBy: currentUser.id,
         });
       }
 
+      const closing = await ensureNonNegativeBook(connection);
       await connection.commit();
 
       await logActivity({
@@ -109,17 +211,165 @@ export class CashBookService {
         action: 'cashbook_entry_created',
         entityType: 'cash_book',
         entityId: entryId,
-        details: { transactionType: data.transactionType, amount },
+        details: { transactionType, bookSide: isInflowType(transactionType) ? 'jama' : 'karchulu', amount },
+        ipAddress,
+      });
+
+      const entry = await findCashBookEntryById(entryId);
+      return { entry, closingBalance: closing };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  async updateEntry(currentUser, entryId, data, ipAddress) {
+    const existing = await findCashBookEntryById(entryId);
+    assertManualEntry(existing);
+
+    const transactionType = resolveManualType({
+      bookSide: data.bookSide || existing.bookSide,
+      transactionType: data.transactionType || existing.transactionType,
+    });
+    if (!MANUAL_TYPES.includes(transactionType)) {
+      throw new AppError('Invalid transaction type', 400);
+    }
+    if (data.paymentMethod && !VALID_METHODS.includes(data.paymentMethod)) {
+      throw new AppError('Invalid payment method', 400);
+    }
+
+    const category = (data.category ?? existing.category)?.trim();
+    if (!category) {
+      throw new AppError('Category is required', 400);
+    }
+    const description = (data.description ?? data.remarks ?? existing.description ?? '').trim();
+    if (description.length < 2) {
+      throw new AppError('Description is required', 400);
+    }
+    const amount = parseAmount(data.amount ?? existing.amount);
+    const transactionDate = parseEntryDate(data.transactionDate ?? existing.transactionDate);
+
+    const connection = await getConnection();
+    try {
+      await connection.beginTransaction();
+
+      await updateCashBookEntryRecord(connection, entryId, {
+        transactionDate,
+        transactionType,
+        category,
+        description,
+        amount,
+        paymentMethod: data.paymentMethod || existing.paymentMethod,
+        referenceNumber: data.referenceNumber !== undefined
+          ? data.referenceNumber?.trim() || null
+          : existing.referenceNumber,
+        remarks: data.remarks?.trim() || description,
+        sortIndex: existing.sortIndex || 1,
+      });
+
+      const closing = await ensureNonNegativeBook(connection);
+      await connection.commit();
+
+      await logActivity({
+        userId: currentUser.id,
+        action: 'cashbook_entry_updated',
+        entityType: 'cash_book',
+        entityId: Number(entryId),
+        details: { transactionType, amount },
+        ipAddress,
+      });
+
+      const entry = await findCashBookEntryById(entryId);
+      return { entry, closingBalance: closing };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  async deleteEntry(currentUser, entryId, ipAddress) {
+    const existing = await findCashBookEntryById(entryId);
+    assertManualEntry(existing);
+
+    const connection = await getConnection();
+    try {
+      await connection.beginTransaction();
+      await deleteCashBookEntryRecord(connection, entryId);
+      const closing = await ensureNonNegativeBook(connection);
+      await connection.commit();
+
+      await logActivity({
+        userId: currentUser.id,
+        action: 'cashbook_entry_deleted',
+        entityType: 'cash_book',
+        entityId: Number(entryId),
+        details: { transactionType: existing.transactionType, amount: existing.amount },
+        ipAddress,
+      });
+
+      return { deleted: true, closingBalance: closing };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  async setOpeningBalance(currentUser, data, ipAddress) {
+    const targetDate = parseEntryDate(data.date || data.transactionDate);
+    const desired = Number(data.amount);
+    if (!Number.isFinite(desired) || desired < 0) {
+      throw new AppError('Opening balance cannot be negative', 400);
+    }
+
+    const connection = await getConnection();
+    try {
+      await connection.beginTransaction();
+      const implied = await getOpeningBalanceBefore(targetDate, connection);
+      const diff = desired - implied;
+
+      if (Math.abs(diff) < 0.01) {
+        await connection.commit();
+        return { openingBalance: desired, adjusted: false, closingBalance: desired };
+      }
+
+      const entryId = await createCashBookEntry(connection, {
+        transactionDate: targetDate,
+        transactionType: diff > 0 ? 'cash_in' : 'expense',
+        category: 'Opening Balance',
+        description: (data.remarks || data.description || 'Opening balance').trim(),
+        amount: Math.abs(diff),
+        paymentMethod: 'cash',
+        referenceType: 'opening_balance',
+        referenceId: null,
+        remarks: data.remarks?.trim() || 'Opening balance',
+        sortIndex: 0,
+        balanceAfter: 0,
+        createdBy: currentUser.id,
+      });
+
+      const closing = await ensureNonNegativeBook(connection);
+      await connection.commit();
+
+      await logActivity({
+        userId: currentUser.id,
+        action: 'cashbook_opening_set',
+        entityType: 'cash_book',
+        entityId: entryId,
+        details: { date: targetDate, openingBalance: desired, adjustment: diff },
         ipAddress,
       });
 
       return {
-        entry: {
-          id: entryId,
-          transactionType: data.transactionType,
-          amount,
-          balanceAfter: newBalance,
-        },
+        openingBalance: desired,
+        adjusted: true,
+        adjustment: diff,
+        closingBalance: closing,
       };
     } catch (error) {
       await connection.rollback();
@@ -130,15 +380,7 @@ export class CashBookService {
   }
 
   async exportCashBook(queryParams, format) {
-    const filters = {
-      search: queryParams.search?.trim() || '',
-      transactionType: queryParams.transactionType || null,
-      paymentMethod: queryParams.paymentMethod || null,
-      period: queryParams.period || null,
-      dateFrom: queryParams.dateFrom || null,
-      dateTo: queryParams.dateTo || null,
-    };
-
+    const filters = listFilters(queryParams);
     const [entries, summary] = await Promise.all([
       findCashBookEntriesForExport(filters),
       getCashBookPeriodSummary(filters),
