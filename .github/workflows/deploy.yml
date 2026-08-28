@@ -26,7 +26,7 @@ on:
 
 concurrency:
   group: hostinger-frontend-deploy
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   NODE_VERSION: '20'
@@ -36,7 +36,7 @@ jobs:
   build-and-deploy:
     name: Build & Deploy to Hostinger
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout repository
@@ -118,45 +118,54 @@ jobs:
 
       - name: Deploy to Hostinger FTP
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_PORT: ${{ secrets.FTP_PORT || 21 }}
+          FTP_PROTOCOL: ${{ steps.ftp.outputs.ftp_protocol }}
         run: |
           set -euo pipefail
-          SERVER="${{ secrets.FTP_SERVER }}"
-          USER="${{ secrets.FTP_USERNAME }}"
-          PASS="${{ secrets.FTP_PASSWORD }}"
-          PORT="${{ secrets.FTP_PORT || 21 }}"
-          # Plain FTP only — never TLS when host is an IP (SSL cert mismatch).
-          echo "Deploying frontend/dist via passive FTP to ftp://${SERVER}:${PORT}/"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+          echo "Deploying frontend/dist in one FTP session (${FTP_PROTOCOL}) to avoid Hostinger per-file timeouts"
           cd frontend/dist
-          file_count=$(find . -type f | wc -l | tr -d ' ')
-          echo "Files to upload: $file_count"
-          failed=0
-          uploaded=0
-          upload_file() {
-            local file="$1"
-            local rel="${file#./}"
-            local remote="/${rel}"
-            echo "↑ ${rel}"
-            if curl --ftp-create-dirs --ftp-pasv --connect-timeout 30 --max-time 300 --retry 2 --fail \
-              -T "$file" --user "${USER}:${PASS}" \
-              "ftp://${SERVER}:${PORT}${remote}"; then
-              uploaded=$((uploaded + 1))
-            else
-              echo "::error::FTP upload failed: ${rel}"
-              failed=$((failed + 1))
-            fi
-          }
-          # Upload /assets first so index.html never points at missing JS/CSS.
-          while IFS= read -r file; do
-            upload_file "$file"
-          done < <(find ./assets -type f 2>/dev/null | sort)
-          while IFS= read -r file; do
-            upload_file "$file"
-          done < <(find . -type f ! -path './assets/*' ! -name 'index.html' | sort)
-          upload_file "./index.html"
-          echo "Uploaded ${uploaded}/${file_count} files (${failed} failed)"
-          if [ "$failed" -gt 0 ]; then
-            exit 1
+          echo "Files to upload: $(find . -type f | wc -l | tr -d ' ')"
+
+          PROTOCOL_SETTINGS='set ftp:ssl-allow no;'
+          OPEN_URL="ftp://${FTP_SERVER}:${FTP_PORT}"
+          if [ "${FTP_PROTOCOL}" = "ftps" ]; then
+            PROTOCOL_SETTINGS='set ftp:ssl-force true; set ssl:verify-certificate no;'
+            OPEN_URL="ftps://${FTP_SERVER}:${FTP_PORT}"
           fi
+
+          deploy_once() {
+            lftp -c "
+              ${PROTOCOL_SETTINGS}
+              set ftp:passive-mode true;
+              set net:max-retries 8;
+              set net:reconnect-interval-base 8;
+              set net:timeout 60;
+              set net:connection-limit 1;
+              set cmd:fail-exit true;
+              open -u '${FTP_USERNAME}','${FTP_PASSWORD}' ${OPEN_URL};
+              mirror -R --verbose --parallel=1 --no-perms --exclude-glob index.html ./ /;
+              put -O / index.html;
+              bye
+            "
+          }
+
+          for attempt in 1 2 3 4 5; do
+            echo "FTP mirror attempt ${attempt}/5..."
+            if deploy_once; then
+              echo "FTP upload succeeded on attempt ${attempt}"
+              exit 0
+            fi
+            echo "FTP attempt ${attempt} failed; waiting before retry..."
+            sleep $((attempt * 15))
+          done
+          echo "::error::FTP upload failed after 5 attempts"
+          exit 1
 
       - name: Verify live site updated
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
