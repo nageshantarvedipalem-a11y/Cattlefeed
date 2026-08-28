@@ -11,8 +11,8 @@ const METHOD_OPTIONS = [
   { value: 'other', label: 'Other' },
 ];
 
-const DEFAULT_JAMA = ['Other Income', 'Owner Capital', 'Loan Received', 'Refund'];
-const DEFAULT_KARCHULU = ['Electricity', 'Rent', 'Salary', 'Transport', 'Stationery', 'Maintenance', 'Fuel', 'Purchase', 'Other'];
+const DEFAULT_JAMA = ['Other Income', 'Advance Received', 'Owner Investment', 'Owner Capital', 'Loan Received', 'Refund', 'Miscellaneous'];
+const DEFAULT_KARCHULU = ['Supplier Payment', 'Transport', 'Loading', 'Unloading', 'Electricity', 'Rent', 'Salary', 'Vehicle Expenses', 'Repairs', 'Maintenance', 'Office Expenses', 'Telephone/Internet', 'Fuel', 'Purchase', 'Other'];
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -43,6 +43,7 @@ const CashBookEntryModal = ({
       description: '',
       paymentMethod: 'cash',
       referenceNumber: '',
+      partyName: '',
       remarks: '',
     },
   });
@@ -57,6 +58,7 @@ const CashBookEntryModal = ({
         description: entry.description || entry.remarks || '',
         paymentMethod: entry.paymentMethod === 'card' ? 'other' : (entry.paymentMethod || 'cash'),
         referenceNumber: entry.referenceNumber || '',
+        partyName: entry.partyName || '',
         remarks: entry.remarks || '',
       });
       return;
@@ -68,6 +70,7 @@ const CashBookEntryModal = ({
       description: '',
       paymentMethod: 'cash',
       referenceNumber: '',
+      partyName: '',
       remarks: '',
     });
   }, [isOpen, entry, reset]);
@@ -81,6 +84,7 @@ const CashBookEntryModal = ({
       paymentMethod: data.paymentMethod,
       transactionDate: data.transactionDate,
       referenceNumber: data.referenceNumber?.trim() || undefined,
+      partyName: data.partyName?.trim() || undefined,
       remarks: data.remarks?.trim() || undefined,
     };
 
@@ -199,6 +203,18 @@ const CashBookEntryModal = ({
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              {isJama ? 'Party Name' : 'Party / Supplier'}
+            </label>
+            <input
+              type="text"
+              {...register('partyName')}
+              placeholder="Optional"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500"
+            />
           </div>
 
           <div>

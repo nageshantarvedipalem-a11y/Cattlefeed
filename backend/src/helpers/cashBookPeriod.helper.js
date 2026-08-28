@@ -1,26 +1,59 @@
 export const INFLOW_TYPES = ['cash_in', 'income'];
 export const OUTFLOW_TYPES = ['cash_out', 'expense', 'transfer'];
-export const MANUAL_REFERENCE_TYPES = ['manual', 'opening_balance'];
+export const MANUAL_REFERENCE_TYPES = ['manual'];
+export const CASH_BOOK_MODES = ['cash', 'upi', 'bank', 'other'];
 
 export const JAMA_CATEGORIES = [
-  'Opening Balance',
+  'Sale Payment',
+  'Customer Payment',
   'Other Income',
+  'Advance Received',
+  'Owner Investment',
   'Owner Capital',
   'Loan Received',
   'Refund',
+  'Miscellaneous',
 ];
 
 export const KARCHULU_CATEGORIES = [
+  'Supplier Payment',
+  'Transport',
+  'Loading',
+  'Unloading',
   'Electricity',
   'Rent',
   'Salary',
-  'Transport',
-  'Stationery',
+  'Vehicle Expenses',
+  'Repairs',
   'Maintenance',
+  'Office Expenses',
+  'Telephone/Internet',
   'Fuel',
   'Purchase',
   'Other',
 ];
+
+export const emptyModeBalances = () => ({ cash: 0, upi: 0, bank: 0, other: 0 });
+
+export const normalizeCashBookMode = (method) => {
+  if (!method || method === 'credit') return null;
+  if (method === 'card') return 'other';
+  if (CASH_BOOK_MODES.includes(method)) return method;
+  return 'other';
+};
+
+export const applyModeDelta = (modes, method, signedAmount) => {
+  const mode = normalizeCashBookMode(method);
+  if (!mode) return modes;
+  return { ...modes, [mode]: Number(modes[mode] || 0) + Number(signedAmount) };
+};
+
+export const sourceLabel = (source) => {
+  if (source === 'billing') return 'BILLING';
+  if (source === 'supplier_payment') return 'SUPPLIER_PAYMENT';
+  if (source === 'manual') return 'MANUAL';
+  return 'OTHER';
+};
 
 export const isInflowType = (type) => INFLOW_TYPES.includes(type);
 export const isOutflowType = (type) => OUTFLOW_TYPES.includes(type);
@@ -76,6 +109,16 @@ export const resolvePeriodRange = (period, dateFrom, dateTo, now = new Date()) =
         periodEnd: today,
         period: 'monthly',
       };
+    case 'last_month': {
+      const lastDayPrev = addDays(`${year}-${month}-01`, -1);
+      const prevMonth = lastDayPrev.slice(5, 7);
+      const prevYear = lastDayPrev.slice(0, 4);
+      return {
+        periodStart: `${prevYear}-${prevMonth}-01`,
+        periodEnd: lastDayPrev,
+        period: 'last_month',
+      };
+    }
     case 'yearly':
       return {
         periodStart: `${year}-01-01`,

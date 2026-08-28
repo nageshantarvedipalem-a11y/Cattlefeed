@@ -8,6 +8,9 @@ import {
   formatSupplier,
   getConnection,
 } from '../repositories/supplier.repository.js';
+import { createSupplierPaymentRecord } from '../repositories/purchase.repository.js';
+import { allocateAmountToPendingPurchases } from '../helpers/supplierPaymentAllocation.helper.js';
+import { postCashBookEntry } from '../helpers/cashBookPost.helper.js';
 import { logActivity } from '../repositories/activityLog.repository.js';
 import { AppError } from '../utils/apiResponse.js';
 
@@ -198,6 +201,103 @@ export class SupplierService {
       });
 
       return { message: 'Supplier deleted successfully' };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  async paySupplier(currentUser, supplierId, data, ipAddress) {
+    const supplier = await findSupplierById(supplierId);
+    if (!supplier) {
+      throw new AppError('Supplier not found', 404);
+    }
+
+    const amount = Number(data.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new AppError('Payment amount must be greater than 0', 400);
+    }
+
+    const paymentMethod = data.paymentMethod || 'cash';
+    const paymentDate = data.paymentDate
+      ? String(data.paymentDate).slice(0, 10)
+      : new Date().toISOString().slice(0, 10);
+
+    const connection = await getConnection();
+    try {
+      await connection.beginTransaction();
+
+      const allocation = await allocateAmountToPendingPurchases(connection, {
+        supplierId: Number(supplierId),
+        amount,
+      });
+
+      if (allocation.allocated + 0.01 < amount) {
+        throw new AppError(
+          `Payment amount cannot exceed this supplier's pending balance of ${allocation.allocated.toFixed(2)}`,
+          400
+        );
+      }
+
+      const primaryPurchase = allocation.updatedPurchases[0] || null;
+      const supplierPaymentId = await createSupplierPaymentRecord(connection, {
+        supplierId: Number(supplierId),
+        purchaseId: primaryPurchase?.id || null,
+        paymentDate,
+        amount,
+        paymentMethod,
+        referenceNumber: data.referenceNumber?.trim() || primaryPurchase?.invoiceNumber || null,
+        remarks: data.remarks?.trim() || `Supplier payment to ${supplier.name}`,
+        createdBy: currentUser.id,
+      });
+
+      await postCashBookEntry(connection, {
+        transactionDate: paymentDate,
+        transactionType: 'expense',
+        category: 'Supplier Payment',
+        description: data.remarks?.trim() || 'Feed purchase payment',
+        amount,
+        paymentMethod,
+        referenceType: 'supplier_payment',
+        referenceId: supplierPaymentId,
+        referenceNumber: data.referenceNumber?.trim() || primaryPurchase?.invoiceNumber || `PAY-${supplierPaymentId}`,
+        remarks: `Supplier payment #${supplierPaymentId}`,
+        partyName: supplier.name,
+        partyType: 'supplier',
+        partyId: Number(supplierId),
+        source: 'supplier_payment',
+        createdBy: currentUser.id,
+      }, { allowNegative: true });
+
+      await connection.commit();
+
+      await logActivity({
+        userId: currentUser.id,
+        action: 'supplier_payment_created',
+        entityType: 'supplier_payment',
+        entityId: supplierPaymentId,
+        details: {
+          supplierId: Number(supplierId),
+          amount,
+          paymentMethod,
+          purchases: allocation.updatedPurchases.map((item) => item.invoiceNumber),
+        },
+        ipAddress,
+      });
+
+      const updated = await this.getSupplierById(supplierId);
+      return {
+        ...updated,
+        payment: {
+          id: supplierPaymentId,
+          amount,
+          paymentMethod,
+          paymentDate,
+          allocations: allocation.updatedPurchases,
+        },
+      };
     } catch (error) {
       await connection.rollback();
       throw error;

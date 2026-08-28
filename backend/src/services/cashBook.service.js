@@ -4,21 +4,23 @@ import {
   findCashBookEntryById,
   getCashBookPeriodSummary,
   getCategoryBreakdown,
+  getPartyBreakdown,
   getOpeningBalanceBefore,
   getLatestCashBalance,
   createCashBookEntry,
   updateCashBookEntryRecord,
   deleteCashBookEntryRecord,
-  recalculateCashBalances,
   isInflowType,
   isOutflowType,
   toSqlDate,
   getConnection,
+  normalizeCashBookMode,
 } from '../repositories/cashBook.repository.js';
 import {
   JAMA_CATEGORIES,
   KARCHULU_CATEGORIES,
 } from '../helpers/cashBookPeriod.helper.js';
+import { ensureNonNegativeBook } from '../helpers/cashBookPost.helper.js';
 import { createExpenseRecord } from '../repositories/expense.repository.js';
 import { logActivity } from '../repositories/activityLog.repository.js';
 import { buildCashBookWorkbook } from '../helpers/exportExcel.helper.js';
@@ -36,6 +38,8 @@ const listFilters = (queryParams) => ({
   period: queryParams.period || null,
   dateFrom: queryParams.dateFrom || null,
   dateTo: queryParams.dateTo || null,
+  source: queryParams.source || null,
+  category: queryParams.category || null,
 });
 
 const resolveManualType = (data) => {
@@ -61,17 +65,19 @@ const assertManualEntry = (entry) => {
   if (!entry) {
     throw new AppError('Cash book entry not found', 404);
   }
+  if (entry.isOpening) {
+    throw new AppError('Opening balance can only be changed with Set Opening', 400);
+  }
   if (!entry.isManual) {
-    throw new AppError('Sale and payment entries cannot be edited from the cash book', 400);
+    throw new AppError(
+      entry.source === 'billing'
+        ? 'Linked to invoice. Edit the payment from Billing or Pending Payments.'
+        : entry.source === 'supplier_payment'
+          ? 'Linked to supplier payment. Edit the payment from the supplier record.'
+          : 'Automatic cash book entries cannot be edited from the cash book',
+      400
+    );
   }
-};
-
-const ensureNonNegativeBook = async (connection) => {
-  const closing = await recalculateCashBalances(connection);
-  if (closing < -0.01) {
-    throw new AppError('This change would make the cash balance negative', 400);
-  }
-  return closing;
 };
 
 export class CashBookService {
@@ -109,16 +115,18 @@ export class CashBookService {
   async getDailyReport(queryParams) {
     const date = queryParams.date ? toSqlDate(queryParams.date) : toSqlDate();
     const filters = { dateFrom: date, dateTo: date };
-    const [summary, { entries }, breakdown] = await Promise.all([
+    const [summary, { entries }, breakdown, parties] = await Promise.all([
       getCashBookPeriodSummary(filters),
       findCashBookEntries({ ...filters, page: 1, limit: 10000, sortOrder: 'asc' }),
       getCategoryBreakdown(date, date),
+      getPartyBreakdown(date, date),
     ]);
 
     return {
       date,
       summary,
       breakdown,
+      parties,
       entries,
     };
   }
@@ -135,9 +143,10 @@ export class CashBookService {
     const periodEnd = periodStart.slice(0, 7) === today.slice(0, 7) ? today : lastDay;
 
     const filters = { dateFrom: periodStart, dateTo: periodEnd };
-    const [summary, breakdown] = await Promise.all([
+    const [summary, breakdown, parties] = await Promise.all([
       getCashBookPeriodSummary(filters),
       getCategoryBreakdown(periodStart, periodEnd),
+      getPartyBreakdown(periodStart, periodEnd),
     ]);
 
     return {
@@ -147,6 +156,7 @@ export class CashBookService {
       periodEnd,
       summary,
       breakdown,
+      parties,
     };
   }
 
@@ -171,6 +181,8 @@ export class CashBookService {
 
     const amount = parseAmount(data.amount);
     const transactionDate = parseEntryDate(data.transactionDate);
+    const paymentMethod = normalizeCashBookMode(data.paymentMethod) || data.paymentMethod;
+    const partyName = data.partyName?.trim() || null;
 
     const connection = await getConnection();
     try {
@@ -182,13 +194,17 @@ export class CashBookService {
         category,
         description,
         amount,
-        paymentMethod: data.paymentMethod,
+        paymentMethod,
         referenceType: 'manual',
         referenceId: null,
         referenceNumber: data.referenceNumber?.trim() || null,
         remarks: data.remarks?.trim() || description,
         sortIndex: 1,
         balanceAfter: 0,
+        partyName,
+        partyType: partyName ? 'other' : null,
+        partyId: null,
+        source: 'manual',
         createdBy: currentUser.id,
       });
 
@@ -197,7 +213,7 @@ export class CashBookService {
           expenseDate: transactionDate,
           category,
           amount,
-          paymentMethod: data.paymentMethod === 'other' ? 'cash' : data.paymentMethod,
+          paymentMethod: paymentMethod === 'other' ? 'cash' : paymentMethod,
           description,
           createdBy: currentUser.id,
         });
@@ -261,12 +277,20 @@ export class CashBookService {
         category,
         description,
         amount,
-        paymentMethod: data.paymentMethod || existing.paymentMethod,
+        paymentMethod: normalizeCashBookMode(data.paymentMethod || existing.paymentMethod)
+          || data.paymentMethod
+          || existing.paymentMethod,
         referenceNumber: data.referenceNumber !== undefined
           ? data.referenceNumber?.trim() || null
           : existing.referenceNumber,
         remarks: data.remarks?.trim() || description,
         sortIndex: existing.sortIndex || 1,
+        partyName: data.partyName !== undefined
+          ? data.partyName?.trim() || null
+          : existing.partyName,
+        partyType: existing.partyType,
+        partyId: existing.partyId,
+        updatedBy: currentUser.id,
       });
 
       const closing = await ensureNonNegativeBook(connection);
@@ -338,18 +362,20 @@ export class CashBookService {
         return { openingBalance: desired, adjusted: false, closingBalance: desired };
       }
 
+      const paymentMethod = normalizeCashBookMode(data.paymentMethod) || 'cash';
       const entryId = await createCashBookEntry(connection, {
         transactionDate: targetDate,
         transactionType: diff > 0 ? 'cash_in' : 'expense',
         category: 'Opening Balance',
         description: (data.remarks || data.description || 'Opening balance').trim(),
         amount: Math.abs(diff),
-        paymentMethod: 'cash',
+        paymentMethod,
         referenceType: 'opening_balance',
         referenceId: null,
         remarks: data.remarks?.trim() || 'Opening balance',
         sortIndex: 0,
         balanceAfter: 0,
+        source: 'opening_balance',
         createdBy: currentUser.id,
       });
 

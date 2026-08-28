@@ -41,3 +41,8 @@ export const deleteSupplier = asyncHandler(async (req, res) => {
   const result = await supplierService.deleteSupplier(req.user, req.params.id, getClientIp(req));
   sendSuccess(res, result, result.message);
 });
+
+export const paySupplier = asyncHandler(async (req, res) => {
+  const result = await supplierService.paySupplier(req.user, req.params.id, req.body, getClientIp(req));
+  sendSuccess(res, result, 'Supplier payment recorded successfully', 201);
+});

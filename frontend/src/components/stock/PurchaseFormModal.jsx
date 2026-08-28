@@ -35,6 +35,7 @@ const PurchaseFormModal = ({ isOpen, onClose, onSuccess }) => {
       purchaseDate: new Date().toISOString().slice(0, 10),
       discountAmount: 0,
       paidAmount: 0,
+      paymentMethod: 'cash',
       remarks: '',
       items: [{ ...emptyItem }],
     },
@@ -52,6 +53,7 @@ const PurchaseFormModal = ({ isOpen, onClose, onSuccess }) => {
       purchaseDate: new Date().toISOString().slice(0, 10),
       discountAmount: 0,
       paidAmount: 0,
+      paymentMethod: 'cash',
       remarks: '',
       items: [{ ...emptyItem }],
     });
@@ -114,6 +116,7 @@ const PurchaseFormModal = ({ isOpen, onClose, onSuccess }) => {
         purchaseDate: data.purchaseDate,
         discountAmount: Number(data.discountAmount) || 0,
         paidAmount: Number(data.paidAmount) || 0,
+        paymentMethod: data.paymentMethod || 'cash',
         remarks: data.remarks?.trim() || '',
         items: data.items.map((item) => ({
           productId: Number(item.productId),
@@ -181,6 +184,19 @@ const PurchaseFormModal = ({ isOpen, onClose, onSuccess }) => {
             {...register('paidAmount', { min: { value: 0, message: 'Must be 0 or greater' } })}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500"
           />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Payment Mode</label>
+          <select
+            {...register('paymentMethod')}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500"
+          >
+            <option value="cash">Cash</option>
+            <option value="upi">UPI</option>
+            <option value="bank">Bank</option>
+            <option value="other">Other</option>
+          </select>
         </div>
       </div>
 

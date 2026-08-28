@@ -193,4 +193,44 @@ export const createPurchaseItemRecord = async (connection, data) => {
   return result.insertId;
 };
 
+export const findSupplierPendingPurchasesForUpdate = async (connection, supplierId) => {
+  const [rows] = await connection.execute(
+    `SELECT id, invoice_number, total_amount, paid_amount, purchase_date
+     FROM purchases
+     WHERE supplier_id = ? AND total_amount > paid_amount
+     ORDER BY purchase_date ASC, id ASC
+     FOR UPDATE`,
+    [supplierId]
+  );
+  return rows;
+};
+
+export const updatePurchasePaymentAmounts = async (connection, purchaseId, data) => {
+  await connection.execute(
+    `UPDATE purchases
+     SET paid_amount = ?, payment_status = ?, updated_at = NOW()
+     WHERE id = ?`,
+    [data.paidAmount, data.paymentStatus, purchaseId]
+  );
+};
+
+export const createSupplierPaymentRecord = async (connection, data) => {
+  const [result] = await connection.execute(
+    `INSERT INTO supplier_payments (
+       supplier_id, purchase_id, payment_date, amount, payment_method, reference_number, remarks, created_by
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      data.supplierId,
+      data.purchaseId || null,
+      data.paymentDate,
+      data.amount,
+      data.paymentMethod,
+      data.referenceNumber || null,
+      data.remarks || null,
+      data.createdBy,
+    ]
+  );
+  return result.insertId;
+};
+
 export { getConnection };

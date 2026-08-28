@@ -222,11 +222,12 @@ export const createSaleItemRecord = async (connection, data) => {
 };
 
 export const createSalePaymentRecord = async (connection, data) => {
-  await connection.execute(
+  const [result] = await connection.execute(
     `INSERT INTO sale_payments (sale_id, payment_method, amount, reference_number)
      VALUES (?, ?, ?, ?)`,
     [data.saleId, data.paymentMethod, data.amount, data.referenceNumber || null]
   );
+  return result.insertId;
 };
 
 export const updateSalePaymentAmounts = async (connection, saleId, data) => {

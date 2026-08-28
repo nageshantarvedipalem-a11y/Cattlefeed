@@ -357,17 +357,51 @@ CREATE TABLE cash_book (
   reference_id INT UNSIGNED DEFAULT NULL,
   reference_number VARCHAR(100) DEFAULT NULL,
   balance_after DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+  mode_balance_after DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
   sort_index TINYINT UNSIGNED NOT NULL DEFAULT 1,
   remarks TEXT DEFAULT NULL,
+  party_name VARCHAR(150) DEFAULT NULL,
+  party_type ENUM('customer', 'supplier', 'other') DEFAULT NULL,
+  party_id INT UNSIGNED DEFAULT NULL,
+  source VARCHAR(40) NOT NULL DEFAULT 'manual',
+  status ENUM('posted', 'reversed') NOT NULL DEFAULT 'posted',
   created_by INT UNSIGNED NOT NULL,
+  updated_by INT UNSIGNED DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
+  UNIQUE KEY uk_cash_book_source_ref (source, reference_type, reference_id, payment_method),
   KEY idx_cash_book_transaction_date (transaction_date),
   KEY idx_cash_book_transaction_type (transaction_type),
   KEY idx_cash_book_reference (reference_type, reference_id),
+  KEY idx_cash_book_source (source),
+  KEY idx_cash_book_status (status),
+  KEY idx_cash_book_party (party_type, party_id),
   KEY idx_cash_book_created_by (created_by),
   CONSTRAINT fk_cash_book_created_by FOREIGN KEY (created_by) REFERENCES users (id)
+    ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE supplier_payments (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  supplier_id INT UNSIGNED NOT NULL,
+  purchase_id INT UNSIGNED DEFAULT NULL,
+  payment_date DATE NOT NULL,
+  amount DECIMAL(12, 2) NOT NULL,
+  payment_method ENUM('cash', 'upi', 'card', 'bank', 'other') NOT NULL DEFAULT 'cash',
+  reference_number VARCHAR(100) DEFAULT NULL,
+  remarks TEXT DEFAULT NULL,
+  created_by INT UNSIGNED NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_supplier_payments_supplier_id (supplier_id),
+  KEY idx_supplier_payments_purchase_id (purchase_id),
+  KEY idx_supplier_payments_payment_date (payment_date),
+  CONSTRAINT fk_supplier_payments_supplier_id FOREIGN KEY (supplier_id) REFERENCES suppliers (id)
+    ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT fk_supplier_payments_purchase_id FOREIGN KEY (purchase_id) REFERENCES purchases (id)
+    ON UPDATE CASCADE ON DELETE SET NULL,
+  CONSTRAINT fk_supplier_payments_created_by FOREIGN KEY (created_by) REFERENCES users (id)
     ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

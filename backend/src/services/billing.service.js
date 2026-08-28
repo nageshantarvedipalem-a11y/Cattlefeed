@@ -23,10 +23,7 @@ import {
   getLatestCustomerBalance,
   createLedgerEntry,
 } from '../repositories/customerLedger.repository.js';
-import {
-  getLatestCashBalance,
-  createCashBookEntry,
-} from '../repositories/cashBook.repository.js';
+import { postCashBookEntries } from '../helpers/cashBookPost.helper.js';
 import {
   findCustomerById,
   findCustomerByPhone,
@@ -43,7 +40,6 @@ import { AppError } from '../utils/apiResponse.js';
 import { validateIndianMobile } from '../utils/phoneValidation.js';
 
 const PAYMENT_METHODS = ['cash', 'upi', 'card', 'bank', 'credit'];
-const CASH_BOOK_METHODS = ['cash', 'upi', 'card', 'bank'];
 
 const calculateSaleItem = (item) => {
   const quantity = Number(item.quantity);
@@ -200,6 +196,12 @@ export class BillingService {
             address: data.customer?.address?.trim() || customer.address || null,
           });
         }
+      }
+
+      let partyName = data.customer?.name?.trim() || null;
+      if (customerId) {
+        const partyCustomer = await findCustomerById(customerId);
+        partyName = partyCustomer?.name || partyName;
       }
 
       const payments = Array.isArray(data.payments) ? data.payments : [];
@@ -374,6 +376,7 @@ export class BillingService {
       }
 
       let recordedSalePayment = 0;
+      const cashBookPosts = [];
       for (const payment of payments) {
         if (payment.paymentMethod === 'credit') {
           await createSalePaymentRecord(connection, {
@@ -392,11 +395,29 @@ export class BillingService {
         if (salePaymentAmount <= 0) continue;
 
         recordedSalePayment += salePaymentAmount;
-        await createSalePaymentRecord(connection, {
+        const salePaymentId = await createSalePaymentRecord(connection, {
           saleId,
           paymentMethod: payment.paymentMethod,
           amount: salePaymentAmount,
           referenceNumber: payment.referenceNumber?.trim() || null,
+        });
+
+        cashBookPosts.push({
+          transactionDate: saleDate.toISOString().slice(0, 10),
+          transactionType: 'income',
+          category: 'Sale Payment',
+          description: 'Customer payment',
+          amount: salePaymentAmount,
+          paymentMethod: payment.paymentMethod,
+          referenceType: 'sale_payment',
+          referenceId: salePaymentId,
+          referenceNumber: invoiceNumber,
+          remarks: `Sale ${invoiceNumber} — ${payment.paymentMethod}`,
+          partyName: partyName || 'Walk-in',
+          partyType: customerId ? 'customer' : null,
+          partyId: customerId || null,
+          source: 'billing',
+          createdBy: currentUser.id,
         });
       }
 
@@ -434,45 +455,53 @@ export class BillingService {
           recordUnallocatedRemainder: true,
         });
         allocatedOldSales = allocation.updatedSales;
-      }
 
-      let cashBalance = await getLatestCashBalance(connection);
-      if (finalPaidAmount > 0) {
-        const primaryMethod = payments.find((p) => p.paymentMethod !== 'credit')?.paymentMethod || 'cash';
-        if (CASH_BOOK_METHODS.includes(primaryMethod)) {
-          cashBalance += finalPaidAmount;
-          await createCashBookEntry(connection, {
-            transactionDate: saleDate.toISOString().slice(0, 10),
-            transactionType: 'income',
-            category: 'Sales',
-            amount: finalPaidAmount,
-            paymentMethod: primaryMethod,
-            referenceType: 'sale',
-            referenceId: saleId,
-            balanceAfter: cashBalance,
-            remarks: `Sale ${invoiceNumber} — ${primaryMethod}`,
-            createdBy: currentUser.id,
-          });
-        }
-      }
-
-      if (oldBalancePaid > 0) {
-        const primaryMethod = payments.find((p) => p.paymentMethod !== 'credit')?.paymentMethod || 'cash';
-        if (CASH_BOOK_METHODS.includes(primaryMethod)) {
-          cashBalance += oldBalancePaid;
-          await createCashBookEntry(connection, {
-            transactionDate: saleDate.toISOString().slice(0, 10),
+        for (const allocated of allocation.updatedSales) {
+          if (!allocated.paymentId || allocated.applied <= 0) continue;
+          cashBookPosts.push({
+            transactionDate: paymentDate,
             transactionType: 'income',
             category: 'Customer Payment',
-            amount: oldBalancePaid,
+            description: 'Customer payment',
+            amount: allocated.applied,
             paymentMethod: primaryMethod,
-            referenceType: 'payment',
-            referenceId: saleId,
-            balanceAfter: cashBalance,
+            referenceType: 'customer_payment',
+            referenceId: allocated.paymentId,
+            referenceNumber: allocated.invoiceNumber,
             remarks: `Old balance via sale ${invoiceNumber}`,
+            partyName: partyName || 'Walk-in',
+            partyType: 'customer',
+            partyId: customerId,
+            source: 'billing',
             createdBy: currentUser.id,
           });
         }
+
+        if (allocation.leftoverPaymentId) {
+          cashBookPosts.push({
+            transactionDate: paymentDate,
+            transactionType: 'income',
+            category: 'Customer Payment',
+            description: 'Customer payment',
+            amount: oldBalancePaid - allocation.updatedSales.reduce((sum, item) => sum + Number(item.applied), 0),
+            paymentMethod: primaryMethod,
+            referenceType: 'customer_payment',
+            referenceId: allocation.leftoverPaymentId,
+            referenceNumber: invoiceNumber,
+            remarks: `Old balance via sale ${invoiceNumber}`,
+            partyName: partyName || 'Walk-in',
+            partyType: 'customer',
+            partyId: customerId,
+            source: 'billing',
+            createdBy: currentUser.id,
+          });
+        }
+      }
+
+      if (cashBookPosts.length) {
+        await postCashBookEntries(connection, cashBookPosts.filter((entry) => Number(entry.amount) > 0.01), {
+          allowNegative: true,
+        });
       }
 
       await connection.commit();

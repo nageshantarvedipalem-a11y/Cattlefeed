@@ -1,8 +1,9 @@
 import { body, param, query } from 'express-validator';
 
-const periodValues = ['daily', 'yesterday', 'weekly', 'monthly', 'yearly'];
+const periodValues = ['daily', 'yesterday', 'weekly', 'monthly', 'last_month', 'yearly'];
 const methodValues = ['cash', 'upi', 'card', 'bank', 'other'];
 const typeValues = ['cash_in', 'cash_out', 'income', 'expense', 'transfer'];
+const sourceValues = ['billing', 'supplier_payment', 'manual', 'other', 'opening_balance'];
 
 export const listCashBookValidation = [
   query('page').optional().isInt({ min: 1 }),
@@ -11,6 +12,8 @@ export const listCashBookValidation = [
   query('transactionType').optional().isIn(typeValues),
   query('bookSide').optional().isIn(['jama', 'karchulu']),
   query('paymentMethod').optional().isIn(methodValues),
+  query('source').optional().isIn(sourceValues),
+  query('category').optional().trim().isLength({ max: 100 }),
   query('period').optional().isIn(periodValues),
   query('dateFrom').optional().isISO8601().toDate(),
   query('dateTo').optional().isISO8601().toDate(),
@@ -25,6 +28,7 @@ const entryBody = [
   body('description').trim().isLength({ min: 2, max: 255 }).withMessage('Description is required'),
   body('transactionDate').optional().isISO8601().toDate(),
   body('referenceNumber').optional({ values: 'falsy' }).trim().isLength({ max: 100 }),
+  body('partyName').optional({ values: 'falsy' }).trim().isLength({ max: 150 }),
   body('remarks').optional({ values: 'falsy' }).trim(),
 ];
 
@@ -48,6 +52,7 @@ export const updateEntryValidation = [
   body('description').optional().trim().isLength({ min: 2, max: 255 }),
   body('transactionDate').optional().isISO8601().toDate(),
   body('referenceNumber').optional({ values: 'falsy' }).trim().isLength({ max: 100 }),
+  body('partyName').optional({ values: 'falsy' }).trim().isLength({ max: 150 }),
   body('remarks').optional({ values: 'falsy' }).trim(),
 ];
 
@@ -59,6 +64,7 @@ export const openingBalanceValidation = [
   body('date').optional().isISO8601().toDate(),
   body('transactionDate').optional().isISO8601().toDate(),
   body('amount').isFloat({ min: 0 }).withMessage('Opening balance cannot be negative'),
+  body('paymentMethod').optional().isIn(methodValues),
   body('remarks').optional({ values: 'falsy' }).trim(),
   body('description').optional({ values: 'falsy' }).trim(),
 ];

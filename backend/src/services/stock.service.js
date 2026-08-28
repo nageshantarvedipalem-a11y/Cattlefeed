@@ -5,6 +5,7 @@ import {
   findPurchaseByInvoiceNumber,
   createPurchaseRecord,
   createPurchaseItemRecord,
+  createSupplierPaymentRecord,
   formatPurchase,
   getConnection,
 } from '../repositories/purchase.repository.js';
@@ -19,6 +20,7 @@ import {
 import { findSupplierById } from '../repositories/supplier.repository.js';
 import { findProductById, findProducts } from '../repositories/product.repository.js';
 import { getNextPurchaseNumber } from '../repositories/settings.repository.js';
+import { postCashBookEntry } from '../helpers/cashBookPost.helper.js';
 import { logActivity } from '../repositories/activityLog.repository.js';
 import { buildStockHistoryWorkbook, buildLowStockWorkbook } from '../helpers/exportExcel.helper.js';
 import { buildStockHistoryPdf, buildLowStockPdf } from '../helpers/exportPdf.helper.js';
@@ -184,6 +186,39 @@ export class StockService {
           remarks: `Stock in via purchase ${invoiceNumber}`,
           createdBy: currentUser.id,
         });
+      }
+
+      if (paidAmount > 0.01) {
+        const paymentDate = String(data.purchaseDate).slice(0, 10);
+        const paymentMethod = data.paymentMethod || 'cash';
+        const supplierPaymentId = await createSupplierPaymentRecord(connection, {
+          supplierId: data.supplierId,
+          purchaseId,
+          paymentDate,
+          amount: paidAmount,
+          paymentMethod,
+          referenceNumber: invoiceNumber,
+          remarks: `Stock-in payment for ${invoiceNumber}`,
+          createdBy: currentUser.id,
+        });
+
+        await postCashBookEntry(connection, {
+          transactionDate: paymentDate,
+          transactionType: 'expense',
+          category: 'Supplier Payment',
+          description: 'Feed purchase payment',
+          amount: paidAmount,
+          paymentMethod,
+          referenceType: 'supplier_payment',
+          referenceId: supplierPaymentId,
+          referenceNumber: invoiceNumber,
+          remarks: `Purchase ${invoiceNumber}`,
+          partyName: supplier.name,
+          partyType: 'supplier',
+          partyId: data.supplierId,
+          source: 'supplier_payment',
+          createdBy: currentUser.id,
+        }, { allowNegative: true });
       }
 
       await connection.commit();

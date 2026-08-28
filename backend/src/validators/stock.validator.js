@@ -25,6 +25,7 @@ export const createPurchaseValidation = [
   body('purchaseDate').isISO8601().toDate().withMessage('Valid purchase date is required'),
   body('discountAmount').optional().isFloat({ min: 0 }),
   body('paidAmount').optional().isFloat({ min: 0 }),
+  body('paymentMethod').optional().isIn(['cash', 'upi', 'card', 'bank', 'other']),
   body('remarks').optional({ values: 'falsy' }).trim(),
   body('items').isArray({ min: 1 }).withMessage('At least one product item is required'),
   body('items.*.productId').isInt({ min: 1 }).withMessage('Valid product is required'),

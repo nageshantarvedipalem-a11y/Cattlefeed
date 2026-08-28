@@ -88,12 +88,15 @@ export const buildCashBookWorkbook = async (entries, summary = null) => {
   sheet.columns = [
     { header: 'Date', key: 'date', width: 14 },
     { header: 'Type', key: 'type', width: 12 },
+    { header: 'Party', key: 'party', width: 18 },
     { header: 'Category', key: 'category', width: 18 },
+    { header: 'Reference', key: 'reference', width: 14 },
     { header: 'Description', key: 'description', width: 24 },
-    { header: 'Method', key: 'method', width: 10 },
+    { header: 'Mode', key: 'method', width: 10 },
     { header: 'Jama', key: 'jama', width: 12 },
     { header: 'Karchulu', key: 'karchulu', width: 12 },
     { header: 'Balance', key: 'balance', width: 12 },
+    { header: 'Source', key: 'source', width: 16 },
     { header: 'Added By', key: 'addedBy', width: 16 },
     { header: 'Remarks', key: 'remarks', width: 28 },
   ];
@@ -113,12 +116,15 @@ export const buildCashBookWorkbook = async (entries, summary = null) => {
     sheet.addRow({
       date: entry.transactionDate,
       type: isJama ? 'JAMA' : 'KARCHULU',
+      party: entry.partyName || '',
       category: entry.category || '',
+      reference: entry.referenceNumber || '',
       description: entry.description || entry.remarks || '',
       method: entry.paymentMethod,
       jama: isJama ? entry.amount : '',
       karchulu: isJama ? '' : entry.amount,
       balance: entry.balanceAfter,
+      source: entry.sourceLabel || entry.source || '',
       addedBy: entry.createdByName || '',
       remarks: entry.remarks || '',
     });

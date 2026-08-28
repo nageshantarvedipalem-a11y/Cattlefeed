@@ -164,12 +164,12 @@ export const buildCashBookPdf = (entries, summary = null) => new Promise((resolv
   const columns = [
     { label: 'Date', width: 70 },
     { label: 'Type', width: 70 },
-    { label: 'Category', width: 90 },
-    { label: 'Description', width: 120 },
+    { label: 'Party', width: 90 },
+    { label: 'Category', width: 80 },
     { label: 'Jama', width: 60 },
     { label: 'Karchulu', width: 60 },
     { label: 'Balance', width: 60 },
-    { label: 'By', width: 80 },
+    { label: 'Source', width: 80 },
   ];
 
   let y = doc.y;
@@ -190,12 +190,12 @@ export const buildCashBookPdf = (entries, summary = null) => new Promise((resolv
     const row = [
       String(entry.transactionDate).slice(0, 10),
       isJama ? 'JAMA' : 'KARCHULU',
+      entry.partyName || '',
       entry.category || '',
-      entry.description || entry.remarks || '',
       isJama ? entry.amount.toFixed(2) : '-',
       isJama ? '-' : entry.amount.toFixed(2),
       entry.balanceAfter.toFixed(2),
-      entry.createdByName || '',
+      entry.sourceLabel || entry.source || '',
     ];
 
     let x = doc.page.margins.left;

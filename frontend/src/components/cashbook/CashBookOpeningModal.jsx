@@ -14,6 +14,7 @@ const CashBookOpeningModal = ({ isOpen, onClose, onSuccess, suggestedAmount = 0 
     defaultValues: {
       date: new Date().toISOString().slice(0, 10),
       amount: suggestedAmount || '',
+      paymentMethod: 'cash',
       remarks: '',
     },
   });
@@ -23,6 +24,7 @@ const CashBookOpeningModal = ({ isOpen, onClose, onSuccess, suggestedAmount = 0 
       reset({
         date: new Date().toISOString().slice(0, 10),
         amount: suggestedAmount || '',
+        paymentMethod: 'cash',
         remarks: '',
       });
     }
@@ -33,6 +35,7 @@ const CashBookOpeningModal = ({ isOpen, onClose, onSuccess, suggestedAmount = 0 
       await cashBookService.setOpeningBalance({
         date: data.date,
         amount: Number(data.amount),
+        paymentMethod: data.paymentMethod || 'cash',
         remarks: data.remarks?.trim() || 'Opening balance',
       });
       toast.success('Opening balance saved. Next days will start from previous closing.');
@@ -76,6 +79,19 @@ const CashBookOpeningModal = ({ isOpen, onClose, onSuccess, suggestedAmount = 0 
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500"
             />
             {errors.amount && <p className="mt-1 text-xs text-red-600">{errors.amount.message}</p>}
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Payment Mode</label>
+            <select
+              {...register('paymentMethod')}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500"
+            >
+              <option value="cash">Cash</option>
+              <option value="upi">UPI</option>
+              <option value="bank">Bank</option>
+              <option value="other">Other</option>
+            </select>
+            <p className="mt-1 text-xs text-slate-500">First-day opening is posted to this mode. Later days use yesterday&apos;s closing.</p>
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">Notes</label>

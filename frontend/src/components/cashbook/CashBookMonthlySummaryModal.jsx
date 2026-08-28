@@ -113,6 +113,18 @@ const CashBookMonthlySummaryModal = ({ isOpen, onClose }) => {
                   </div>
                 )) : <p className="text-sm text-slate-500">No Karchulu this month</p>}
               </div>
+
+              {summary.modeBalances && (
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-800">Payment-mode summary</h3>
+                  {['cash', 'upi', 'bank', 'other'].map((mode) => (
+                    <div key={mode} className="flex justify-between py-1 text-sm capitalize">
+                      <span>{mode}</span>
+                      <span>{formatCurrency(summary.modeBalances[mode]?.closing || 0)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           ) : null}
         </div>

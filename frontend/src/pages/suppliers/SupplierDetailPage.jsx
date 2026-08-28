@@ -3,14 +3,19 @@ import { Link, useParams } from 'react-router-dom';
 import { FiArrowLeft, FiPhone, FiMapPin, FiFileText } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import supplierService from '../../services/supplierService';
+import { useAuth } from '../../context/AuthContext';
 import { formatCurrency } from '../../utils/format';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import SupplierPayModal from '../../components/suppliers/SupplierPayModal';
 
 const SupplierDetailPage = () => {
   const { id } = useParams();
+  const { checkPermission } = useAuth();
+  const canPay = checkPermission('suppliers', 'edit');
   const [loading, setLoading] = useState(true);
   const [supplier, setSupplier] = useState(null);
   const [purchases, setPurchases] = useState([]);
+  const [payOpen, setPayOpen] = useState(false);
 
   const fetchSupplier = useCallback(async () => {
     setLoading(true);
@@ -70,11 +75,22 @@ const SupplierDetailPage = () => {
               </p>
             )}
           </div>
-          <span className={`self-start rounded-full px-3 py-1 text-sm font-medium ${
-            supplier.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
-          }`}>
-            {supplier.isActive ? 'Active' : 'Inactive'}
-          </span>
+          <div className="flex flex-col items-start gap-2 sm:items-end">
+            <span className={`rounded-full px-3 py-1 text-sm font-medium ${
+              supplier.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+            }`}>
+              {supplier.isActive ? 'Active' : 'Inactive'}
+            </span>
+            {canPay && Number(supplier.pendingAmount) > 0 && (
+              <button
+                type="button"
+                onClick={() => setPayOpen(true)}
+                className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700"
+              >
+                Pay Supplier
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -142,6 +158,13 @@ const SupplierDetailPage = () => {
           </table>
         </div>
       </div>
+
+      <SupplierPayModal
+        isOpen={payOpen}
+        onClose={() => setPayOpen(false)}
+        onSuccess={fetchSupplier}
+        supplier={supplier}
+      />
     </div>
   );
 };

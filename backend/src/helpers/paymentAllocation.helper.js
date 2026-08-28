@@ -128,10 +128,11 @@ export const allocateAmountToPendingSales = async (connection, {
   }
 
   remaining = Math.max(remaining, 0);
+  let leftoverPaymentId = null;
 
   if (recordUnallocatedRemainder && remaining > 0.01) {
     runningBalance -= remaining;
-    const leftoverPaymentId = await createPaymentRecord(connection, {
+    leftoverPaymentId = await createPaymentRecord(connection, {
       customerId,
       saleId: null,
       paymentDate,
@@ -164,6 +165,7 @@ export const allocateAmountToPendingSales = async (connection, {
     allocated: appliedToInvoices,
     remaining,
     updatedSales,
+    leftoverPaymentId,
   };
 };
 

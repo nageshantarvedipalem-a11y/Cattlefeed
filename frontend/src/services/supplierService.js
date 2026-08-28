@@ -13,7 +13,7 @@ export const supplierService = {
 
   updateStatus: (id, isActive) => api.patch(`/suppliers/${id}/status`, { isActive }),
 
-  deleteSupplier: (id) => api.delete(`/suppliers/${id}`),
+  paySupplier: (id, data) => api.post(`/suppliers/${id}/payments`, data),
 };
 
 export default supplierService;

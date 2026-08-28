@@ -53,7 +53,11 @@ export const updateSupplierValidation = [
   body('isActive').optional().isBoolean(),
 ];
 
-export const updateStatusValidation = [
+export const paySupplierValidation = [
   ...supplierIdValidation,
-  body('isActive').isBoolean().withMessage('isActive must be true or false'),
+  body('amount').isFloat({ gt: 0 }).withMessage('Payment amount must be greater than 0'),
+  body('paymentMethod').isIn(['cash', 'upi', 'card', 'bank', 'other']).withMessage('Valid payment method is required'),
+  body('paymentDate').optional().isISO8601().toDate(),
+  body('referenceNumber').optional({ values: 'falsy' }).trim().isLength({ max: 100 }),
+  body('remarks').optional({ values: 'falsy' }).trim(),
 ];

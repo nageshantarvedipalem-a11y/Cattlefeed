@@ -8,6 +8,7 @@ import {
   createSupplierValidation,
   updateSupplierValidation,
   updateStatusValidation,
+  paySupplierValidation,
 } from '../validators/supplier.validator.js';
 
 const router = Router();
@@ -40,6 +41,13 @@ router.post(
   authorizePermission('suppliers', 'create'),
   validate(createSupplierValidation),
   supplierController.createSupplier
+);
+
+router.post(
+  '/:id/payments',
+  authorizePermission('suppliers', 'edit'),
+  validate(paySupplierValidation),
+  supplierController.paySupplier
 );
 
 router.put(

@@ -92,24 +92,48 @@ const CashBookDailyReportModal = ({ isOpen, onClose, initialDate }) => {
               </div>
 
               <div>
-                <h3 className="text-sm font-semibold text-emerald-800">Jama</h3>
-                {breakdown?.jama?.length ? breakdown.jama.map((item) => (
-                  <div key={item.category} className="flex justify-between py-1 text-sm">
-                    <span>{item.category}</span>
-                    <span>{formatCurrency(item.amount)}</span>
-                  </div>
-                )) : <p className="text-sm text-slate-500">No Jama on this date</p>}
+                <h3 className="text-sm font-semibold text-emerald-800">JAMA</h3>
+                {(report?.parties?.jama?.length ? report.parties.jama : breakdown?.jama)?.length ? (
+                  (report?.parties?.jama?.length ? report.parties.jama : breakdown.jama).map((item) => (
+                    <div key={item.party || item.category} className="flex justify-between py-1 text-sm">
+                      <span>{item.party || item.category}</span>
+                      <span>{formatCurrency(item.amount)}</span>
+                    </div>
+                  ))
+                ) : <p className="text-sm text-slate-500">No Jama on this date</p>}
+                <div className="mt-2 flex justify-between border-t border-slate-100 pt-2 text-sm font-semibold text-emerald-800">
+                  <span>Total Jama</span>
+                  <span>{formatCurrency(summary.totalJama)}</span>
+                </div>
               </div>
 
               <div>
-                <h3 className="text-sm font-semibold text-red-800">Karchulu</h3>
-                {breakdown?.karchulu?.length ? breakdown.karchulu.map((item) => (
-                  <div key={item.category} className="flex justify-between py-1 text-sm">
-                    <span>{item.category}</span>
-                    <span>{formatCurrency(item.amount)}</span>
-                  </div>
-                )) : <p className="text-sm text-slate-500">No Karchulu on this date</p>}
+                <h3 className="text-sm font-semibold text-red-800">KARCHULU</h3>
+                {(report?.parties?.karchulu?.length ? report.parties.karchulu : breakdown?.karchulu)?.length ? (
+                  (report?.parties?.karchulu?.length ? report.parties.karchulu : breakdown.karchulu).map((item) => (
+                    <div key={item.party || item.category} className="flex justify-between py-1 text-sm">
+                      <span>{item.party || item.category}</span>
+                      <span>{formatCurrency(item.amount)}</span>
+                    </div>
+                  ))
+                ) : <p className="text-sm text-slate-500">No Karchulu on this date</p>}
+                <div className="mt-2 flex justify-between border-t border-slate-100 pt-2 text-sm font-semibold text-red-800">
+                  <span>Total Karchulu</span>
+                  <span>{formatCurrency(summary.totalKarchulu)}</span>
+                </div>
               </div>
+
+              {summary.modeBalances && (
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-800">Payment modes</h3>
+                  {['cash', 'upi', 'bank', 'other'].map((mode) => (
+                    <div key={mode} className="flex justify-between py-1 text-sm capitalize">
+                      <span>{mode}</span>
+                      <span>{formatCurrency(summary.modeBalances[mode]?.closing || 0)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           ) : (
             <p className="text-sm text-slate-500">No report data</p>

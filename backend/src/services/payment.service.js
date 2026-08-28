@@ -10,10 +10,7 @@ import {
   findSaleById,
   formatSale,
 } from '../repositories/sale.repository.js';
-import {
-  getLatestCashBalance,
-  createCashBookEntry,
-} from '../repositories/cashBook.repository.js';
+import { postCashBookEntry } from '../helpers/cashBookPost.helper.js';
 import { allocateAmountToPendingSales } from '../helpers/paymentAllocation.helper.js';
 import { getCompanySettings } from '../repositories/settings.repository.js';
 import { buildPaymentReceiptPdf } from '../helpers/paymentReceiptPdf.helper.js';
@@ -141,19 +138,23 @@ export class PaymentService {
         || allocation.updatedSales[0];
       const paymentId = primaryAllocation?.paymentId || null;
 
-      const cashBalance = await getLatestCashBalance(connection) + amount;
-      await createCashBookEntry(connection, {
+      await postCashBookEntry(connection, {
         transactionDate: paymentDate,
         transactionType: 'income',
         category: 'Customer Payment',
+        description: 'Customer payment',
         amount,
         paymentMethod: data.paymentMethod,
-        referenceType: 'payment',
+        referenceType: 'customer_payment',
         referenceId: paymentId,
-        balanceAfter: cashBalance,
+        referenceNumber: saleRow.invoice_number,
         remarks: `Payment for ${saleRow.invoice_number}`,
+        partyName: saleRow.customer_name || null,
+        partyType: saleRow.customer_id ? 'customer' : null,
+        partyId: saleRow.customer_id || null,
+        source: 'billing',
         createdBy: currentUser.id,
-      });
+      }, { allowNegative: true });
 
       await connection.commit();
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { FiDownload, FiEdit2, FiPlus, FiPrinter, FiSearch, FiTrash2 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import cashBookService from '../../services/cashBookService';
@@ -19,20 +20,23 @@ const PERIOD_OPTIONS = [
   { value: 'yesterday', label: 'Yesterday' },
   { value: 'weekly', label: 'This Week' },
   { value: 'monthly', label: 'This Month' },
+  { value: 'last_month', label: 'Last Month' },
   { value: 'custom', label: 'Custom Range' },
 ];
 
 const COLUMNS = [
-  { key: 'date', label: 'Date', align: 'left', width: '9%' },
-  { key: 'type', label: 'Type', align: 'left', width: '10%' },
-  { key: 'category', label: 'Category', align: 'left', width: '11%' },
-  { key: 'description', label: 'Description', align: 'left', width: '16%' },
-  { key: 'method', label: 'Mode', align: 'left', width: '7%' },
-  { key: 'jama', label: 'Jama', align: 'right', width: '10%' },
-  { key: 'karchulu', label: 'Karchulu', align: 'right', width: '10%' },
-  { key: 'balance', label: 'Balance', align: 'right', width: '10%' },
-  { key: 'addedBy', label: 'Added By', align: 'left', width: '9%' },
-  { key: 'actions', label: 'Actions', align: 'left', width: '8%' },
+  { key: 'date', label: 'Date', align: 'left', width: '8%' },
+  { key: 'type', label: 'Type', align: 'left', width: '8%' },
+  { key: 'party', label: 'Party', align: 'left', width: '10%' },
+  { key: 'category', label: 'Category', align: 'left', width: '9%' },
+  { key: 'reference', label: 'Reference', align: 'left', width: '9%' },
+  { key: 'description', label: 'Description', align: 'left', width: '11%' },
+  { key: 'method', label: 'Mode', align: 'left', width: '6%' },
+  { key: 'jama', label: 'Jama', align: 'right', width: '8%' },
+  { key: 'karchulu', label: 'Karchulu', align: 'right', width: '8%' },
+  { key: 'balance', label: 'Running Balance', align: 'right', width: '9%' },
+  { key: 'source', label: 'Source', align: 'left', width: '8%' },
+  { key: 'actions', label: 'Actions', align: 'left', width: '6%' },
 ];
 
 const headCellClass = (align) =>
@@ -51,6 +55,12 @@ const todayLabel = () => new Date().toLocaleDateString('en-IN', {
   month: 'short',
   year: 'numeric',
 });
+
+const partyHref = (entry) => {
+  if (entry.partyType === 'customer' && entry.partyId) return `/customers/${entry.partyId}`;
+  if (entry.partyType === 'supplier' && entry.partyId) return `/suppliers/${entry.partyId}`;
+  return null;
+};
 
 const CashBookPage = () => {
   const { checkPermission } = useAuth();
@@ -81,6 +91,8 @@ const CashBookPage = () => {
   } = usePeriodFilter('daily');
   const [bookSide, setBookSide] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const [entryKind, setEntryKind] = useState('jama');
   const [editingEntry, setEditingEntry] = useState(null);
   const [entryModalOpen, setEntryModalOpen] = useState(false);
@@ -114,6 +126,8 @@ const CashBookPage = () => {
         ...apiParams,
         bookSide: bookSide || undefined,
         paymentMethod: paymentMethod || undefined,
+        source: sourceFilter || undefined,
+        category: categoryFilter || undefined,
       });
       setSummary(response.data.data.summary);
       setEntries(response.data.data.entries);
@@ -124,7 +138,7 @@ const CashBookPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, search, apiParams, isReady, isCustomPending, isInvalidRange, bookSide, paymentMethod]);
+  }, [page, limit, search, apiParams, isReady, isCustomPending, isInvalidRange, bookSide, paymentMethod, sourceFilter, categoryFilter]);
 
   useEffect(() => {
     fetchCashBook();
@@ -142,6 +156,8 @@ const CashBookPage = () => {
         ...apiParams,
         bookSide: bookSide || undefined,
         paymentMethod: paymentMethod || undefined,
+        source: sourceFilter || undefined,
+        category: categoryFilter || undefined,
       });
       downloadBlob(response.data, getExportFilename(response, `cash-book.${format === 'pdf' ? 'pdf' : 'xlsx'}`));
       toast.success(`Cash book exported as ${format.toUpperCase()}`);
@@ -237,8 +253,8 @@ const CashBookPage = () => {
           <div className="mb-4 grid shrink-0 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[
               { label: 'Opening Balance', value: summary.openingBalance, color: 'text-slate-900' },
-              { label: 'Total Jama', value: summary.totalJama ?? summary.totalInflow, color: 'text-emerald-700', prefix: '+' },
-              { label: 'Total Karchulu', value: summary.totalKarchulu ?? summary.totalOutflow, color: 'text-red-700', prefix: '−' },
+              { label: period === 'daily' ? "Today's Jama" : 'Total Jama', value: summary.totalJama ?? summary.totalInflow, color: 'text-emerald-700', prefix: '+' },
+              { label: period === 'daily' ? "Today's Karchulu" : 'Total Karchulu', value: summary.totalKarchulu ?? summary.totalOutflow, color: 'text-red-700', prefix: '−' },
               { label: 'Closing Balance', value: summary.closingBalance, color: 'text-amber-700' },
             ].map((card) => (
               <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -246,6 +262,22 @@ const CashBookPage = () => {
                 <p className={`mt-1 text-lg font-bold ${card.color}`}>
                   {card.prefix || ''}{formatCurrency(card.value)}
                 </p>
+              </div>
+            ))}
+          </div>
+        )}
+        {summary?.modeBalances && (
+          <div className="mb-4 grid shrink-0 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {[
+              { label: 'Cash Balance', value: summary.modeBalances.cash?.closing },
+              { label: 'UPI Balance', value: summary.modeBalances.upi?.closing },
+              { label: 'Bank Balance', value: summary.modeBalances.bank?.closing },
+              { label: 'Other Balance', value: summary.modeBalances.other?.closing },
+              { label: 'Total Available', value: summary.totalAvailable ?? summary.closingBalance },
+            ].map((card) => (
+              <div key={card.label} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs text-slate-500">{card.label}</p>
+                <p className="mt-1 text-sm font-bold text-slate-900">{formatCurrency(card.value || 0)}</p>
               </div>
             ))}
           </div>
@@ -263,7 +295,7 @@ const CashBookPage = () => {
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search category, description..."
+              placeholder="Search party, invoice, reference, description..."
               className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-4 text-sm outline-none focus:border-primary-500"
             />
           </div>
@@ -296,6 +328,29 @@ const CashBookPage = () => {
             <option value="bank">Bank</option>
             <option value="other">Other</option>
           </select>
+          <select
+            value={sourceFilter}
+            onChange={(e) => { setSourceFilter(e.target.value); setPage(1); }}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500"
+          >
+            <option value="">All Sources</option>
+            <option value="billing">Billing</option>
+            <option value="supplier_payment">Supplier Payment</option>
+            <option value="manual">Manual</option>
+            <option value="other">Other</option>
+          </select>
+          <select
+            value={categoryFilter}
+            onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500"
+          >
+            <option value="">All Categories</option>
+            {[...(categories.jama || []), ...(categories.karchulu || [])]
+              .filter((item, index, list) => list.indexOf(item) === index)
+              .map((item) => (
+                <option key={item} value={item}>{item}</option>
+              ))}
+          </select>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -304,7 +359,7 @@ const CashBookPage = () => {
           ) : (
             <>
               <div className="min-h-0 flex-1 overflow-auto">
-                <table className="w-full min-w-[980px] border-collapse" style={{ tableLayout: 'fixed' }}>
+                <table className="w-full min-w-[1280px] border-collapse" style={{ tableLayout: 'fixed' }}>
                   <colgroup>
                     {COLUMNS.map((col) => (
                       <col key={col.key} style={{ width: col.width }} />
@@ -320,19 +375,20 @@ const CashBookPage = () => {
                   <tbody className="divide-y divide-slate-100 bg-white">
                     {isCustomPending ? (
                       <tr>
-                        <td colSpan={10} className="px-4 py-12 text-center text-sm text-slate-500">
+                        <td colSpan={12} className="px-4 py-12 text-center text-sm text-slate-500">
                           Select from and to dates for custom range
                         </td>
                       </tr>
                     ) : entries.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="px-4 py-12 text-center text-sm text-slate-500">
+                        <td colSpan={12} className="px-4 py-12 text-center text-sm text-slate-500">
                           No cash book entries for this period. Add Jama or Karchulu to start the day.
                         </td>
                       </tr>
                     ) : (
                       entries.map((entry) => {
                         const isJama = entry.bookSide === 'jama';
+                        const href = partyHref(entry);
                         return (
                           <tr key={entry.id} className="hover:bg-slate-50/80">
                             <td className={`${bodyCellClass('left')} whitespace-nowrap text-slate-700`}>
@@ -345,7 +401,21 @@ const CashBookPage = () => {
                                 {isJama ? 'JAMA' : 'KARCHULU'}
                               </span>
                             </td>
+                            <td className={`${bodyCellClass('left')} text-slate-700`}>
+                              {href ? (
+                                <Link to={href} className="text-primary-700 hover:underline">
+                                  {entry.partyName}
+                                </Link>
+                              ) : (entry.partyName || '—')}
+                            </td>
                             <td className={`${bodyCellClass('left')} text-slate-700`}>{entry.category || '—'}</td>
+                            <td className={`${bodyCellClass('left')} text-slate-600`}>
+                              {href && entry.referenceNumber ? (
+                                <Link to={href} className="text-primary-700 hover:underline">
+                                  {entry.referenceNumber}
+                                </Link>
+                              ) : (entry.referenceNumber || '—')}
+                            </td>
                             <td className={`${bodyCellClass('left')} text-slate-600`}>{entry.description || entry.remarks || '—'}</td>
                             <td className={`${bodyCellClass('left')} uppercase text-slate-600`}>{entry.paymentMethod || '—'}</td>
                             <td className={`${bodyCellClass('right')} font-medium text-emerald-700`}>
@@ -357,7 +427,9 @@ const CashBookPage = () => {
                             <td className={`${bodyCellClass('right')} font-semibold text-slate-900`}>
                               {formatCurrency(entry.balanceAfter)}
                             </td>
-                            <td className={`${bodyCellClass('left')} text-slate-600`}>{entry.createdByName || '—'}</td>
+                            <td className={`${bodyCellClass('left')} text-xs font-medium uppercase text-slate-600`}>
+                              {entry.sourceLabel || entry.source || '—'}
+                            </td>
                             <td className={`${bodyCellClass('left')} print:hidden`}>
                               {entry.isManual ? (
                                 <div className="flex gap-2">
@@ -373,7 +445,9 @@ const CashBookPage = () => {
                                   )}
                                 </div>
                               ) : (
-                                <span className="text-xs text-slate-400">Auto</span>
+                                <span className="text-xs text-slate-400" title={entry.linkedLabel || 'Automatic'}>
+                                  {entry.linkedLabel || 'Auto'}
+                                </span>
                               )}
                             </td>
                           </tr>
