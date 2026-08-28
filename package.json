@@ -1,0 +1,14 @@
+{
+  "name": "cattle-feed",
+  "private": true,
+  "description": "Starts the backend when Hostinger Node.js application root is the Git repository",
+  "type": "module",
+  "scripts": {
+    "postinstall": "npm install --omit=dev --prefix backend",
+    "build": "npm run build --prefix backend",
+    "start": "node src/server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

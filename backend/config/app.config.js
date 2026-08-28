@@ -6,7 +6,11 @@ export const appConfig = {
   name: process.env.APP_NAME || 'Cattle Feed ERP',
   projectSlug: process.env.API_PROJECT_SLUG || 'cattlefeed',
   version: process.env.API_VERSION || 'v1',
-  port: parseInt(process.env.PORT, 10) || 5001,
+  port: (() => {
+    const parsed = parseInt(process.env.PORT, 10);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    return process.env.NODE_ENV === 'production' ? 3000 : 5001;
+  })(),
   env: process.env.NODE_ENV || 'development',
 };
 

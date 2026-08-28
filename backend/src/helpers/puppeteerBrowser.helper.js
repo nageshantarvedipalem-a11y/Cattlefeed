@@ -1,6 +1,4 @@
 import { existsSync } from 'fs';
-import puppeteer from 'puppeteer-core';
-import puppeteerFull from 'puppeteer';
 import { logger } from '../utils/logger.js';
 
 const CHROME_CANDIDATES = [
@@ -22,7 +20,23 @@ const BASE_ARGS = [
   '--disable-gpu',
 ];
 
+let puppeteerCorePromise = null;
+let puppeteerFullPromise = null;
 let chromiumModulePromise = null;
+
+const loadPuppeteerCore = () => {
+  if (!puppeteerCorePromise) {
+    puppeteerCorePromise = import('puppeteer-core').then((mod) => mod.default || mod);
+  }
+  return puppeteerCorePromise;
+};
+
+const loadPuppeteerFull = () => {
+  if (!puppeteerFullPromise) {
+    puppeteerFullPromise = import('puppeteer').then((mod) => mod.default || mod);
+  }
+  return puppeteerFullPromise;
+};
 
 const loadChromiumModule = async () => {
   if (!chromiumModulePromise) {
@@ -31,7 +45,10 @@ const loadChromiumModule = async () => {
   return chromiumModulePromise;
 };
 
-const tryLaunch = async (launchOptions) => puppeteer.launch(launchOptions);
+const tryLaunch = async (launchOptions) => {
+  const puppeteer = await loadPuppeteerCore();
+  return puppeteer.launch(launchOptions);
+};
 
 export const resolveChromeExecutable = async () => {
   for (const candidate of CHROME_CANDIDATES) {
@@ -41,6 +58,7 @@ export const resolveChromeExecutable = async () => {
   }
 
   try {
+    const puppeteerFull = await loadPuppeteerFull();
     const bundled = puppeteerFull.executablePath();
     if (bundled && existsSync(bundled)) {
       return bundled;
@@ -79,6 +97,7 @@ export const launchBrowser = async () => {
   }
 
   try {
+    const puppeteerFull = await loadPuppeteerFull();
     const bundled = puppeteerFull.executablePath();
     if (bundled) {
       return await tryLaunch({

@@ -1,3 +1,4 @@
+import './processGuards.js';
 import dotenv from 'dotenv';
 import app from './app.js';
 import { testConnection } from '../config/database.js';
@@ -6,12 +7,15 @@ import { getApiPrefix } from '../config/app.config.js';
 
 dotenv.config();
 
-const PORT = parseInt(process.env.PORT, 10) || 5001;
+const parsedPort = parseInt(process.env.PORT, 10);
+const PORT = Number.isFinite(parsedPort) && parsedPort > 0
+  ? parsedPort
+  : (process.env.NODE_ENV === 'production' ? 3000 : 5001);
 const API_PREFIX = getApiPrefix();
 
 const startServer = () => {
   const server = app.listen(PORT, '0.0.0.0', () => {
-    logger.info(`Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
+    logger.info(`Server running on 0.0.0.0:${PORT} [${process.env.NODE_ENV || 'development'}]`);
     logger.info(`Cattle Feed API: http://localhost:${PORT}${API_PREFIX}`);
 
     testConnection()
