@@ -333,15 +333,25 @@ const CheckoutFormModal = ({
                 type="number"
                 step="0.01"
                 min="0"
+                max={maxPayable}
                 value={paymentMethod === 'credit' ? 0 : paidAmount}
                 disabled={paymentMethod === 'credit'}
-                onChange={(e) => onPaidAmountChange(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  if (next === '') {
+                    onPaidAmountChange('');
+                    return;
+                  }
+                  const paid = Math.max(Number(next) || 0, 0);
+                  onPaidAmountChange(String(Math.min(paid, maxPayable)));
+                }}
                 placeholder={String(totals.grandTotal)}
                 className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 disabled:bg-slate-100"
               />
               {selectedCustomerId && previousPendingBalance > 0 && paymentMethod !== 'credit' && (
                 <p className="mt-1 text-xs text-slate-500">
-                  Can pay up to {formatCurrency(maxPayable)} (bill total + old pending).
+                  Can pay up to {formatCurrency(maxPayable)} (today&apos;s bill + yesterday&apos;s pending).
+                  Extra money first pays this bill, then reduces older pending invoices. Fully paid invoices leave Pending Payments.
                 </p>
               )}
             </div>

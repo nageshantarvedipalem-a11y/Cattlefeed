@@ -27,6 +27,7 @@ export const formatPendingSale = (row) => ({
   totalAmount: Number(row.total_amount),
   paidAmount: Number(row.paid_amount),
   pendingAmount: Number(row.pending_amount),
+  customerPendingTotal: Number(row.customer_pending_total ?? row.pending_amount ?? 0),
   paymentStatus: row.payment_status,
   dueDate: row.due_date,
   isOverdue: row.due_date ? new Date(row.due_date) < new Date(new Date().toISOString().slice(0, 10)) : false,
@@ -104,7 +105,12 @@ export const findPendingSales = async ({
   const rows = await query(
     `SELECT s.id, s.invoice_number, s.customer_id, c.name AS customer_name, c.phone AS customer_phone,
             c.village AS customer_village, s.sale_date, s.total_amount, s.paid_amount,
-            s.pending_amount, s.payment_status, s.due_date
+            s.pending_amount, s.payment_status, s.due_date,
+            (
+              SELECT COALESCE(SUM(s2.pending_amount), 0)
+              FROM sales s2
+              WHERE s2.customer_id = s.customer_id AND s2.pending_amount > 0
+            ) AS customer_pending_total
      ${baseFrom}
      ${whereClause}
      ORDER BY ${sortColumn} IS NULL, ${sortColumn} ${order}, s.id DESC

@@ -150,10 +150,11 @@ export const usePosBilling = () => {
     setPaidAmount((prev) => {
       if (prev === '' || prev === null) return String(totals.grandTotal);
       const paid = Number(prev) || 0;
-      if (paid > totals.grandTotal) return String(totals.grandTotal);
+      const maxPayable = totals.grandTotal + (selectedCustomerId ? previousPendingBalance : 0);
+      if (paid > maxPayable) return String(maxPayable);
       return prev;
     });
-  }, [totals.grandTotal, checkoutOpen]);
+  }, [totals.grandTotal, checkoutOpen, selectedCustomerId, previousPendingBalance]);
 
   const customerRequired = pendingAmount > 0 || paymentMethod === 'credit' || selectedCustomerId;
 
@@ -397,7 +398,23 @@ export const usePosBilling = () => {
       setCheckoutOpen(false);
 
       const status = resolvePaymentStatus(effectivePaidAmount, totals.grandTotal);
-      if (result.whatsapp?.sent) {
+      const oldUpdated = result.allocations?.length || 0;
+      const oldCleared = (result.allocations || []).filter((item) => item.fullyPaid).length;
+      const oldBillsSent = (result.oldBillWhatsapp || []).some((item) => item.sent);
+
+      if (oldUpdated > 0) {
+        toast.success(
+          oldCleared > 0
+            ? `Old pending reduced. ${oldCleared} previous bill(s) fully paid and removed from Pending Payments.`
+            : 'Old pending reduced on previous bills.'
+        );
+        if (result.whatsapp?.sent) {
+          toast.success('Today\'s invoice sent on WhatsApp.');
+        }
+        if (oldBillsSent) {
+          toast.success('Updated previous bills sent on WhatsApp.');
+        }
+      } else if (result.whatsapp?.sent) {
         toast.success(status === 'PAID'
           ? 'Bill paid. Invoice sent on WhatsApp.'
           : 'Bill saved to Pending Payments. Invoice sent on WhatsApp.');

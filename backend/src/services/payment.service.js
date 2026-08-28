@@ -4,23 +4,17 @@ import {
   getPendingPaymentsSummary,
   findPayments,
   findPaymentById,
-  createPaymentRecord,
   getConnection,
 } from '../repositories/payment.repository.js';
 import {
   findSaleById,
-  createSalePaymentRecord,
-  updateSalePaymentAmounts,
   formatSale,
 } from '../repositories/sale.repository.js';
-import {
-  getLatestCustomerBalance,
-  createLedgerEntry,
-} from '../repositories/customerLedger.repository.js';
 import {
   getLatestCashBalance,
   createCashBookEntry,
 } from '../repositories/cashBook.repository.js';
+import { allocateAmountToPendingSales } from '../helpers/paymentAllocation.helper.js';
 import { getCompanySettings } from '../repositories/settings.repository.js';
 import { buildPaymentReceiptPdf } from '../helpers/paymentReceiptPdf.helper.js';
 import whatsappService from './whatsapp.service.js';
@@ -30,12 +24,6 @@ import { logActivity } from '../repositories/activityLog.repository.js';
 import { AppError } from '../utils/apiResponse.js';
 
 const VALID_METHODS = ['cash', 'upi', 'card', 'bank'];
-
-const resolvePaymentStatus = (paidAmount, totalAmount) => {
-  if (paidAmount >= totalAmount) return 'paid';
-  if (paidAmount > 0) return 'partial';
-  return 'pending';
-};
 
 export class PaymentService {
   async getPendingPayments(queryParams) {
@@ -117,65 +105,41 @@ export class PaymentService {
     if (amount <= 0) {
       throw new AppError('Payment amount must be greater than 0', 400);
     }
-    if (amount > pendingAmount + 0.01) {
-      throw new AppError(`Payment amount cannot exceed pending balance of ${pendingAmount}`, 400);
-    }
-
     if (!VALID_METHODS.includes(data.paymentMethod)) {
       throw new AppError('Invalid payment method', 400);
     }
 
+    const sendUpdatedBill = data.sendUpdatedBill !== false;
     const connection = await getConnection();
     try {
       await connection.beginTransaction();
-
-      const newPaidAmount = Number(saleRow.paid_amount) + amount;
-      const newPendingAmount = Math.max(pendingAmount - amount, 0);
-      const paymentStatus = resolvePaymentStatus(newPaidAmount, Number(saleRow.total_amount));
-
-      await updateSalePaymentAmounts(connection, saleRow.id, {
-        paidAmount: newPaidAmount,
-        pendingAmount: newPendingAmount,
-        paymentStatus,
-      });
-
-      await createSalePaymentRecord(connection, {
-        saleId: saleRow.id,
-        paymentMethod: data.paymentMethod,
-        amount,
-        referenceNumber: data.referenceNumber?.trim() || null,
-      });
 
       const paymentDate = data.paymentDate
         ? (typeof data.paymentDate === 'string' ? data.paymentDate.slice(0, 10) : new Date(data.paymentDate).toISOString().slice(0, 10))
         : new Date().toISOString().slice(0, 10);
 
-      const paymentId = await createPaymentRecord(connection, {
+      const allocation = await allocateAmountToPendingSales(connection, {
         customerId: saleRow.customer_id,
-        saleId: saleRow.id,
-        paymentDate,
         amount,
         paymentMethod: data.paymentMethod,
+        paymentDate,
         referenceNumber: data.referenceNumber?.trim() || null,
-        remarks: data.remarks?.trim() || null,
-        createdBy: currentUser.id,
-      });
-
-      const previousBalance = await getLatestCustomerBalance(connection, saleRow.customer_id);
-      const newBalance = previousBalance - amount;
-
-      await createLedgerEntry(connection, {
-        customerId: saleRow.customer_id,
-        transactionDate: paymentDate,
-        transactionType: 'payment',
-        referenceType: 'payment',
-        referenceId: paymentId,
-        debit: 0,
-        credit: amount,
-        balance: newBalance,
         remarks: data.remarks?.trim() || `Payment received for ${saleRow.invoice_number}`,
         createdBy: currentUser.id,
+        preferSaleId: saleRow.id,
       });
+
+      const allocatedToInvoices = allocation.updatedSales.reduce((sum, item) => sum + Number(item.applied), 0);
+      if (allocatedToInvoices + 0.01 < amount) {
+        throw new AppError(
+          `Payment amount cannot exceed this customer's pending balance of ${allocatedToInvoices.toFixed(2)}`,
+          400
+        );
+      }
+
+      const primaryAllocation = allocation.updatedSales.find((item) => item.id === saleRow.id)
+        || allocation.updatedSales[0];
+      const paymentId = primaryAllocation?.paymentId || null;
 
       const cashBalance = await getLatestCashBalance(connection) + amount;
       await createCashBookEntry(connection, {
@@ -198,16 +162,45 @@ export class PaymentService {
         action: 'payment_received',
         entityType: 'payment',
         entityId: paymentId,
-        details: { saleId: saleRow.id, invoiceNumber: saleRow.invoice_number, amount },
+        details: {
+          saleId: saleRow.id,
+          invoiceNumber: saleRow.invoice_number,
+          amount,
+          allocatedInvoices: allocation.updatedSales.map((item) => item.invoiceNumber),
+        },
         ipAddress,
       });
 
-      const payment = await findPaymentById(paymentId);
+      const payment = paymentId ? await findPaymentById(paymentId) : null;
       const updatedSale = await findSaleById(saleRow.id);
+
+      const whatsappResults = [];
+      if (sendUpdatedBill) {
+        for (const updated of allocation.updatedSales) {
+          const result = await whatsappService.trySendUpdatedInvoice(
+            updated.id,
+            currentUser,
+            ipAddress
+          );
+          whatsappResults.push({
+            saleId: updated.id,
+            invoiceNumber: updated.invoiceNumber,
+            fullyPaid: updated.fullyPaid,
+            ...result,
+          });
+        }
+      }
+
+      const primaryWhatsapp = whatsappResults.find((item) => item.saleId === saleRow.id)
+        || whatsappResults[0]
+        || { sent: false, reason: sendUpdatedBill ? 'No invoices updated' : 'Send bill not requested' };
 
       return {
         payment,
         sale: formatSale(updatedSale),
+        allocations: allocation.updatedSales,
+        whatsapp: primaryWhatsapp,
+        whatsappResults,
       };
     } catch (error) {
       await connection.rollback();

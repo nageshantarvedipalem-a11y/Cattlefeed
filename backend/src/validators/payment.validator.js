@@ -30,6 +30,7 @@ export const receivePaymentValidation = [
   body('paymentDate').optional().isISO8601().toDate(),
   body('referenceNumber').optional({ values: 'falsy' }).trim().isLength({ max: 100 }),
   body('remarks').optional({ values: 'falsy' }).trim(),
+  body('sendUpdatedBill').optional(),
 ];
 
 export const paymentIdValidation = [

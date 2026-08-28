@@ -481,6 +481,28 @@ export class WhatsAppService {
       return { sent: false, reason: error.message };
     }
   }
+
+  async trySendUpdatedInvoice(saleId, currentUser, ipAddress) {
+    try {
+      const config = await getWhatsAppSettings();
+      if (!config.enabled || !isProviderConfigured(config)) {
+        return {
+          sent: false,
+          reason: !config.enabled ? 'WhatsApp disabled' : 'WhatsApp API not configured',
+        };
+      }
+
+      const saleRow = await findSaleById(saleId);
+      if (!saleRow?.customer_phone) {
+        return { sent: false, reason: 'No customer phone number' };
+      }
+
+      const result = await this.sendInvoice(saleId, currentUser, ipAddress);
+      return { sent: true, ...result };
+    } catch (error) {
+      return { sent: false, reason: error.message };
+    }
+  }
 }
 
 export default new WhatsAppService();

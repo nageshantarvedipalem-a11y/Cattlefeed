@@ -238,6 +238,26 @@ export const updateSalePaymentAmounts = async (connection, saleId, data) => {
   );
 };
 
+export const findCustomerPendingSalesForUpdate = async (
+  connection,
+  customerId,
+  excludeSaleId = null
+) => {
+  let sql = `SELECT id, invoice_number, total_amount, paid_amount, pending_amount, payment_status, sale_date
+     FROM sales
+     WHERE customer_id = ? AND pending_amount > 0`;
+  const params = [customerId];
+
+  if (excludeSaleId) {
+    sql += ' AND id <> ?';
+    params.push(excludeSaleId);
+  }
+
+  sql += ' ORDER BY id ASC FOR UPDATE';
+  const [rows] = await connection.execute(sql, params);
+  return rows;
+};
+
 export const searchPosProducts = async (search = '', barcode = '') => {
   if (barcode) {
     const rows = await query(

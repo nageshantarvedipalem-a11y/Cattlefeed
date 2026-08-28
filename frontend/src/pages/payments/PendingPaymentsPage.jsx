@@ -235,7 +235,9 @@ const PendingPaymentsPage = () => {
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Pending Payments</h1>
-            <p className="mt-1 text-sm text-slate-500">Track outstanding invoices and receive customer payments</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Unpaid bills stay here. When the customer pays later, pending reduces — fully paid invoices leave this list and an updated bill can be sent.
+            </p>
           </div>
           {activeTab === 'pending' && (
             <div className="flex flex-wrap gap-2 print:hidden">

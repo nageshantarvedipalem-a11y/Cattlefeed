@@ -33,7 +33,7 @@ import {
   createCustomerRecord,
   updateCustomerRecord,
 } from '../repositories/customer.repository.js';
-import { createPaymentRecord } from '../repositories/payment.repository.js';
+import { allocateAmountToPendingSales } from '../helpers/paymentAllocation.helper.js';
 import { getNextInvoiceNumber, getCompanySettings } from '../repositories/settings.repository.js';
 import { buildInvoicePdf, buildThermalInvoicePdf } from '../helpers/invoicePdf.helper.js';
 import { buildInvoiceHtml } from '../helpers/invoiceHtml.helper.js';
@@ -401,6 +401,7 @@ export class BillingService {
       }
 
       let runningBalance = previousPendingBalance;
+      let allocatedOldSales = [];
 
       if (customerId && pendingAmount > 0) {
         runningBalance += pendingAmount;
@@ -422,30 +423,17 @@ export class BillingService {
         const paymentDate = saleDate.toISOString().slice(0, 10);
         const primaryMethod = payments.find((p) => p.paymentMethod !== 'credit')?.paymentMethod || 'cash';
 
-        const paymentId = await createPaymentRecord(connection, {
+        const allocation = await allocateAmountToPendingSales(connection, {
           customerId,
-          saleId,
-          paymentDate,
           amount: oldBalancePaid,
           paymentMethod: primaryMethod,
-          referenceNumber: null,
+          paymentDate,
           remarks: `Old balance payment via sale ${invoiceNumber}`,
           createdBy: currentUser.id,
+          excludeSaleId: saleId,
+          recordUnallocatedRemainder: true,
         });
-
-        runningBalance -= oldBalancePaid;
-        await createLedgerEntry(connection, {
-          customerId,
-          transactionDate: saleDate,
-          transactionType: 'payment',
-          referenceType: 'payment',
-          referenceId: paymentId,
-          debit: 0,
-          credit: oldBalancePaid,
-          balance: runningBalance,
-          remarks: `Old balance payment via sale ${invoiceNumber}`,
-          createdBy: currentUser.id,
-        });
+        allocatedOldSales = allocation.updatedSales;
       }
 
       let cashBalance = await getLatestCashBalance(connection);
@@ -500,8 +488,22 @@ export class BillingService {
 
       const saleResult = await this.getSaleById(saleId);
       const whatsapp = await whatsappService.tryAutoSendInvoice(saleId, currentUser, ipAddress);
+      const oldBillWhatsapp = [];
+      for (const allocated of allocatedOldSales) {
+        const result = await whatsappService.trySendUpdatedInvoice(
+          allocated.id,
+          currentUser,
+          ipAddress
+        );
+        oldBillWhatsapp.push({
+          saleId: allocated.id,
+          invoiceNumber: allocated.invoiceNumber,
+          fullyPaid: allocated.fullyPaid,
+          ...result,
+        });
+      }
 
-      return { ...saleResult, whatsapp };
+      return { ...saleResult, whatsapp, oldBillWhatsapp, allocations: allocatedOldSales };
     } catch (error) {
       await connection.rollback();
       throw error;

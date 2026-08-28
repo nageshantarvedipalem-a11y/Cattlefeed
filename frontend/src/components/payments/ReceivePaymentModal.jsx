@@ -12,6 +12,7 @@ const ReceivePaymentModal = ({ isOpen, onClose, onSuccess, sale }) => {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm({
     defaultValues: {
@@ -20,8 +21,16 @@ const ReceivePaymentModal = ({ isOpen, onClose, onSuccess, sale }) => {
       paymentDate: new Date().toISOString().slice(0, 10),
       referenceNumber: '',
       remarks: '',
+      sendUpdatedBill: true,
     },
   });
+
+  const amountValue = Number(watch('amount')) || 0;
+  const thisBillPending = Number(sale?.pendingAmount) || 0;
+  const customerPendingTotal = Number(sale?.customerPendingTotal) || thisBillPending;
+  const maxPayable = Math.max(customerPendingTotal, thisBillPending);
+  const remainingThisBill = Math.max(thisBillPending - amountValue, 0);
+  const extraTowardOtherBills = Math.max(amountValue - thisBillPending, 0);
 
   useEffect(() => {
     if (isOpen && sale) {
@@ -31,6 +40,7 @@ const ReceivePaymentModal = ({ isOpen, onClose, onSuccess, sale }) => {
         paymentDate: new Date().toISOString().slice(0, 10),
         referenceNumber: '',
         remarks: '',
+        sendUpdatedBill: true,
       });
     }
   }, [isOpen, sale, reset]);
@@ -44,9 +54,39 @@ const ReceivePaymentModal = ({ isOpen, onClose, onSuccess, sale }) => {
         paymentDate: data.paymentDate,
         referenceNumber: data.referenceNumber?.trim() || undefined,
         remarks: data.remarks?.trim() || undefined,
+        sendUpdatedBill: Boolean(data.sendUpdatedBill),
       });
-      toast.success('Payment received successfully');
-      onSuccess(response.data.data);
+      const result = response.data.data;
+      const updatedSale = result.sale;
+      const remaining = Number(updatedSale?.pendingAmount) || 0;
+      const sent = Boolean(result.whatsapp?.sent);
+      const fullyPaidCount = (result.allocations || []).filter((item) => item.fullyPaid).length;
+
+      if (remaining <= 0) {
+        toast.success(
+          sent
+            ? 'Fully paid. Invoice removed from pending. Updated bill sent on WhatsApp.'
+            : 'Fully paid. Invoice removed from pending.'
+        );
+      } else if (fullyPaidCount > 0) {
+        toast.success(
+          sent
+            ? `Payment applied. ${fullyPaidCount} bill(s) cleared. This bill pending is now ${formatCurrency(remaining)}. Updated bill sent.`
+            : `Payment applied. ${fullyPaidCount} bill(s) cleared. This bill pending is now ${formatCurrency(remaining)}.`
+        );
+      } else {
+        toast.success(
+          sent
+            ? `Pending reduced to ${formatCurrency(remaining)}. Updated bill sent on WhatsApp.`
+            : `Pending reduced to ${formatCurrency(remaining)}.`
+        );
+      }
+
+      if (data.sendUpdatedBill && result.whatsapp && !result.whatsapp.sent) {
+        toast.error(result.whatsapp.reason || 'Payment saved, but updated bill could not be sent on WhatsApp');
+      }
+
+      onSuccess(result);
       onClose();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to receive payment');
@@ -68,8 +108,13 @@ const ReceivePaymentModal = ({ isOpen, onClose, onSuccess, sale }) => {
             <div className="flex justify-between"><span className="text-slate-500">Total</span><span>{formatCurrency(sale.totalAmount)}</span></div>
             <div className="mt-1 flex justify-between"><span className="text-slate-500">Paid</span><span>{formatCurrency(sale.paidAmount)}</span></div>
             <div className="mt-1 flex justify-between font-semibold text-amber-700">
-              <span>Pending</span><span>{formatCurrency(sale.pendingAmount)}</span>
+              <span>This Bill Pending</span><span>{formatCurrency(thisBillPending)}</span>
             </div>
+            {customerPendingTotal > thisBillPending + 0.01 && (
+              <div className="mt-1 flex justify-between text-slate-600">
+                <span>Customer Total Pending</span><span>{formatCurrency(customerPendingTotal)}</span>
+              </div>
+            )}
           </div>
 
           <div>
@@ -78,15 +123,25 @@ const ReceivePaymentModal = ({ isOpen, onClose, onSuccess, sale }) => {
               type="number"
               step="0.01"
               min="0.01"
-              max={sale.pendingAmount}
+              max={maxPayable}
               {...register('amount', {
                 required: 'Amount is required',
                 min: 0.01,
-                max: { value: sale.pendingAmount, message: `Cannot exceed ${formatCurrency(sale.pendingAmount)}` },
+                max: { value: maxPayable, message: `Cannot exceed ${formatCurrency(maxPayable)}` },
               })}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500"
             />
             {errors.amount && <p className="mt-1 text-xs text-red-600">{errors.amount.message}</p>}
+            {amountValue > 0 && (
+              <p className="mt-1 text-xs text-slate-500">
+                {remainingThisBill <= 0
+                  ? 'This invoice will be fully paid and removed from Pending Payments.'
+                  : `This invoice pending after payment: ${formatCurrency(remainingThisBill)}.`}
+                {extraTowardOtherBills > 0
+                  ? ` Extra ${formatCurrency(extraTowardOtherBills)} will reduce this customer's older pending bills.`
+                  : ''}
+              </p>
+            )}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -129,6 +184,15 @@ const ReceivePaymentModal = ({ isOpen, onClose, onSuccess, sale }) => {
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500"
             />
           </div>
+
+          <label className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              {...register('sendUpdatedBill')}
+            />
+            <span>Generate the updated bill and send it to the customer on WhatsApp</span>
+          </label>
 
           <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
             <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50">
