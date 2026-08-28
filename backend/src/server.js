@@ -23,7 +23,7 @@ const startServer = async () => {
     }
   }
 
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     logger.info(`Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
     logger.info(`Cattle Feed API: http://localhost:${PORT}${API_PREFIX}`);
   }).on('error', (error) => {
