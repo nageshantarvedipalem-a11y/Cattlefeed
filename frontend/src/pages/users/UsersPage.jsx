@@ -78,7 +78,7 @@ const UsersPage = () => {
       if (!cached?.data?.data) {
         toast.error(
           error.code === 'ERR_NETWORK'
-            ? 'Cannot reach backend API. Start backend on port 5001.'
+            ? 'Cannot reach the server. The API is unavailable — try again shortly.'
             : error.response?.data?.message || 'Failed to load users'
         );
       }

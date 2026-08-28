@@ -106,8 +106,8 @@ const DashboardPage = () => {
       setData(response.data.data);
     } catch (error) {
       if (!cached?.data?.data) {
-        const message = error.code === 'ERR_NETWORK'
-          ? 'Cannot reach backend API. Make sure backend is running on port 5001.'
+        const message = error.code === 'ERR_NETWORK' || !error.response
+          ? 'Cannot reach the server. The API is unavailable — try again shortly.'
           : error.response?.data?.message || error.message || 'Failed to load dashboard';
         setLoadError(message);
         toast.error(message);
