@@ -32,6 +32,11 @@ export const createSupplierValidation = [
   body('isActive').optional().isBoolean(),
 ];
 
+export const updateStatusValidation = [
+  ...supplierIdValidation,
+  body('isActive').isBoolean().withMessage('isActive must be true or false'),
+];
+
 export const updateSupplierValidation = [
   ...supplierIdValidation,
   body('name').optional().trim().notEmpty().isLength({ max: 150 }),
