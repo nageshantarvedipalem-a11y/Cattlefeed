@@ -39,21 +39,49 @@ export class PaymentService {
       dateTo: queryParams.dateTo || null,
     };
 
-    const [summary, { pendingCustomers, total }] = await Promise.all([
+    const customerSortBy = ['lastSaleDate', 'invoiceCount', 'totalAmount', 'pendingAmount', 'customerName']
+      .includes(queryParams.sortBy)
+      ? queryParams.sortBy
+      : 'lastSaleDate';
+    const saleSortBy = ['dueDate', 'pendingAmount', 'saleDate', 'customerName', 'invoiceNumber']
+      .includes(queryParams.sortBy)
+      ? queryParams.sortBy
+      : 'dueDate';
+
+    const [summary, customerResult, salesResult] = await Promise.all([
       getPendingPaymentsSummary(filters),
       findPendingCustomers({
         ...filters,
         page,
         limit,
-        sortBy: queryParams.sortBy || 'lastSaleDate',
+        sortBy: customerSortBy,
         sortOrder: queryParams.sortOrder || 'desc',
+      }),
+      findPendingSales({
+        ...filters,
+        page,
+        limit,
+        sortBy: saleSortBy,
+        sortOrder: queryParams.sortOrder || 'asc',
       }),
     ]);
 
     return {
       summary,
-      pendingCustomers,
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
+      pendingCustomers: customerResult.pendingCustomers || [],
+      pendingSales: salesResult.pendingSales || [],
+      pagination: {
+        page,
+        limit,
+        total: salesResult.total,
+        totalPages: Math.ceil(salesResult.total / limit) || 1,
+      },
+      customerPagination: {
+        page,
+        limit,
+        total: customerResult.total,
+        totalPages: Math.ceil(customerResult.total / limit) || 1,
+      },
     };
   }
 

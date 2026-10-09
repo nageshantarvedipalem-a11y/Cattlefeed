@@ -143,8 +143,8 @@ const PendingPaymentsPage = () => {
         });
       } else {
         setSummary(payload.summary);
-        setPendingCustomers(payload.pendingCustomers);
-        setPagination(payload.pagination);
+        setPendingCustomers(payload.pendingCustomers || []);
+        setPagination(payload.customerPagination || payload.pagination);
       }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to load pending payments');

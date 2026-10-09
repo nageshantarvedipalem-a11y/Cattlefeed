@@ -24,6 +24,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import AppLogo from '../components/common/AppLogo';
 import UserMenu from '../components/common/UserMenu';
+import ErrorBoundary from '../components/common/ErrorBoundary';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: FiHome, module: 'dashboard' },
@@ -202,7 +203,9 @@ const DashboardLayout = () => {
         </header>
 
         <main className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-4 lg:p-6">
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
     </div>

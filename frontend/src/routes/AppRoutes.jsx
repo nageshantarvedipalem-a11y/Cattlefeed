@@ -7,6 +7,7 @@ import GuestRoute from './GuestRoute';
 import PermissionRoute from './PermissionRoute';
 import DashboardLayout from '../layouts/DashboardLayout';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import ErrorBoundary from '../components/common/ErrorBoundary';
 
 const LoginPage = lazy(() => import('../pages/auth/LoginPage'));
 const ForgotPasswordPage = lazy(() => import('../pages/auth/ForgotPasswordPage'));
@@ -148,7 +149,9 @@ const AppRoutes = () => {
 
 const App = () => (
   <AuthProvider>
-    <AppRoutes />
+    <ErrorBoundary>
+      <AppRoutes />
+    </ErrorBoundary>
   </AuthProvider>
 );
 
