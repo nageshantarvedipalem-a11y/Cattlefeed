@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+import { existsSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { apiRateLimiter } from './middlewares/rateLimiter.js';
@@ -53,6 +54,10 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
+const publicDir = path.join(__dirname, '../public');
+const spaIndex = path.join(publicDir, 'index.html');
+const serveSpa = existsSync(spaIndex);
+
 app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok' });
 });
@@ -77,7 +82,19 @@ app.use(`${API_PREFIX}/reports`, reportRoutes);
 app.use(`${API_PREFIX}/dashboard`, dashboardRoutes);
 app.use(`${API_PREFIX}/whatsapp`, whatsappRoutes);
 
+if (serveSpa) {
+  app.use(express.static(publicDir, {
+    index: false,
+    maxAge: process.env.NODE_ENV === 'production' ? '7d' : 0,
+  }));
+}
+
 app.get('/', (req, res) => {
+  if (serveSpa) {
+    res.sendFile(spaIndex);
+    return;
+  }
+
   sendSuccess(res, {
     service: appConfig.name,
     message: 'This is the API server. Use the endpoints below — there is no website at /.',
@@ -86,6 +103,24 @@ app.get('/', (req, res) => {
     frontend: getCorsOrigins(),
   }, `${appConfig.name} API`);
 });
+
+if (serveSpa) {
+  app.get('*', (req, res, next) => {
+    if (
+      req.path.startsWith('/api')
+      || req.path.startsWith('/uploads')
+      || req.path === '/health'
+    ) {
+      next();
+      return;
+    }
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      next();
+      return;
+    }
+    res.sendFile(spaIndex);
+  });
+}
 
 app.use(notFoundHandler);
 app.use(errorHandler);

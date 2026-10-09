@@ -28,6 +28,7 @@ const PRODUCTION_FRONTEND_ORIGINS = [
   'https://dineshcattlefeed.com',
   'https://www.dineshcattlefeed.com',
   'https://lightsteelblue-bison-593262.hostingersite.com',
+  'https://yellow-cobra-125039.hostingersite.com',
 ];
 
 export const getCorsOrigins = () => {

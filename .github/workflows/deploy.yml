@@ -201,7 +201,9 @@ jobs:
               echo "Live index.html has no app bundle yet (CDN/cache may be updating)"
             fi
           done
-          echo "::warning::Live site verify skipped after retries ($LIVE vs $BUILT, size: $JS_SIZE). FTP upload already succeeded."
+          echo "::error::Live site verify FAILED ($LIVE vs $BUILT, size: $JS_SIZE)."
+          echo "::error::FTP may have uploaded to the wrong Hostinger folder. Set SITE_URL=https://dineshcattlefeed.com and REMOTE_DIR to that domain's public_html."
+          exit 1
 
       - name: Skip FTP (dry run)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}

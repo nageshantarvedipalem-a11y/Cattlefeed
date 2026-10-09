@@ -1,0 +1,1 @@
+var e=new Map,t=t=>{let n=e.get(t);return n?Date.now()>n.expires?(e.delete(t),null):n.data:null},n=(t,n,r=6e4)=>{e.set(t,{data:n,expires:Date.now()+r})},r=t=>{for(let n of e.keys())n.startsWith(t)&&e.delete(n)};export{r as n,n as r,t};

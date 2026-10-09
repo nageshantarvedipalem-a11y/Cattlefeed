@@ -110,7 +110,14 @@ export class PaymentService {
       customerPendingTotal: 0,
     };
 
-    return { customer, invoices };
+    const { payments } = await findPayments({
+      customerId,
+      page: 1,
+      limit: 100,
+      sortOrder: 'desc',
+    });
+
+    return { customer, invoices, payments };
   }
 
   async getPaymentHistory(queryParams) {

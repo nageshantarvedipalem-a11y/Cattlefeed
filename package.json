@@ -6,7 +6,8 @@
   "scripts": {
     "postinstall": "npm install --omit=dev --prefix backend",
     "build": "npm run build --prefix backend",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "build:web": "npm ci --prefix frontend && npm run build --prefix frontend && rm -rf backend/public && mkdir -p backend/public && cp -R frontend/dist/. backend/public/"
   },
   "engines": {
     "node": ">=18"

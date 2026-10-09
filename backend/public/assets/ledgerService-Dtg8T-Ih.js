@@ -1,0 +1,1 @@
+import{t as e}from"./api-CT6Qwprx.js";var t={getCustomerSummaries:t=>e.get(`/ledger/customers`,{params:t}),getCustomerLedger:(t,n)=>e.get(`/ledger/customers/${t}`,{params:n}),getEntries:t=>e.get(`/ledger/entries`,{params:t}),createAdjustment:t=>e.post(`/ledger/adjustments`,t),exportLedger:(t,n)=>e.get(`/ledger/customers/${t}/export`,{params:n,responseType:`blob`})};export{t};

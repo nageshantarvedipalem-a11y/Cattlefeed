@@ -1,0 +1,1 @@
+import{t as e}from"./api-CT6Qwprx.js";var t={getProducts:t=>e.get(`/products`,{params:t}),getProductMeta:()=>e.get(`/products/meta`),getProduct:t=>e.get(`/products/${t}`),createProduct:t=>e.post(`/products`,t),updateProduct:(t,n)=>e.put(`/products/${t}`,n),updateStatus:(t,n)=>e.patch(`/products/${t}/status`,{status:n}),deleteProduct:t=>e.delete(`/products/${t}`)};export{t};

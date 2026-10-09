@@ -26,11 +26,15 @@ const CustomerPendingDetailModal = ({
   const [loading, setLoading] = useState(false);
   const [customer, setCustomer] = useState(null);
   const [invoices, setInvoices] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [detailTab, setDetailTab] = useState('bills');
 
   useEffect(() => {
     if (!isOpen || !customerId) {
       setCustomer(null);
       setInvoices([]);
+      setPayments([]);
+      setDetailTab('bills');
       return undefined;
     }
 
@@ -43,17 +47,17 @@ const CustomerPendingDetailModal = ({
           if (cancelled) return;
           setCustomer(response.data.data.customer);
           setInvoices(response.data.data.invoices || []);
+          setPayments(response.data.data.payments || []);
           return;
         } catch {
-          const fallback = await paymentService.getPendingPayments({ customerId, page: 1, limit: 100 });
+          const [pendingRes, historyRes] = await Promise.all([
+            paymentService.getPendingPayments({ customerId, page: 1, limit: 100 }),
+            paymentService.getPaymentHistory({ customerId, page: 1, limit: 100 }),
+          ]);
           if (cancelled) return;
-          const invoices = fallback.data.data.pendingSales
-            || fallback.data.data.pendingCustomers
-            || [];
-          const rows = Array.isArray(invoices) && invoices[0]?.invoiceNumber
-            ? invoices
-            : [];
+          const rows = pendingRes.data.data.pendingSales || [];
           setInvoices(rows);
+          setPayments(historyRes.data.data.payments || []);
           setCustomer({
             customerId,
             customerName: rows[0]?.customerName || 'Customer',
@@ -89,7 +93,7 @@ const CustomerPendingDetailModal = ({
       <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
         <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">{customer?.customerName || 'Customer bills'}</h2>
+            <h2 className="text-lg font-bold text-slate-900">{customer?.customerName || 'Customer details'}</h2>
             <p className="mt-1 text-sm text-slate-500">
               {customer?.customerPhone || 'No phone'}
               {customer?.customerVillage ? ` · ${customer.customerVillage}` : ''}
@@ -129,10 +133,26 @@ const CustomerPendingDetailModal = ({
               </div>
             )}
 
-            <div className="flex items-center justify-between gap-3 px-6 py-3">
-              <p className="text-sm text-slate-500">
-                Every bill for this customer. Fully paid invoices stay here for history.
-              </p>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 py-3">
+              <div className="flex gap-2">
+                {[
+                  { id: 'bills', label: `Bills (${invoices.length})` },
+                  { id: 'payments', label: `Payments (${payments.length})` },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setDetailTab(tab.id)}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+                      detailTab === tab.id
+                        ? 'bg-primary-600 text-white'
+                        : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
               {canCreate && customer && Number(customer.pendingAmount) > 0 && (
                 <button
                   type="button"
@@ -144,78 +164,114 @@ const CustomerPendingDetailModal = ({
               )}
             </div>
 
-            <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
-                  <tr>
-                    {['Invoice', 'Bill Date', 'Total', 'Paid', 'Pending', 'Status', 'Actions'].map((header) => (
-                      <th key={header} className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">
-                        {header}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {invoices.length === 0 ? (
+            <div className="min-h-0 flex-1 overflow-auto px-6 py-4">
+              {detailTab === 'bills' ? (
+                <>
+                  <table className="min-w-full divide-y divide-slate-200">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        {['Invoice', 'Bill Date', 'Total', 'Paid', 'Pending', 'Status', 'Actions'].map((header) => (
+                          <th key={header} className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">
+                            {header}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {invoices.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-3 py-10 text-center text-sm text-slate-500">
+                            No bills found
+                          </td>
+                        </tr>
+                      ) : (
+                        invoices.map((invoice) => (
+                          <tr key={invoice.id} className={invoice.isOverdue ? 'bg-red-50/40' : ''}>
+                            <td className="px-3 py-3 text-sm font-medium text-slate-900">{invoice.invoiceNumber}</td>
+                            <td className="px-3 py-3 text-sm text-slate-600">{formatDate(invoice.saleDate)}</td>
+                            <td className="px-3 py-3 text-sm">{formatCurrency(invoice.totalAmount)}</td>
+                            <td className="px-3 py-3 text-sm text-emerald-700">{formatCurrency(invoice.paidAmount)}</td>
+                            <td className="px-3 py-3 text-sm font-medium text-amber-700">{formatCurrency(invoice.pendingAmount)}</td>
+                            <td className="px-3 py-3">
+                              <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge[invoice.paymentStatus] || statusBadge.pending}`}>
+                                {formatPaymentStatus(invoice.paymentStatus, invoice.paidAmount)}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3">
+                              <div className="flex flex-wrap gap-2">
+                                {canCreate && Number(invoice.pendingAmount) > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onReceiveSale(invoice)}
+                                    className="inline-flex items-center gap-1 text-sm font-medium text-primary-700 hover:text-primary-800"
+                                  >
+                                    <FiDollarSign className="h-4 w-4" /> Receive
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => onViewBill(invoice.id)}
+                                  className="text-sm font-medium text-slate-700 hover:text-slate-900"
+                                >
+                                  View
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onPrintBill(invoice.id, invoice.invoiceNumber)}
+                                  className="inline-flex items-center gap-1 text-sm font-medium text-slate-700 hover:text-slate-900"
+                                >
+                                  <FiPrinter className="h-4 w-4" /> Print
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onResendInvoice(invoice.id)}
+                                  className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:text-emerald-800"
+                                >
+                                  <FiMessageCircle className="h-4 w-4" /> WhatsApp
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                  {pendingInvoices.length === 0 && invoices.length > 0 && (
+                    <p className="mt-3 text-sm text-emerald-700">All listed bills are fully paid.</p>
+                  )}
+                </>
+              ) : (
+                <table className="min-w-full divide-y divide-slate-200">
+                  <thead className="bg-slate-50">
                     <tr>
-                      <td colSpan={7} className="px-3 py-10 text-center text-sm text-slate-500">
-                        No bills found
-                      </td>
+                      {['Date', 'Invoice', 'Amount', 'Method', 'Reference', 'Remarks'].map((header) => (
+                        <th key={header} className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">
+                          {header}
+                        </th>
+                      ))}
                     </tr>
-                  ) : (
-                    invoices.map((invoice) => (
-                      <tr key={invoice.id} className={invoice.isOverdue ? 'bg-red-50/40' : ''}>
-                        <td className="px-3 py-3 text-sm font-medium text-slate-900">{invoice.invoiceNumber}</td>
-                        <td className="px-3 py-3 text-sm text-slate-600">{formatDate(invoice.saleDate)}</td>
-                        <td className="px-3 py-3 text-sm">{formatCurrency(invoice.totalAmount)}</td>
-                        <td className="px-3 py-3 text-sm text-emerald-700">{formatCurrency(invoice.paidAmount)}</td>
-                        <td className="px-3 py-3 text-sm font-medium text-amber-700">{formatCurrency(invoice.pendingAmount)}</td>
-                        <td className="px-3 py-3">
-                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge[invoice.paymentStatus] || statusBadge.pending}`}>
-                            {formatPaymentStatus(invoice.paymentStatus, invoice.paidAmount)}
-                          </span>
-                        </td>
-                        <td className="px-3 py-3">
-                          <div className="flex flex-wrap gap-2">
-                            {canCreate && Number(invoice.pendingAmount) > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => onReceiveSale(invoice)}
-                                className="inline-flex items-center gap-1 text-sm font-medium text-primary-700 hover:text-primary-800"
-                              >
-                                <FiDollarSign className="h-4 w-4" /> Receive
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => onViewBill(invoice.id)}
-                              className="text-sm font-medium text-slate-700 hover:text-slate-900"
-                            >
-                              View
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onPrintBill(invoice.id, invoice.invoiceNumber)}
-                              className="inline-flex items-center gap-1 text-sm font-medium text-slate-700 hover:text-slate-900"
-                            >
-                              <FiPrinter className="h-4 w-4" /> Print
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onResendInvoice(invoice.id)}
-                              className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:text-emerald-800"
-                            >
-                              <FiMessageCircle className="h-4 w-4" /> WhatsApp
-                            </button>
-                          </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {payments.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-3 py-10 text-center text-sm text-slate-500">
+                          No payments recorded yet
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-              {pendingInvoices.length === 0 && invoices.length > 0 && (
-                <p className="mt-3 text-sm text-emerald-700">All listed bills are fully paid.</p>
+                    ) : (
+                      payments.map((payment) => (
+                        <tr key={payment.id}>
+                          <td className="px-3 py-3 text-sm text-slate-600">{formatDate(payment.paymentDate)}</td>
+                          <td className="px-3 py-3 text-sm font-medium text-slate-900">{payment.invoiceNumber || '—'}</td>
+                          <td className="px-3 py-3 text-sm font-medium text-emerald-700">{formatCurrency(payment.amount)}</td>
+                          <td className="px-3 py-3 text-sm uppercase text-slate-700">{payment.paymentMethod}</td>
+                          <td className="px-3 py-3 text-sm text-slate-600">{payment.referenceNumber || '—'}</td>
+                          <td className="px-3 py-3 text-sm text-slate-500">{payment.remarks || '—'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               )}
             </div>
           </>
