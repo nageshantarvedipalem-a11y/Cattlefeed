@@ -91,23 +91,31 @@ export class PaymentService {
       throw new AppError('No bills found for this customer', 404);
     }
 
-    const customer = await findPendingCustomerById(customerId) || {
+    const pendingOnly = await findPendingCustomerById(customerId);
+    const totalAmount = invoices.reduce((sum, invoice) => sum + Number(invoice.totalAmount || 0), 0);
+    const paidAmount = invoices.reduce((sum, invoice) => sum + Number(invoice.paidAmount || 0), 0);
+    const pendingAmount = invoices.reduce((sum, invoice) => sum + Number(invoice.pendingAmount || 0), 0);
+    const overdueCount = invoices.filter((invoice) => invoice.isOverdue && Number(invoice.pendingAmount) > 0).length;
+
+    // Summary must match the full bill list (pending + paid), not only open invoices.
+    const customer = {
       customerId: Number(customerId),
-      customerName: invoices[0].customerName,
-      customerPhone: invoices[0].customerPhone,
-      customerVillage: invoices[0].customerVillage,
+      customerName: pendingOnly?.customerName || invoices[0].customerName,
+      customerPhone: pendingOnly?.customerPhone || invoices[0].customerPhone,
+      customerVillage: pendingOnly?.customerVillage || invoices[0].customerVillage,
       invoiceCount: invoices.length,
-      totalAmount: invoices.reduce((sum, invoice) => sum + Number(invoice.totalAmount), 0),
-      paidAmount: invoices.reduce((sum, invoice) => sum + Number(invoice.paidAmount), 0),
-      pendingAmount: invoices.reduce((sum, invoice) => sum + Number(invoice.pendingAmount), 0),
-      firstSaleDate: invoices[invoices.length - 1]?.saleDate,
-      lastSaleDate: invoices[0]?.saleDate,
-      earliestDueDate: null,
-      overdueCount: 0,
-      overdueAmount: 0,
-      isOverdue: false,
-      paymentStatus: 'paid',
-      customerPendingTotal: 0,
+      pendingInvoiceCount: invoices.filter((invoice) => Number(invoice.pendingAmount) > 0).length,
+      totalAmount,
+      paidAmount,
+      pendingAmount,
+      firstSaleDate: invoices[invoices.length - 1]?.saleDate || null,
+      lastSaleDate: invoices[0]?.saleDate || null,
+      earliestDueDate: pendingOnly?.earliestDueDate || null,
+      overdueCount,
+      overdueAmount: pendingOnly?.overdueAmount || 0,
+      isOverdue: overdueCount > 0,
+      paymentStatus: pendingAmount <= 0 ? 'paid' : (paidAmount > 0 ? 'partial' : 'pending'),
+      customerPendingTotal: pendingAmount,
     };
 
     const { payments } = await findPayments({
