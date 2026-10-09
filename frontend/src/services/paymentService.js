@@ -3,6 +3,8 @@ import api from './api';
 export const paymentService = {
   getPendingPayments: (params) => api.get('/payments/pending', { params }),
 
+  getPendingCustomer: (customerId) => api.get(`/payments/pending/customers/${customerId}`),
+
   getPaymentHistory: (params) => api.get('/payments/history', { params }),
 
   receivePayment: (data) => api.post('/payments/receive', data),

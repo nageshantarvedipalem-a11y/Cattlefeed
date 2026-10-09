@@ -1,6 +1,9 @@
 import {
   findPendingSales,
   findPendingSalesForExport,
+  findPendingCustomers,
+  findPendingCustomerById,
+  findCustomerPaymentInvoices,
   getPendingPaymentsSummary,
   findPayments,
   findPaymentById,
@@ -36,22 +39,50 @@ export class PaymentService {
       dateTo: queryParams.dateTo || null,
     };
 
-    const [summary, { pendingSales, total }] = await Promise.all([
+    const [summary, { pendingCustomers, total }] = await Promise.all([
       getPendingPaymentsSummary(filters),
-      findPendingSales({
+      findPendingCustomers({
         ...filters,
         page,
         limit,
-        sortBy: queryParams.sortBy || 'dueDate',
-        sortOrder: queryParams.sortOrder || 'asc',
+        sortBy: queryParams.sortBy || 'lastSaleDate',
+        sortOrder: queryParams.sortOrder || 'desc',
       }),
     ]);
 
     return {
       summary,
-      pendingSales,
+      pendingCustomers,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
+  }
+
+  async getPendingCustomerDetail(customerId) {
+    const invoices = await findCustomerPaymentInvoices(customerId);
+    if (!invoices.length) {
+      throw new AppError('No bills found for this customer', 404);
+    }
+
+    const customer = await findPendingCustomerById(customerId) || {
+      customerId: Number(customerId),
+      customerName: invoices[0].customerName,
+      customerPhone: invoices[0].customerPhone,
+      customerVillage: invoices[0].customerVillage,
+      invoiceCount: invoices.length,
+      totalAmount: invoices.reduce((sum, invoice) => sum + Number(invoice.totalAmount), 0),
+      paidAmount: invoices.reduce((sum, invoice) => sum + Number(invoice.paidAmount), 0),
+      pendingAmount: invoices.reduce((sum, invoice) => sum + Number(invoice.pendingAmount), 0),
+      firstSaleDate: invoices[invoices.length - 1]?.saleDate,
+      lastSaleDate: invoices[0]?.saleDate,
+      earliestDueDate: null,
+      overdueCount: 0,
+      overdueAmount: 0,
+      isOverdue: false,
+      paymentStatus: 'paid',
+      customerPendingTotal: 0,
+    };
+
+    return { customer, invoices };
   }
 
   async getPaymentHistory(queryParams) {
@@ -85,17 +116,33 @@ export class PaymentService {
   }
 
   async receivePayment(currentUser, data, ipAddress) {
-    const saleRow = await findSaleById(data.saleId);
-    if (!saleRow) {
-      throw new AppError('Sale not found', 404);
-    }
-    if (!saleRow.customer_id) {
-      throw new AppError('Sale has no associated customer', 400);
-    }
-
-    const pendingAmount = Number(saleRow.pending_amount);
-    if (pendingAmount <= 0) {
-      throw new AppError('This invoice has no pending amount', 400);
+    let saleRow = null;
+    if (data.saleId) {
+      saleRow = await findSaleById(data.saleId);
+      if (!saleRow) {
+        throw new AppError('Sale not found', 404);
+      }
+      if (!saleRow.customer_id) {
+        throw new AppError('Sale has no associated customer', 400);
+      }
+      if (Number(saleRow.pending_amount) <= 0) {
+        throw new AppError('This invoice has no pending amount', 400);
+      }
+    } else if (data.customerId) {
+      const customer = await findPendingCustomerById(data.customerId);
+      if (!customer) {
+        throw new AppError('No pending payments found for this customer', 404);
+      }
+      const invoices = await findCustomerPaymentInvoices(data.customerId);
+      const oldestPending = [...invoices]
+        .filter((invoice) => Number(invoice.pendingAmount) > 0)
+        .sort((a, b) => new Date(a.saleDate) - new Date(b.saleDate))[0];
+      if (!oldestPending) {
+        throw new AppError('No pending invoices for this customer', 400);
+      }
+      saleRow = await findSaleById(oldestPending.id);
+    } else {
+      throw new AppError('Sale or customer is required', 400);
     }
 
     const amount = Number(data.amount);
@@ -107,6 +154,7 @@ export class PaymentService {
     }
 
     const sendUpdatedBill = data.sendUpdatedBill !== false;
+    const preferSaleId = data.saleId ? saleRow.id : null;
     const connection = await getConnection();
     try {
       await connection.beginTransaction();
@@ -121,9 +169,13 @@ export class PaymentService {
         paymentMethod: data.paymentMethod,
         paymentDate,
         referenceNumber: data.referenceNumber?.trim() || null,
-        remarks: data.remarks?.trim() || `Payment received for ${saleRow.invoice_number}`,
+        remarks: data.remarks?.trim() || (
+          preferSaleId
+            ? `Payment received for ${saleRow.invoice_number}`
+            : `Payment received from ${saleRow.customer_name}`
+        ),
         createdBy: currentUser.id,
-        preferSaleId: saleRow.id,
+        preferSaleId,
       });
 
       const allocatedToInvoices = allocation.updatedSales.reduce((sum, item) => sum + Number(item.applied), 0);
@@ -147,8 +199,10 @@ export class PaymentService {
         paymentMethod: data.paymentMethod,
         referenceType: 'customer_payment',
         referenceId: paymentId,
-        referenceNumber: saleRow.invoice_number,
-        remarks: `Payment for ${saleRow.invoice_number}`,
+        referenceNumber: preferSaleId ? saleRow.invoice_number : saleRow.customer_name,
+        remarks: preferSaleId
+          ? `Payment for ${saleRow.invoice_number}`
+          : `Payment from ${saleRow.customer_name}`,
         partyName: saleRow.customer_name || null,
         partyType: saleRow.customer_id ? 'customer' : null,
         partyId: saleRow.customer_id || null,
@@ -253,13 +307,14 @@ export class PaymentService {
       dateTo: queryParams.dateTo || null,
     };
 
-    const [pendingSales, summary] = await Promise.all([
+    const [pendingSales, summary, { pendingCustomers }] = await Promise.all([
       findPendingSalesForExport(filters),
       getPendingPaymentsSummary(filters),
+      findPendingCustomers({ ...filters, page: 1, limit: 10000 }),
     ]);
 
     if (format === 'excel') {
-      const workbook = await buildPendingPaymentsWorkbook(pendingSales, summary);
+      const workbook = await buildPendingPaymentsWorkbook(pendingSales, summary, pendingCustomers);
       const buffer = await workbook.xlsx.writeBuffer();
       return {
         buffer,

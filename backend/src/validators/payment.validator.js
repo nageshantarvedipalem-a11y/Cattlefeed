@@ -3,13 +3,26 @@ import { body, param, query } from 'express-validator';
 export const pendingListValidation = [
   query('page').optional().isInt({ min: 1 }),
   query('limit').optional().isInt({ min: 1, max: 100 }),
-  query('sortBy').optional().isIn(['dueDate', 'pendingAmount', 'saleDate', 'customerName', 'invoiceNumber']),
+  query('sortBy').optional().isIn([
+    'dueDate',
+    'pendingAmount',
+    'saleDate',
+    'customerName',
+    'invoiceNumber',
+    'lastSaleDate',
+    'invoiceCount',
+    'totalAmount',
+  ]),
   query('sortOrder').optional().isIn(['asc', 'desc']),
   query('overdueOnly').optional().isBoolean().toBoolean(),
   query('period').optional().isIn(['daily', 'monthly', 'yearly']),
   query('dateFrom').optional().isISO8601().toDate(),
   query('dateTo').optional().isISO8601().toDate(),
   query('customerId').optional().isInt({ min: 1 }).toInt(),
+];
+
+export const pendingCustomerValidation = [
+  param('customerId').isInt({ min: 1 }).withMessage('Valid customer ID is required'),
 ];
 
 export const paymentHistoryValidation = [
@@ -24,7 +37,14 @@ export const paymentHistoryValidation = [
 ];
 
 export const receivePaymentValidation = [
-  body('saleId').isInt({ min: 1 }).withMessage('Valid sale ID is required'),
+  body('saleId').optional({ values: 'falsy' }).isInt({ min: 1 }).withMessage('Valid sale ID is required'),
+  body('customerId').optional({ values: 'falsy' }).isInt({ min: 1 }).withMessage('Valid customer ID is required'),
+  body().custom((_, { req }) => {
+    if (!req.body?.saleId && !req.body?.customerId) {
+      throw new Error('Sale or customer is required');
+    }
+    return true;
+  }),
   body('amount').isFloat({ gt: 0 }).withMessage('Amount must be greater than 0'),
   body('paymentMethod').isIn(['cash', 'upi', 'card', 'bank']).withMessage('Valid payment method is required'),
   body('paymentDate').optional().isISO8601().toDate(),

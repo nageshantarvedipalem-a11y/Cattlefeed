@@ -185,8 +185,34 @@ export const buildLedgerWorkbook = async (entries, summary = null) => {
   return workbook;
 };
 
-export const buildPendingPaymentsWorkbook = async (pendingSales, summary = null) => {
+export const buildPendingPaymentsWorkbook = async (pendingSales, summary = null, pendingCustomers = []) => {
   const workbook = new ExcelJS.Workbook();
+
+  if (pendingCustomers.length > 0) {
+    const customerSheet = workbook.addWorksheet('By Customer');
+    customerSheet.columns = [
+      { header: 'Customer', key: 'customer', width: 24 },
+      { header: 'Phone', key: 'phone', width: 14 },
+      { header: 'Bills', key: 'bills', width: 10 },
+      { header: 'Total', key: 'total', width: 12 },
+      { header: 'Paid', key: 'paid', width: 12 },
+      { header: 'Pending', key: 'pending', width: 12 },
+      { header: 'Last Bill', key: 'lastSaleDate', width: 14 },
+    ];
+    customerSheet.getRow(1).font = { bold: true };
+    pendingCustomers.forEach((customer) => {
+      customerSheet.addRow({
+        customer: customer.customerName,
+        phone: customer.customerPhone || '',
+        bills: customer.invoiceCount,
+        total: customer.totalAmount,
+        paid: customer.paidAmount,
+        pending: customer.pendingAmount,
+        lastSaleDate: customer.lastSaleDate,
+      });
+    });
+  }
+
   const sheet = workbook.addWorksheet('Pending Payments');
 
   sheet.columns = [

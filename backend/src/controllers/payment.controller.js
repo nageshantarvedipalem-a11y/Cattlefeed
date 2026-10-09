@@ -7,6 +7,11 @@ export const getPendingPayments = asyncHandler(async (req, res) => {
   sendSuccess(res, result, 'Pending payments fetched successfully');
 });
 
+export const getPendingCustomerDetail = asyncHandler(async (req, res) => {
+  const result = await paymentService.getPendingCustomerDetail(req.params.customerId);
+  sendSuccess(res, result, 'Customer pending details fetched successfully');
+});
+
 export const getPaymentHistory = asyncHandler(async (req, res) => {
   const result = await paymentService.getPaymentHistory(req.query);
   sendSuccess(res, result, 'Payment history fetched successfully');

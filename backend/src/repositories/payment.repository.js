@@ -33,6 +33,190 @@ export const formatPendingSale = (row) => ({
   isOverdue: row.due_date ? new Date(row.due_date) < new Date(new Date().toISOString().slice(0, 10)) : false,
 });
 
+export const formatPendingCustomer = (row) => ({
+  customerId: row.customer_id,
+  customerName: row.customer_name,
+  customerPhone: row.customer_phone,
+  customerVillage: row.customer_village || null,
+  invoiceCount: Number(row.invoice_count || 0),
+  totalAmount: Number(row.total_amount),
+  paidAmount: Number(row.paid_amount),
+  pendingAmount: Number(row.pending_amount),
+  firstSaleDate: row.first_sale_date,
+  lastSaleDate: row.last_sale_date,
+  earliestDueDate: row.earliest_due_date,
+  overdueCount: Number(row.overdue_count || 0),
+  overdueAmount: Number(row.overdue_amount || 0),
+  isOverdue: Number(row.overdue_count || 0) > 0,
+  paymentStatus: Number(row.paid_amount) > 0 ? 'partial' : 'pending',
+  customerPendingTotal: Number(row.pending_amount),
+});
+
+const appendCustomerGroupFilters = (whereClause, params, {
+  search = '',
+  customerId = null,
+  overdueOnly = false,
+  period = null,
+  dateFrom = null,
+  dateTo = null,
+}) => {
+  if (customerId) {
+    whereClause += ' AND s.customer_id = ?';
+    params.push(customerId);
+  }
+
+  if (search) {
+    whereClause += ` AND s.customer_id IN (
+      SELECT DISTINCT s1.customer_id
+      FROM sales s1
+      INNER JOIN customers c1 ON c1.id = s1.customer_id
+      WHERE s1.pending_amount > 0
+        AND (s1.invoice_number LIKE ? OR c1.name LIKE ? OR c1.phone LIKE ? OR c1.village LIKE ?)
+    )`;
+    const term = `%${search}%`;
+    params.push(term, term, term, term);
+  }
+
+  if (overdueOnly) {
+    whereClause += ` AND s.customer_id IN (
+      SELECT DISTINCT s2.customer_id
+      FROM sales s2
+      WHERE s2.pending_amount > 0
+        AND s2.due_date IS NOT NULL
+        AND s2.due_date < CURDATE()
+    )`;
+  }
+
+  if (dateFrom && dateTo) {
+    whereClause += ` AND s.customer_id IN (
+      SELECT DISTINCT s3.customer_id
+      FROM sales s3
+      WHERE s3.pending_amount > 0 AND DATE(s3.sale_date) BETWEEN ? AND ?
+    )`;
+    params.push(dateFrom, dateTo);
+  } else if (period === 'daily') {
+    whereClause += ` AND s.customer_id IN (
+      SELECT DISTINCT s3.customer_id
+      FROM sales s3
+      WHERE s3.pending_amount > 0 AND DATE(s3.sale_date) = CURDATE()
+    )`;
+  } else if (period === 'monthly') {
+    whereClause += ` AND s.customer_id IN (
+      SELECT DISTINCT s3.customer_id
+      FROM sales s3
+      WHERE s3.pending_amount > 0
+        AND YEAR(s3.sale_date) = YEAR(CURDATE())
+        AND MONTH(s3.sale_date) = MONTH(CURDATE())
+    )`;
+  } else if (period === 'yearly') {
+    whereClause += ` AND s.customer_id IN (
+      SELECT DISTINCT s3.customer_id
+      FROM sales s3
+      WHERE s3.pending_amount > 0 AND YEAR(s3.sale_date) = YEAR(CURDATE())
+    )`;
+  }
+
+  return { whereClause, params };
+};
+
+export const findPendingCustomers = async ({
+  search = '',
+  customerId = null,
+  overdueOnly = false,
+  period = null,
+  dateFrom = null,
+  dateTo = null,
+  page = 1,
+  limit = 10,
+  sortBy = 'lastSaleDate',
+  sortOrder = 'desc',
+}) => {
+  const offset = (page - 1) * limit;
+  const sortMap = {
+    lastSaleDate: 'last_sale_date',
+    pendingAmount: 'pending_amount',
+    customerName: 'customer_name',
+    invoiceCount: 'invoice_count',
+    totalAmount: 'total_amount',
+  };
+  const sortColumn = sortMap[sortBy] || sortMap.lastSaleDate;
+  const order = sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
+  const filtered = appendCustomerGroupFilters(
+    'WHERE s.pending_amount > 0 AND s.customer_id IS NOT NULL',
+    [],
+    { search, customerId, overdueOnly, period, dateFrom, dateTo }
+  );
+
+  const groupedFrom = `
+    FROM sales s
+    INNER JOIN customers c ON c.id = s.customer_id
+    ${filtered.whereClause}
+    GROUP BY s.customer_id, c.name, c.phone, c.village
+  `;
+
+  const countRows = await query(
+    `SELECT COUNT(*) AS total FROM (SELECT s.customer_id ${groupedFrom}) grouped`,
+    filtered.params
+  );
+
+  const rows = await query(
+    `SELECT
+       s.customer_id,
+       c.name AS customer_name,
+       c.phone AS customer_phone,
+       c.village AS customer_village,
+       COUNT(*) AS invoice_count,
+       COALESCE(SUM(s.total_amount), 0) AS total_amount,
+       COALESCE(SUM(s.paid_amount), 0) AS paid_amount,
+       COALESCE(SUM(s.pending_amount), 0) AS pending_amount,
+       MIN(s.sale_date) AS first_sale_date,
+       MAX(s.sale_date) AS last_sale_date,
+       MIN(s.due_date) AS earliest_due_date,
+       SUM(CASE WHEN s.due_date IS NOT NULL AND s.due_date < CURDATE() THEN 1 ELSE 0 END) AS overdue_count,
+       COALESCE(SUM(CASE WHEN s.due_date IS NOT NULL AND s.due_date < CURDATE() THEN s.pending_amount ELSE 0 END), 0) AS overdue_amount
+     ${groupedFrom}
+     ORDER BY ${sortColumn} ${order}, s.customer_id DESC
+     LIMIT ? OFFSET ?`,
+    [...filtered.params, limit, offset]
+  );
+
+  return {
+    pendingCustomers: rows.map(formatPendingCustomer),
+    total: Number(countRows[0]?.total || 0),
+  };
+};
+
+export const findPendingCustomerById = async (customerId) => {
+  const { pendingCustomers } = await findPendingCustomers({
+    customerId,
+    page: 1,
+    limit: 1,
+  });
+  return pendingCustomers[0] || null;
+};
+
+export const findCustomerPaymentInvoices = async (customerId) => {
+  const rows = await query(
+    `SELECT s.id, s.invoice_number, s.customer_id, c.name AS customer_name, c.phone AS customer_phone,
+            c.village AS customer_village, s.sale_date, s.total_amount, s.paid_amount,
+            s.pending_amount, s.payment_status, s.due_date,
+            (
+              SELECT COALESCE(SUM(s2.pending_amount), 0)
+              FROM sales s2
+              WHERE s2.customer_id = s.customer_id AND s2.pending_amount > 0
+            ) AS customer_pending_total
+     FROM sales s
+     INNER JOIN customers c ON c.id = s.customer_id
+     WHERE s.customer_id = ?
+     ORDER BY s.sale_date DESC, s.id DESC
+     LIMIT 200`,
+    [customerId]
+  );
+
+  return rows.map(formatPendingSale);
+};
+
 const paymentSelect = `
   SELECT p.id, p.customer_id, c.name AS customer_name, c.phone AS customer_phone,
          p.sale_id, s.invoice_number, p.payment_date, p.amount, p.payment_method,
@@ -147,6 +331,7 @@ export const getPendingPaymentsSummary = async (filters = {}) => {
   const rows = await query(
     `SELECT
        COUNT(*) AS total_invoices,
+       COUNT(DISTINCT s.customer_id) AS total_customers,
        COALESCE(SUM(s.pending_amount), 0) AS total_pending,
        COALESCE(SUM(CASE WHEN s.due_date IS NOT NULL AND s.due_date < CURDATE() THEN s.pending_amount ELSE 0 END), 0) AS overdue_amount,
        COUNT(CASE WHEN s.due_date IS NOT NULL AND s.due_date < CURDATE() THEN 1 END) AS overdue_count
@@ -157,6 +342,7 @@ export const getPendingPaymentsSummary = async (filters = {}) => {
   );
 
   return {
+    totalCustomers: Number(rows[0]?.total_customers ?? 0),
     totalInvoices: Number(rows[0]?.total_invoices ?? 0),
     totalPending: Number(rows[0]?.total_pending ?? 0),
     overdueAmount: Number(rows[0]?.overdue_amount ?? 0),

@@ -4,6 +4,7 @@ import { authenticate, authorizePermission } from '../middlewares/auth.middlewar
 import { validate } from '../middlewares/validate.middleware.js';
 import {
   pendingListValidation,
+  pendingCustomerValidation,
   paymentHistoryValidation,
   receivePaymentValidation,
   paymentIdValidation,
@@ -20,6 +21,13 @@ router.get(
   authorizePermission('payments', 'view'),
   validate(exportValidation),
   paymentController.exportPendingPayments
+);
+
+router.get(
+  '/pending/customers/:customerId',
+  authorizePermission('payments', 'view'),
+  validate(pendingCustomerValidation),
+  paymentController.getPendingCustomerDetail
 );
 
 router.get(

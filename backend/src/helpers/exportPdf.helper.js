@@ -289,7 +289,7 @@ export const buildPendingPaymentsPdf = (pendingSales, summary = null) => new Pro
 
   if (summary) {
     doc.fontSize(10).font('Helvetica');
-    doc.text(`Total Pending: ${summary.totalPending.toFixed(2)} | Overdue: ${summary.overdueAmount.toFixed(2)} | Invoices: ${summary.totalInvoices}`);
+    doc.text(`Total Pending: ${summary.totalPending.toFixed(2)} | Overdue: ${summary.overdueAmount.toFixed(2)} | Customers: ${summary.totalCustomers ?? '—'} | Invoices: ${summary.totalInvoices}`);
     doc.moveDown();
   }
 
