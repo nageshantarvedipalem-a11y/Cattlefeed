@@ -139,33 +139,64 @@ jobs:
             OPEN_URL="ftps://${FTP_SERVER}:${FTP_PORT}"
           fi
 
-          deploy_once() {
+          # Primary FTP root (Hostinger site account), plus optional custom-domain folders.
+          # Set secret CUSTOM_DOMAIN_REMOTE_DIR to the File Manager path for dineshcattlefeed.com
+          # (example: /domains/dineshcattlefeed.com/public_html).
+          TARGETS="/"
+          if [ -n "${{ secrets.CUSTOM_DOMAIN_REMOTE_DIR }}" ]; then
+            TARGETS="$TARGETS ${{ secrets.CUSTOM_DOMAIN_REMOTE_DIR }}"
+          fi
+          # Common Hostinger addon-domain paths (ignored if the FTP user cannot reach them).
+          TARGETS="$TARGETS /domains/dineshcattlefeed.com/public_html /domains/www.dineshcattlefeed.com/public_html"
+
+          deploy_to() {
+            local target="$1"
+            case "$target" in
+              */) ;;
+              *) target="${target}/" ;;
+            esac
+            echo "Uploading to FTP path: ${target}"
             lftp -c "
               ${PROTOCOL_SETTINGS}
               set ftp:passive-mode true;
-              set net:max-retries 8;
+              set net:max-retries 4;
               set net:reconnect-interval-base 8;
               set net:timeout 60;
               set net:connection-limit 1;
               set cmd:fail-exit true;
               open -u '${FTP_USERNAME}','${FTP_PASSWORD}' ${OPEN_URL};
-              mirror -R --verbose --parallel=1 --no-perms --exclude-glob index.html ./ /;
-              put -O / index.html;
+              mirror -R --verbose --parallel=1 --no-perms --exclude-glob index.html ./ ${target};
+              put -O ${target} index.html;
               bye
             "
           }
 
+          primary_ok=0
           for attempt in 1 2 3 4 5; do
-            echo "FTP mirror attempt ${attempt}/5..."
-            if deploy_once; then
-              echo "FTP upload succeeded on attempt ${attempt}"
-              exit 0
+            echo "FTP primary mirror attempt ${attempt}/5..."
+            if deploy_to "/"; then
+              echo "Primary FTP upload succeeded on attempt ${attempt}"
+              primary_ok=1
+              break
             fi
             echo "FTP attempt ${attempt} failed; waiting before retry..."
             sleep $((attempt * 15))
           done
-          echo "::error::FTP upload failed after 5 attempts"
-          exit 1
+
+          if [ "$primary_ok" != "1" ]; then
+            echo "::error::FTP upload to / failed after 5 attempts"
+            exit 1
+          fi
+
+          # Best-effort secondary uploads for the custom domain document root.
+          for target in $TARGETS; do
+            [ "$target" = "/" ] && continue
+            if deploy_to "$target"; then
+              echo "Secondary upload succeeded: $target"
+            else
+              echo "::warning::Could not upload to $target (FTP user may not have access to that folder)."
+            fi
+          done
 
       - name: Verify live site updated
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
