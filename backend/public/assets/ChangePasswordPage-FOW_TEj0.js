@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-B-hcVAMW.js";import{J as t}from"./app-Cq3TWXqU.js";var n=e(),r=()=>(0,n.jsx)(t,{to:`/profile#password`,replace:!0});export{r as default};

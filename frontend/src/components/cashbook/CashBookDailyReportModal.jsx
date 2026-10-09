@@ -4,6 +4,15 @@ import cashBookService from '../../services/cashBookService';
 import { formatCurrency, formatDate } from '../../utils/format';
 import LoadingSpinner from '../common/LoadingSpinner';
 
+const ReportRow = ({ label, value, valueClassName = 'text-slate-900' }) => (
+  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-1 text-sm">
+    <span className="min-w-0 truncate text-slate-700" title={label}>{label}</span>
+    <span className={`shrink-0 whitespace-nowrap text-right tabular-nums font-medium ${valueClassName}`}>
+      {value}
+    </span>
+  </div>
+);
+
 const CashBookDailyReportModal = ({ isOpen, onClose, initialDate }) => {
   const [date, setDate] = useState(initialDate || new Date().toISOString().slice(0, 10));
   const [loading, setLoading] = useState(false);
@@ -47,90 +56,124 @@ const CashBookDailyReportModal = ({ isOpen, onClose, initialDate }) => {
 
   const summary = report?.summary;
   const breakdown = report?.breakdown;
+  const jamaRows = report?.parties?.jama?.length ? report.parties.jama : (breakdown?.jama || []);
+  const karchuluRows = report?.parties?.karchulu?.length ? report.parties.karchulu : (breakdown?.karchulu || []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 print:block">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">Daily Cash Book Report</h2>
-            <p className="text-sm text-slate-500">{date ? formatDate(date) : ''}</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4">
+      <div className="flex max-h-[min(78vh,560px)] w-full max-w-md flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
+          <div className="min-w-0">
+            <h2 className="text-base font-bold text-slate-900">Daily Cash Book Report</h2>
+            <p className="text-xs text-slate-500">{date ? formatDate(date) : ''}</p>
           </div>
-          <div className="flex gap-2 print:hidden">
-            <button type="button" onClick={() => window.print()} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">
+          <div className="flex shrink-0 gap-1.5 print:hidden">
+            <button type="button" onClick={() => window.print()} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs hover:bg-slate-50">
               Print
             </button>
-            <button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50">
+            <button type="button" onClick={onClose} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs hover:bg-slate-50">
               Close
             </button>
           </div>
         </div>
 
-        <div className="space-y-4 p-6">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
           <input
             type="date"
             value={date}
             onChange={(e) => handleDateChange(e.target.value)}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 print:hidden"
+            className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm outline-none focus:border-primary-500 print:hidden"
           />
 
           {loading ? (
-            <div className="py-10"><LoadingSpinner /></div>
+            <div className="py-8"><LoadingSpinner /></div>
           ) : summary ? (
             <>
-              <div className="rounded-lg bg-slate-50 p-4 text-sm">
-                <div className="flex justify-between"><span>Opening Balance</span><span className="font-semibold">{formatCurrency(summary.openingBalance)}</span></div>
-                <div className="mt-2 flex justify-between text-emerald-700"><span>Total Jama</span><span className="font-semibold">+{formatCurrency(summary.totalJama)}</span></div>
-                <div className="mt-1 flex justify-between text-red-700"><span>Total Karchulu</span><span className="font-semibold">−{formatCurrency(summary.totalKarchulu)}</span></div>
-                <div className="mt-3 flex justify-between border-t border-slate-200 pt-3 font-bold">
-                  <span>Closing Balance</span>
-                  <span className="text-amber-700">{formatCurrency(summary.closingBalance)}</span>
+              <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm">
+                <ReportRow label="Opening Balance" value={formatCurrency(summary.openingBalance)} />
+                <ReportRow
+                  label="Total Jama"
+                  value={`+${formatCurrency(summary.totalJama)}`}
+                  valueClassName="text-emerald-700"
+                />
+                <ReportRow
+                  label="Total Karchulu"
+                  value={`−${formatCurrency(summary.totalKarchulu)}`}
+                  valueClassName="text-red-700"
+                />
+                <div className="mt-1.5 border-t border-slate-200 pt-1.5">
+                  <ReportRow
+                    label="Closing Balance"
+                    value={formatCurrency(summary.closingBalance)}
+                    valueClassName="font-bold text-amber-700"
+                  />
                 </div>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-1.5 text-[11px] leading-snug text-slate-500">
                   {formatCurrency(summary.openingBalance)} + {formatCurrency(summary.totalJama)} − {formatCurrency(summary.totalKarchulu)} = {formatCurrency(summary.closingBalance)}
                 </p>
               </div>
 
               <div>
-                <h3 className="text-sm font-semibold text-emerald-800">JAMA</h3>
-                {(report?.parties?.jama?.length ? report.parties.jama : breakdown?.jama)?.length ? (
-                  (report?.parties?.jama?.length ? report.parties.jama : breakdown.jama).map((item) => (
-                    <div key={item.party || item.category} className="flex justify-between py-1 text-sm">
-                      <span>{item.party || item.category}</span>
-                      <span>{formatCurrency(item.amount)}</span>
-                    </div>
-                  ))
-                ) : <p className="text-sm text-slate-500">No Jama on this date</p>}
-                <div className="mt-2 flex justify-between border-t border-slate-100 pt-2 text-sm font-semibold text-emerald-800">
-                  <span>Total Jama</span>
-                  <span>{formatCurrency(summary.totalJama)}</span>
+                <h3 className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-emerald-800">Jama</h3>
+                {jamaRows.length ? (
+                  jamaRows.map((item) => {
+                    const label = item.party || item.category || '—';
+                    return (
+                      <ReportRow
+                        key={`jama-${label}`}
+                        label={label}
+                        value={formatCurrency(item.amount)}
+                        valueClassName="text-emerald-700"
+                      />
+                    );
+                  })
+                ) : (
+                  <p className="py-1 text-sm text-slate-500">No Jama on this date</p>
+                )}
+                <div className="mt-1 border-t border-slate-100 pt-1">
+                  <ReportRow
+                    label="Total Jama"
+                    value={formatCurrency(summary.totalJama)}
+                    valueClassName="font-semibold text-emerald-800"
+                  />
                 </div>
               </div>
 
               <div>
-                <h3 className="text-sm font-semibold text-red-800">KARCHULU</h3>
-                {(report?.parties?.karchulu?.length ? report.parties.karchulu : breakdown?.karchulu)?.length ? (
-                  (report?.parties?.karchulu?.length ? report.parties.karchulu : breakdown.karchulu).map((item) => (
-                    <div key={item.party || item.category} className="flex justify-between py-1 text-sm">
-                      <span>{item.party || item.category}</span>
-                      <span>{formatCurrency(item.amount)}</span>
-                    </div>
-                  ))
-                ) : <p className="text-sm text-slate-500">No Karchulu on this date</p>}
-                <div className="mt-2 flex justify-between border-t border-slate-100 pt-2 text-sm font-semibold text-red-800">
-                  <span>Total Karchulu</span>
-                  <span>{formatCurrency(summary.totalKarchulu)}</span>
+                <h3 className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-red-800">Karchulu</h3>
+                {karchuluRows.length ? (
+                  karchuluRows.map((item) => {
+                    const label = item.party || item.category || '—';
+                    return (
+                      <ReportRow
+                        key={`karchulu-${label}`}
+                        label={label}
+                        value={formatCurrency(item.amount)}
+                        valueClassName="text-red-700"
+                      />
+                    );
+                  })
+                ) : (
+                  <p className="py-1 text-sm text-slate-500">No Karchulu on this date</p>
+                )}
+                <div className="mt-1 border-t border-slate-100 pt-1">
+                  <ReportRow
+                    label="Total Karchulu"
+                    value={formatCurrency(summary.totalKarchulu)}
+                    valueClassName="font-semibold text-red-800"
+                  />
                 </div>
               </div>
 
               {summary.modeBalances && (
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-800">Payment modes</h3>
+                  <h3 className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-slate-800">Payment modes</h3>
                   {['cash', 'upi', 'bank', 'other'].map((mode) => (
-                    <div key={mode} className="flex justify-between py-1 text-sm capitalize">
-                      <span>{mode}</span>
-                      <span>{formatCurrency(summary.modeBalances[mode]?.closing || 0)}</span>
-                    </div>
+                    <ReportRow
+                      key={mode}
+                      label={mode}
+                      value={formatCurrency(summary.modeBalances[mode]?.closing || 0)}
+                    />
                   ))}
                 </div>
               )}
