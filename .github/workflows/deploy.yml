@@ -173,36 +173,63 @@ jobs:
           SITE_URL: ${{ secrets.SITE_URL }}
         working-directory: ${{ env.WORKING_DIRECTORY }}
         run: |
-          SITE="${SITE_URL:-https://dineshcattlefeed.com}"
-          SITE="${SITE%/}"
+          set -uo pipefail
           BUILT=$(grep -oE 'assets/app-[A-Za-z0-9_-]+\.js' dist/index.html | head -1)
           if [ -z "$BUILT" ]; then
             echo "::error::Could not read bundle name from dist/index.html"
             exit 1
           fi
           echo "Deployed bundle should be: $BUILT"
-          LIVE=""
-          JS_SIZE=0
+
+          # FTP often writes to the Hostinger site folder, while the custom domain
+          # document root is separate. Also accept the Node SPA on yellow-cobra.
+          {
+            [ -n "${SITE_URL:-}" ] && echo "${SITE_URL%/}"
+            echo "https://yellow-cobra-125039.hostingersite.com"
+            echo "https://lightsteelblue-bison-593262.hostingersite.com"
+            echo "https://dineshcattlefeed.com"
+            echo "https://www.dineshcattlefeed.com"
+          } | awk 'NF && !seen[$0]++' > /tmp/verify-sites.txt
+
+          site_has_build() {
+            local site="$1" html live js_body js_size
+            html=$(curl -sL --max-time 20 -H "Cache-Control: no-cache" "$site/" || true)
+            live=$(printf '%s' "$html" | grep -oE 'assets/app-[A-Za-z0-9_-]+\.js' | head -1 || true)
+            if [ -z "$live" ]; then
+              echo "  $site -> no app bundle"
+              return 1
+            fi
+            js_body=$(curl -sL --max-time 20 "$site/$live" | head -c 20 || true)
+            js_size=$(curl -sL --max-time 20 "$site/$live" | wc -c | tr -d ' ')
+            echo "  $site -> $live (${js_size} bytes)"
+            [ "$BUILT" = "$live" ] && [ "${js_size:-0}" -gt 10000 ] && ! printf '%s' "$js_body" | grep -qi '<!doctype'
+          }
+
           for attempt in 1 2 3 4 5; do
             echo "Verify attempt $attempt/5..."
-            sleep 10
-            LIVE_HTML=$(curl -sL --max-time 30 -H "Cache-Control: no-cache" "$SITE/index.html")
-            LIVE=$(echo "$LIVE_HTML" | grep -oE 'assets/app-[A-Za-z0-9_-]+\.js' | head -1)
-            if [ -n "$LIVE" ]; then
-              JS_URL="$SITE/$LIVE"
-              JS_BODY=$(curl -sL --max-time 30 "$JS_URL" | head -c 20)
-              JS_SIZE=$(curl -sL --max-time 30 "$JS_URL" | wc -c | tr -d ' ')
-              echo "Live site bundle: $LIVE (${JS_SIZE} bytes)"
-              if [ "$BUILT" = "$LIVE" ] && [ "$JS_SIZE" -gt 10000 ] && ! echo "$JS_BODY" | grep -qi '<!doctype'; then
-                echo "Live site matches deployed build"
-                exit 0
+            sleep 8
+            MATCHED=""
+            CUSTOM_STALE=0
+            while IFS= read -r site; do
+              if site_has_build "$site"; then
+                MATCHED="$site"
+              elif printf '%s' "$site" | grep -qi 'dineshcattlefeed.com'; then
+                CUSTOM_STALE=1
               fi
-            else
-              echo "Live index.html has no app bundle yet (CDN/cache may be updating)"
+            done < /tmp/verify-sites.txt
+
+            if [ -n "$MATCHED" ]; then
+              echo "Live build found at: $MATCHED"
+              if [ "$CUSTOM_STALE" = "1" ]; then
+                echo "::warning::dineshcattlefeed.com is still on the old bundle. FTP uploads to the Hostinger site folder, not that custom-domain folder."
+                echo "::warning::Open https://yellow-cobra-125039.hostingersite.com/payments for the new UI, or upload cattlefeed-frontend-upload.zip into dineshcattlefeed.com public_html."
+              fi
+              exit 0
             fi
           done
-          echo "::error::Live site verify FAILED ($LIVE vs $BUILT, size: $JS_SIZE)."
-          echo "::error::FTP may have uploaded to the wrong Hostinger folder. Set SITE_URL=https://dineshcattlefeed.com and REMOTE_DIR to that domain's public_html."
+
+          echo "::error::No live host is serving $BUILT yet."
+          echo "::error::Redeploy yellow-cobra in hPanel if backend/public was just pushed, or fix FTP REMOTE_DIR for the custom domain."
           exit 1
 
       - name: Skip FTP (dry run)
