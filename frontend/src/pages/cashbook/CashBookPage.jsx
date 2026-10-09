@@ -25,29 +25,37 @@ const PERIOD_OPTIONS = [
 ];
 
 const COLUMNS = [
-  { key: 'date', label: 'Date', align: 'left', width: '8%' },
+  { key: 'date', label: 'Date', align: 'left', width: '7%' },
   { key: 'type', label: 'Type', align: 'left', width: '8%' },
-  { key: 'party', label: 'Party', align: 'left', width: '10%' },
-  { key: 'category', label: 'Category', align: 'left', width: '9%' },
-  { key: 'reference', label: 'Reference', align: 'left', width: '9%' },
+  { key: 'party', label: 'Party', align: 'left', width: '14%' },
+  { key: 'category', label: 'Category', align: 'left', width: '10%' },
+  { key: 'reference', label: 'Reference', align: 'left', width: '8%' },
   { key: 'description', label: 'Description', align: 'left', width: '11%' },
-  { key: 'method', label: 'Mode', align: 'left', width: '6%' },
+  { key: 'method', label: 'Mode', align: 'left', width: '5%' },
   { key: 'jama', label: 'Jama', align: 'right', width: '8%' },
   { key: 'karchulu', label: 'Karchulu', align: 'right', width: '8%' },
-  { key: 'balance', label: 'Running Balance', align: 'right', width: '9%' },
-  { key: 'source', label: 'Source', align: 'left', width: '8%' },
-  { key: 'actions', label: 'Actions', align: 'left', width: '6%' },
+  { key: 'balance', label: 'Running Balance', align: 'right', width: '10%' },
+  { key: 'source', label: 'Source', align: 'left', width: '6%' },
+  { key: 'actions', label: 'Actions', align: 'left', width: '5%' },
 ];
 
 const headCellClass = (align) =>
-  `px-3 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 ${
+  `px-2.5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 ${
     align === 'right' ? 'text-right' : 'text-left'
   }`;
 
 const bodyCellClass = (align) =>
-  `px-3 py-2.5 text-sm align-middle ${
+  `px-2.5 py-2.5 text-sm align-middle ${
     align === 'right' ? 'text-right tabular-nums whitespace-nowrap' : 'text-left'
   }`;
+
+/** Fixed-layout cells: clip overflow so long party names never spill into the next column */
+const clipCellClass = `${bodyCellClass('left')} max-w-0 overflow-hidden`;
+const ClipText = ({ children, title, className = '' }) => (
+  <span className={`block truncate ${className}`} title={title || (typeof children === 'string' ? children : undefined)}>
+    {children}
+  </span>
+);
 
 const todayLabel = () => new Date().toLocaleDateString('en-IN', {
   weekday: 'long',
@@ -359,7 +367,7 @@ const CashBookPage = () => {
           ) : (
             <>
               <div className="min-h-0 flex-1 overflow-auto">
-                <table className="w-full min-w-[1280px] border-collapse" style={{ tableLayout: 'fixed' }}>
+                <table className="w-full min-w-[1400px] border-collapse" style={{ tableLayout: 'fixed' }}>
                   <colgroup>
                     {COLUMNS.map((col) => (
                       <col key={col.key} style={{ width: col.width }} />
@@ -389,35 +397,49 @@ const CashBookPage = () => {
                       entries.map((entry) => {
                         const isJama = entry.bookSide === 'jama';
                         const href = partyHref(entry);
+                        const partyLabel = entry.partyName || '—';
+                        const categoryLabel = entry.category || '—';
+                        const descLabel = entry.description || entry.remarks || '—';
+                        const refLabel = entry.referenceNumber || '—';
                         return (
                           <tr key={entry.id} className="hover:bg-slate-50/80">
                             <td className={`${bodyCellClass('left')} whitespace-nowrap text-slate-700`}>
                               {formatDate(entry.transactionDate)}
                             </td>
-                            <td className={bodyCellClass('left')}>
-                              <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            <td className={`${bodyCellClass('left')} overflow-hidden`}>
+                              <span className={`inline-flex max-w-full truncate rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                                 isJama ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
                               }`}>
                                 {isJama ? 'JAMA' : 'KARCHULU'}
                               </span>
                             </td>
-                            <td className={`${bodyCellClass('left')} text-slate-700`}>
+                            <td className={`${clipCellClass} font-medium text-slate-800`}>
                               {href ? (
-                                <Link to={href} className="text-primary-700 hover:underline">
-                                  {entry.partyName}
+                                <Link to={href} className="block truncate text-primary-700 hover:underline" title={partyLabel}>
+                                  {partyLabel}
                                 </Link>
-                              ) : (entry.partyName || '—')}
+                              ) : (
+                                <ClipText title={partyLabel}>{partyLabel}</ClipText>
+                              )}
                             </td>
-                            <td className={`${bodyCellClass('left')} text-slate-700`}>{entry.category || '—'}</td>
-                            <td className={`${bodyCellClass('left')} text-slate-600`}>
+                            <td className={`${clipCellClass} text-slate-700`}>
+                              <ClipText title={categoryLabel}>{categoryLabel}</ClipText>
+                            </td>
+                            <td className={`${clipCellClass} text-slate-600`}>
                               {href && entry.referenceNumber ? (
-                                <Link to={href} className="text-primary-700 hover:underline">
-                                  {entry.referenceNumber}
+                                <Link to={href} className="block truncate text-primary-700 hover:underline" title={refLabel}>
+                                  {refLabel}
                                 </Link>
-                              ) : (entry.referenceNumber || '—')}
+                              ) : (
+                                <ClipText title={refLabel}>{refLabel}</ClipText>
+                              )}
                             </td>
-                            <td className={`${bodyCellClass('left')} text-slate-600`}>{entry.description || entry.remarks || '—'}</td>
-                            <td className={`${bodyCellClass('left')} uppercase text-slate-600`}>{entry.paymentMethod || '—'}</td>
+                            <td className={`${clipCellClass} text-slate-600`}>
+                              <ClipText title={descLabel}>{descLabel}</ClipText>
+                            </td>
+                            <td className={`${clipCellClass} uppercase text-slate-600`}>
+                              <ClipText>{entry.paymentMethod || '—'}</ClipText>
+                            </td>
                             <td className={`${bodyCellClass('right')} font-medium text-emerald-700`}>
                               {isJama ? formatCurrency(entry.amount) : '—'}
                             </td>
@@ -427,10 +449,12 @@ const CashBookPage = () => {
                             <td className={`${bodyCellClass('right')} font-semibold text-slate-900`}>
                               {formatCurrency(entry.balanceAfter)}
                             </td>
-                            <td className={`${bodyCellClass('left')} text-xs font-medium uppercase text-slate-600`}>
-                              {entry.sourceLabel || entry.source || '—'}
+                            <td className={`${clipCellClass} text-xs font-medium uppercase text-slate-600`}>
+                              <ClipText title={entry.sourceLabel || entry.source || '—'}>
+                                {entry.sourceLabel || entry.source || '—'}
+                              </ClipText>
                             </td>
-                            <td className={`${bodyCellClass('left')} print:hidden`}>
+                            <td className={`${bodyCellClass('left')} overflow-hidden print:hidden`}>
                               {entry.isManual ? (
                                 <div className="flex gap-2">
                                   {canEdit && (
@@ -445,7 +469,7 @@ const CashBookPage = () => {
                                   )}
                                 </div>
                               ) : (
-                                <span className="text-xs text-slate-400" title={entry.linkedLabel || 'Automatic'}>
+                                <span className="block truncate text-xs text-slate-400" title={entry.linkedLabel || 'Automatic'}>
                                   {entry.linkedLabel || 'Auto'}
                                 </span>
                               )}
