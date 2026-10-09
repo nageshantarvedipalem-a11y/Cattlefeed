@@ -83,7 +83,7 @@ const CashBookMonthlySummaryModal = ({ isOpen, onClose }) => {
             <>
               <div className="rounded-lg bg-slate-50 p-4 text-sm">
                 <div className="flex justify-between"><span>Opening Balance</span><span className="font-semibold">{formatCurrency(summary.openingBalance)}</span></div>
-                <div className="mt-2 flex justify-between text-emerald-700"><span>Total Jama</span><span className="font-semibold">{formatCurrency(summary.totalJama)}</span></div>
+                <div className="mt-2 flex justify-between text-emerald-700"><span>Total Jamalu</span><span className="font-semibold">{formatCurrency(summary.totalJama)}</span></div>
                 <div className="mt-1 flex justify-between text-red-700"><span>Total Karchulu</span><span className="font-semibold">{formatCurrency(summary.totalKarchulu)}</span></div>
                 <div className="mt-3 flex justify-between border-t border-slate-200 pt-3 font-bold">
                   <span>Closing Balance</span>
@@ -95,13 +95,13 @@ const CashBookMonthlySummaryModal = ({ isOpen, onClose }) => {
               </div>
 
               <div>
-                <h3 className="text-sm font-semibold text-emerald-800">Jama by category</h3>
+                <h3 className="text-sm font-semibold text-emerald-800">Jamalu by category</h3>
                 {breakdown?.jama?.length ? breakdown.jama.map((item) => (
                   <div key={item.category} className="flex justify-between py-1 text-sm">
                     <span>{item.category}</span>
                     <span>{formatCurrency(item.amount)}</span>
                   </div>
-                )) : <p className="text-sm text-slate-500">No Jama this month</p>}
+                )) : <p className="text-sm text-slate-500">No Jamalu this month</p>}
               </div>
 
               <div>

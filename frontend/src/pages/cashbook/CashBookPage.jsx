@@ -32,7 +32,7 @@ const COLUMNS = [
   { key: 'reference', label: 'Reference', align: 'left', width: '8%' },
   { key: 'description', label: 'Description', align: 'left', width: '11%' },
   { key: 'method', label: 'Mode', align: 'left', width: '5%' },
-  { key: 'jama', label: 'Jama', align: 'right', width: '8%' },
+  { key: 'jama', label: 'Jamalu', align: 'right', width: '8%' },
   { key: 'karchulu', label: 'Karchulu', align: 'right', width: '8%' },
   { key: 'balance', label: 'Running Balance', align: 'right', width: '10%' },
   { key: 'source', label: 'Source', align: 'left', width: '6%' },
@@ -187,7 +187,7 @@ const CashBookPage = () => {
   };
 
   const handleDelete = async (entry) => {
-    if (!window.confirm(`Delete this ${entry.bookSide === 'jama' ? 'Jama' : 'Karchulu'} entry of ${formatCurrency(entry.amount)}? Balances will be recalculated.`)) {
+    if (!window.confirm(`Delete this ${entry.bookSide === 'jama' ? 'Jamalu' : 'Karchulu'} entry of ${formatCurrency(entry.amount)}? Balances will be recalculated.`)) {
       return;
     }
     try {
@@ -210,7 +210,7 @@ const CashBookPage = () => {
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Cash Book</h1>
             <p className="mt-1 text-sm text-slate-500">
-              Daily Jama (money in) and Karchulu (money out) — {todayLabel()}
+              Daily Jamalu (money in) and Karchulu (money out) — {todayLabel()}
             </p>
           </div>
           <div className="flex flex-wrap gap-2 print:hidden">
@@ -221,7 +221,7 @@ const CashBookPage = () => {
                   onClick={() => openCreate('jama')}
                   className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
                 >
-                  <FiPlus className="h-4 w-4" /> Add Jama
+                  <FiPlus className="h-4 w-4" /> Add Jamalu
                 </button>
                 <button
                   type="button"
@@ -261,7 +261,7 @@ const CashBookPage = () => {
           <div className="mb-4 grid shrink-0 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[
               { label: 'Opening Balance', value: summary.openingBalance, color: 'text-slate-900' },
-              { label: period === 'daily' ? "Today's Jama" : 'Total Jama', value: summary.totalJama ?? summary.totalInflow, color: 'text-emerald-700', prefix: '+' },
+              { label: period === 'daily' ? "Today's Jamalu" : 'Total Jamalu', value: summary.totalJama ?? summary.totalInflow, color: 'text-emerald-700', prefix: '+' },
               { label: period === 'daily' ? "Today's Karchulu" : 'Total Karchulu', value: summary.totalKarchulu ?? summary.totalOutflow, color: 'text-red-700', prefix: '−' },
               { label: 'Closing Balance', value: summary.closingBalance, color: 'text-amber-700' },
             ].map((card) => (
@@ -292,7 +292,7 @@ const CashBookPage = () => {
         )}
         {summary?.formula && (
           <p className="mb-3 shrink-0 text-xs text-slate-500">
-            Closing = Opening + Jama − Karchulu ({formatCurrency(summary.openingBalance)} + {formatCurrency(summary.totalJama ?? 0)} − {formatCurrency(summary.totalKarchulu ?? 0)} = {formatCurrency(summary.closingBalance)})
+            Closing = Opening + Jamalu − Karchulu ({formatCurrency(summary.openingBalance)} + {formatCurrency(summary.totalJama ?? 0)} − {formatCurrency(summary.totalKarchulu ?? 0)} = {formatCurrency(summary.closingBalance)})
           </p>
         )}
 
@@ -322,7 +322,7 @@ const CashBookPage = () => {
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500"
           >
             <option value="">All Types</option>
-            <option value="jama">Jama</option>
+            <option value="jama">Jamalu</option>
             <option value="karchulu">Karchulu</option>
           </select>
           <select
@@ -390,7 +390,7 @@ const CashBookPage = () => {
                     ) : entries.length === 0 ? (
                       <tr>
                         <td colSpan={12} className="px-4 py-12 text-center text-sm text-slate-500">
-                          No cash book entries for this period. Add Jama or Karchulu to start the day.
+                          No cash book entries for this period. Add Jamalu or Karchulu to start the day.
                         </td>
                       </tr>
                     ) : (
@@ -410,7 +410,7 @@ const CashBookPage = () => {
                               <span className={`inline-flex max-w-full truncate rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                                 isJama ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
                               }`}>
-                                {isJama ? 'JAMA' : 'KARCHULU'}
+                                {isJama ? 'JAMALU' : 'KARCHULU'}
                               </span>
                             </td>
                             <td className={`${clipCellClass} font-medium text-slate-800`}>

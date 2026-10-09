@@ -92,7 +92,7 @@ const CashBookDailyReportModal = ({ isOpen, onClose, initialDate }) => {
               <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm">
                 <ReportRow label="Opening Balance" value={formatCurrency(summary.openingBalance)} />
                 <ReportRow
-                  label="Total Jama"
+                  label="Total Jamalu"
                   value={`+${formatCurrency(summary.totalJama)}`}
                   valueClassName="text-emerald-700"
                 />
@@ -114,7 +114,7 @@ const CashBookDailyReportModal = ({ isOpen, onClose, initialDate }) => {
               </div>
 
               <div>
-                <h3 className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-emerald-800">Jama</h3>
+                <h3 className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-emerald-800">Jamalu</h3>
                 {jamaRows.length ? (
                   jamaRows.map((item) => {
                     const label = item.party || item.category || '—';
@@ -128,11 +128,11 @@ const CashBookDailyReportModal = ({ isOpen, onClose, initialDate }) => {
                     );
                   })
                 ) : (
-                  <p className="py-1 text-sm text-slate-500">No Jama on this date</p>
+                  <p className="py-1 text-sm text-slate-500">No Jamalu on this date</p>
                 )}
                 <div className="mt-1 border-t border-slate-100 pt-1">
                   <ReportRow
-                    label="Total Jama"
+                    label="Total Jamalu"
                     value={formatCurrency(summary.totalJama)}
                     valueClassName="font-semibold text-emerald-800"
                   />

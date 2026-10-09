@@ -91,10 +91,10 @@ const CashBookEntryModal = ({
     try {
       if (isEdit) {
         await cashBookService.updateEntry(entry.id, payload);
-        toast.success(isJama ? 'Jama updated' : 'Karchulu updated');
+        toast.success(isJama ? 'Jamalu updated' : 'Karchulu updated');
       } else {
         await cashBookService.createEntry(payload);
-        toast.success(isJama ? 'Jama added to cash book' : 'Karchulu added to cash book');
+        toast.success(isJama ? 'Jamalu added to cash book' : 'Karchulu added to cash book');
       }
       onSuccess();
       onClose();
@@ -106,8 +106,8 @@ const CashBookEntryModal = ({
   if (!isOpen) return null;
 
   const title = isEdit
-    ? (isJama ? 'Edit Jama' : 'Edit Karchulu')
-    : (isJama ? 'Add Jama' : 'Add Karchulu');
+    ? (isJama ? 'Edit Jamalu' : 'Edit Karchulu')
+    : (isJama ? 'Add Jamalu' : 'Add Karchulu');
   const accent = isJama ? 'text-emerald-700' : 'text-red-700';
   const buttonClass = isJama
     ? 'bg-emerald-600 hover:bg-emerald-700'
@@ -152,7 +152,7 @@ const CashBookEntryModal = ({
 
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
-              {isJama ? 'Jama Category' : 'Expense Category'} *
+              {isJama ? 'Jamalu Category' : 'Expense Category'} *
             </label>
             <input
               list="cashbook-category-options"

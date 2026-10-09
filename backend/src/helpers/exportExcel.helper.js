@@ -93,7 +93,7 @@ export const buildCashBookWorkbook = async (entries, summary = null) => {
     { header: 'Reference', key: 'reference', width: 14 },
     { header: 'Description', key: 'description', width: 24 },
     { header: 'Mode', key: 'method', width: 10 },
-    { header: 'Jama', key: 'jama', width: 12 },
+    { header: 'Jamalu', key: 'jama', width: 12 },
     { header: 'Karchulu', key: 'karchulu', width: 12 },
     { header: 'Balance', key: 'balance', width: 12 },
     { header: 'Source', key: 'source', width: 16 },
@@ -105,7 +105,7 @@ export const buildCashBookWorkbook = async (entries, summary = null) => {
 
   if (summary) {
     sheet.addRow({ date: 'Opening Balance', balance: summary.openingBalance });
-    sheet.addRow({ date: 'Total Jama', jama: summary.totalJama ?? summary.totalInflow });
+    sheet.addRow({ date: 'Total Jamalu', jama: summary.totalJama ?? summary.totalInflow });
     sheet.addRow({ date: 'Total Karchulu', karchulu: summary.totalKarchulu ?? summary.totalOutflow });
     sheet.addRow({ date: 'Closing Balance', balance: summary.closingBalance });
     sheet.addRow({});
@@ -115,7 +115,7 @@ export const buildCashBookWorkbook = async (entries, summary = null) => {
     const isJama = entry.bookSide === 'jama' || ['cash_in', 'income'].includes(entry.transactionType);
     sheet.addRow({
       date: entry.transactionDate,
-      type: isJama ? 'JAMA' : 'KARCHULU',
+      type: isJama ? 'JAMALU' : 'KARCHULU',
       party: entry.partyName || '',
       category: entry.category || '',
       reference: entry.referenceNumber || '',

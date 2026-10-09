@@ -157,7 +157,7 @@ export const buildCashBookPdf = (entries, summary = null) => new Promise((resolv
     doc.fontSize(10).font('Helvetica');
     const jama = summary.totalJama ?? summary.totalInflow;
     const karchulu = summary.totalKarchulu ?? summary.totalOutflow;
-    doc.text(`Opening: ${summary.openingBalance.toFixed(2)} | Jama: ${Number(jama).toFixed(2)} | Karchulu: ${Number(karchulu).toFixed(2)} | Closing: ${summary.closingBalance.toFixed(2)}`);
+    doc.text(`Opening: ${summary.openingBalance.toFixed(2)} | Jamalu: ${Number(jama).toFixed(2)} | Karchulu: ${Number(karchulu).toFixed(2)} | Closing: ${summary.closingBalance.toFixed(2)}`);
     doc.moveDown();
   }
 
@@ -166,7 +166,7 @@ export const buildCashBookPdf = (entries, summary = null) => new Promise((resolv
     { label: 'Type', width: 70 },
     { label: 'Party', width: 90 },
     { label: 'Category', width: 80 },
-    { label: 'Jama', width: 60 },
+    { label: 'Jamalu', width: 60 },
     { label: 'Karchulu', width: 60 },
     { label: 'Balance', width: 60 },
     { label: 'Source', width: 80 },
@@ -189,7 +189,7 @@ export const buildCashBookPdf = (entries, summary = null) => new Promise((resolv
     const isJama = entry.bookSide === 'jama' || ['cash_in', 'income'].includes(entry.transactionType);
     const row = [
       String(entry.transactionDate).slice(0, 10),
-      isJama ? 'JAMA' : 'KARCHULU',
+      isJama ? 'JAMALU' : 'KARCHULU',
       entry.partyName || '',
       entry.category || '',
       isJama ? entry.amount.toFixed(2) : '-',
