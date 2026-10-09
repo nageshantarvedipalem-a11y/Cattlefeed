@@ -252,15 +252,19 @@ jobs:
             if [ -n "$MATCHED" ]; then
               echo "Live build found at: $MATCHED"
               if [ "$CUSTOM_STALE" = "1" ]; then
-                echo "::warning::dineshcattlefeed.com is still on the old bundle. FTP uploads to the Hostinger site folder, not that custom-domain folder."
-                echo "::warning::Open https://yellow-cobra-125039.hostingersite.com/payments for the new UI, or upload cattlefeed-frontend-upload.zip into dineshcattlefeed.com public_html."
+                echo "::error::dineshcattlefeed.com is still on the old bundle."
+                echo "::error::FTP credentials point at lightsteelblue (different server IP than dineshcattlefeed.com)."
+                echo "::error::Fix: hPanel → Websites → dineshcattlefeed.com → FTP Accounts, put those FTP_* secrets in GitHub,"
+                echo "::error::OR File Manager → public_html → upload Desktop/cattlefeed-frontend-upload.zip,"
+                echo "::error::OR Domains → point dineshcattlefeed.com at yellow-cobra-125039 (Node SPA already has $BUILT)."
+                exit 1
               fi
               exit 0
             fi
           done
 
           echo "::error::No live host is serving $BUILT yet."
-          echo "::error::Redeploy yellow-cobra in hPanel if backend/public was just pushed, or fix FTP REMOTE_DIR for the custom domain."
+          echo "::error::Redeploy yellow-cobra in hPanel if backend/public was just pushed, or fix FTP for dineshcattlefeed.com."
           exit 1
 
       - name: Skip FTP (dry run)

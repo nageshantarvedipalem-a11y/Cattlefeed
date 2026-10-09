@@ -97,13 +97,39 @@ Click **New repository secret** for each:
 | `FTP_PROTOCOL` | No | `ftps` (recommended) or `ftp` |
 | `REMOTE_DIR` | No | Leave empty or `/` for domain FTP users (see note below) |
 | `VITE_API_BASE_URL` | Yes | `https://yellow-cobra-125039.hostingersite.com/api/cattlefeed/v1` |
-| `SITE_URL` | No | `https://lightsteelblue-bison-593262.hostingersite.com` |
+| `SITE_URL` | No | `https://dineshcattlefeed.com` (must be the domain customers use) |
+| `CUSTOM_DOMAIN_REMOTE_DIR` | No | Only if one FTP user can reach the domain folder (rare) |
 
 > **REMOTE_DIR for lightsteelblue FTP:** If your FTP username is `u289260512.lightsteelblue-bison-593262.hostingersite.com`, login already opens **inside** `public_html`. Leave `REMOTE_DIR` **empty** or set it to **`/`** — do **not** use `/public_html` or `./` (deploy will fail).
 >
 > **REMOTE_DIR troubleshooting:** If Actions shows green but the live site does not change, your FTP path is wrong. In Hostinger File Manager, open the folder that contains `index.html` for your site, then set `REMOTE_DIR` to that FTP path. Common values:
 > - `/` or empty — domain FTP account (username = `*.hostingersite.com`)
 > - `/public_html/` — generic FTP account that starts above web root
+
+### Critical: `dineshcattlefeed.com` is a different Hostinger website
+
+DNS check (Oct 2026):
+
+| Host | Server |
+|------|--------|
+| `dineshcattlefeed.com` | `147.79.69.30` / `91.108.106.161` |
+| `yellow-cobra-125039…` (Node + new UI) | `147.79.69.86` |
+| `lightsteelblue-bison…` (FTP deploy target) | different CDN IPs |
+
+GitHub Actions FTP uploads to **lightsteelblue**. That does **not** update **dineshcattlefeed.com**. Secondary paths like `/domains/dineshcattlefeed.com/public_html` fail silently when the FTP user cannot see that folder.
+
+**Pick one fix (any one):**
+
+1. **Recommended — point the domain at yellow-cobra**  
+   hPanel → Domains / Websites → assign `dineshcattlefeed.com` to the **yellow-cobra** Node.js website. The Node app already serves `backend/public` (`app-Tli-GHzS.js`). After DNS propagates, the domain matches every Git redeploy.
+
+2. **FTP for the domain website**  
+   hPanel → Websites → **dineshcattlefeed.com** → FTP Accounts → copy host/user/password into GitHub Secrets `FTP_*` (replace lightsteelblue credentials). Set `SITE_URL=https://dineshcattlefeed.com`. Re-run **Deploy Frontend**.
+
+3. **Manual File Manager (fastest once)**  
+   Unzip Desktop `cattlefeed-frontend-upload.zip` into that site’s `public_html` (replace `index.html` + `assets/`). Hard refresh.
+
+Until `https://dineshcattlefeed.com/` serves the same `assets/app-….js` as yellow-cobra, deploy verify **fails on purpose**.
 
 > Never commit passwords. Only store in GitHub Secrets.
 
