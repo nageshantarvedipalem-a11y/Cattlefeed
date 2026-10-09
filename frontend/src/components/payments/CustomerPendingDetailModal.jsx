@@ -18,7 +18,7 @@ const ActionIconButton = ({ label, onClick, className = '', children, hidden = f
     aria-label={label}
     disabled={hidden}
     onClick={onClick}
-    className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition ${
+    className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition ${
       hidden
         ? 'pointer-events-none opacity-0'
         : `border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 ${className}`
@@ -27,6 +27,21 @@ const ActionIconButton = ({ label, onClick, className = '', children, hidden = f
     {children}
   </button>
 );
+
+const SummaryTile = ({ label, value, hint, tone = 'slate' }) => {
+  const tones = {
+    slate: 'bg-slate-50 text-slate-500 [&_strong]:text-slate-900',
+    green: 'bg-emerald-50 text-emerald-700 [&_strong]:text-emerald-700',
+    amber: 'bg-amber-50 text-amber-700 [&_strong]:text-amber-700',
+  };
+  return (
+    <div className={`flex min-h-[64px] flex-col justify-center rounded-lg px-3 py-2 ${tones[tone]}`}>
+      <p className="text-[11px] font-medium uppercase tracking-wide">{label}</p>
+      <strong className="mt-0.5 text-base font-bold tabular-nums leading-tight">{value}</strong>
+      {hint ? <p className="mt-0.5 text-[11px] opacity-70">{hint}</p> : null}
+    </div>
+  );
+};
 
 const CustomerPendingDetailModal = ({
   isOpen,
@@ -124,11 +139,11 @@ const CustomerPendingDetailModal = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4">
-      <div className="flex h-[min(90vh,820px)] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
-        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
+      <div className="flex max-h-[min(82vh,640px)] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
           <div className="min-w-0 flex-1 pr-2">
-            <h2 className="truncate text-lg font-bold text-slate-900">{displayName}</h2>
-            <p className="mt-1 truncate text-sm text-slate-500">
+            <h2 className="truncate text-base font-bold text-slate-900">{displayName}</h2>
+            <p className="mt-0.5 truncate text-xs text-slate-500">
               {[phone, village].filter(Boolean).join(' · ') || 'No phone'}
             </p>
           </div>
@@ -142,34 +157,33 @@ const CustomerPendingDetailModal = ({
         </div>
 
         {loading ? (
-          <div className="py-16"><LoadingSpinner /></div>
+          <div className="py-12"><LoadingSpinner /></div>
         ) : (
           <>
-            <div className="grid shrink-0 grid-cols-2 gap-3 border-b border-slate-100 px-5 py-4 md:grid-cols-4">
-              <div className="rounded-lg bg-slate-50 px-3 py-3">
-                <p className="text-xs font-medium text-slate-500">Bills</p>
-                <p className="mt-1 text-lg font-bold text-slate-900">{summary.billCount}</p>
-                <p className="mt-0.5 text-[11px] text-slate-400">{summary.pendingBillCount} pending</p>
-              </div>
-              <div className="rounded-lg bg-slate-50 px-3 py-3">
-                <p className="text-xs font-medium text-slate-500">Total</p>
-                <p className="mt-1 text-lg font-bold tabular-nums text-slate-900">{formatCurrency(summary.totalAmount)}</p>
-                <p className="mt-0.5 text-[11px] text-transparent">.</p>
-              </div>
-              <div className="rounded-lg bg-emerald-50 px-3 py-3">
-                <p className="text-xs font-medium text-emerald-700">Paid</p>
-                <p className="mt-1 text-lg font-bold tabular-nums text-emerald-700">{formatCurrency(summary.paidAmount)}</p>
-                <p className="mt-0.5 text-[11px] text-transparent">.</p>
-              </div>
-              <div className="rounded-lg bg-amber-50 px-3 py-3">
-                <p className="text-xs font-medium text-amber-700">Pending</p>
-                <p className="mt-1 text-lg font-bold tabular-nums text-amber-700">{formatCurrency(summary.pendingAmount)}</p>
-                <p className="mt-0.5 text-[11px] text-transparent">.</p>
-              </div>
+            <div className="grid shrink-0 grid-cols-2 gap-2 border-b border-slate-100 px-4 py-3 sm:grid-cols-4">
+              <SummaryTile
+                label="Bills"
+                value={summary.billCount}
+                hint={`${summary.pendingBillCount} pending`}
+              />
+              <SummaryTile
+                label="Total"
+                value={formatCurrency(summary.totalAmount)}
+              />
+              <SummaryTile
+                label="Paid"
+                value={formatCurrency(summary.paidAmount)}
+                tone="green"
+              />
+              <SummaryTile
+                label="Pending"
+                value={formatCurrency(summary.pendingAmount)}
+                tone="amber"
+              />
             </div>
 
-            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-3">
-              <div className="flex gap-2">
+            <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 px-4 py-2.5">
+              <div className="flex min-w-0 flex-1 gap-1.5">
                 {[
                   { id: 'bills', label: `Bills (${invoices.length})` },
                   { id: 'payments', label: `Payments (${payments.length})` },
@@ -178,7 +192,7 @@ const CustomerPendingDetailModal = ({
                     key={tab.id}
                     type="button"
                     onClick={() => setDetailTab(tab.id)}
-                    className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+                    className={`rounded-md px-2.5 py-1 text-xs font-medium ${
                       detailTab === tab.id
                         ? 'bg-primary-600 text-white'
                         : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
@@ -200,119 +214,121 @@ const CustomerPendingDetailModal = ({
                     pendingAmount: summary.pendingAmount,
                     customerPendingTotal: summary.pendingAmount,
                   })}
-                  className="inline-flex items-center gap-1 rounded-lg bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md bg-primary-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-primary-700"
                 >
-                  <FiDollarSign className="h-4 w-4" /> Receive Payment
+                  <FiDollarSign className="h-3.5 w-3.5" /> Receive Payment
                 </button>
               )}
             </div>
 
-            {/* Purchase history: sticky header + independent vertical scroll */}
-            <div className="flex min-h-0 flex-1 flex-col px-5 py-4">
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200">
+            <div className="flex min-h-0 flex-1 flex-col px-4 py-3">
+              <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-slate-200">
                 {detailTab === 'bills' ? (
-                  <>
-                    <div className="shrink-0 overflow-x-auto border-b border-slate-200 bg-slate-50">
-                      <div className="grid min-w-[900px] grid-cols-[1.1fr_1fr_1fr_1fr_1fr_0.9fr_1.2fr] px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        <div>Invoice</div>
-                        <div>Bill Date</div>
-                        <div className="text-right">Total</div>
-                        <div className="text-right">Paid</div>
-                        <div className="text-right">Pending</div>
-                        <div className="text-center">Status</div>
-                        <div className="text-right">Actions</div>
-                      </div>
-                    </div>
-                    <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto overscroll-contain [scrollbar-gutter:stable]">
-                      {invoices.length === 0 ? (
-                        <p className="px-3 py-10 text-center text-sm text-slate-500">No bills found</p>
-                      ) : (
-                        <div className="min-w-[900px] divide-y divide-slate-100">
-                          {invoices.map((invoice) => {
-                            const canReceive = canCreate && Number(invoice.pendingAmount) > 0;
-                            return (
-                              <div
-                                key={invoice.id}
-                                className={`grid grid-cols-[1.1fr_1fr_1fr_1fr_1fr_0.9fr_1.2fr] items-center px-3 py-2.5 ${
-                                  invoice.isOverdue ? 'bg-red-50/40' : 'bg-white'
-                                }`}
-                              >
-                                <div className="truncate pr-2 text-sm font-medium text-slate-900">{invoice.invoiceNumber}</div>
-                                <div className="whitespace-nowrap pr-2 text-sm text-slate-600">{formatDate(invoice.saleDate)}</div>
-                                <div className="whitespace-nowrap pr-2 text-right text-sm tabular-nums text-slate-800">{formatCurrency(invoice.totalAmount)}</div>
-                                <div className="whitespace-nowrap pr-2 text-right text-sm tabular-nums text-emerald-700">{formatCurrency(invoice.paidAmount)}</div>
-                                <div className="whitespace-nowrap pr-2 text-right text-sm font-medium tabular-nums text-amber-700">{formatCurrency(invoice.pendingAmount)}</div>
-                                <div className="flex justify-center px-1">
-                                  <span className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge[invoice.paymentStatus] || statusBadge.pending}`}>
-                                    {formatPaymentStatus(invoice.paymentStatus, invoice.paidAmount)}
-                                  </span>
-                                </div>
-                                <div className="flex items-center justify-end gap-1 pl-2">
+                  invoices.length === 0 ? (
+                    <p className="px-3 py-8 text-center text-sm text-slate-500">No bills found</p>
+                  ) : (
+                    <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+                      <thead className="sticky top-0 z-10 bg-slate-50">
+                        <tr className="border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          <th className="whitespace-nowrap px-3 py-2 font-semibold">Invoice</th>
+                          <th className="whitespace-nowrap px-3 py-2 font-semibold">Bill Date</th>
+                          <th className="whitespace-nowrap px-3 py-2 text-right font-semibold">Total</th>
+                          <th className="whitespace-nowrap px-3 py-2 text-right font-semibold">Paid</th>
+                          <th className="whitespace-nowrap px-3 py-2 text-right font-semibold">Pending</th>
+                          <th className="whitespace-nowrap px-3 py-2 text-center font-semibold">Status</th>
+                          <th className="whitespace-nowrap px-3 py-2 text-right font-semibold">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {invoices.map((invoice) => {
+                          const canReceive = canCreate && Number(invoice.pendingAmount) > 0;
+                          return (
+                            <tr
+                              key={invoice.id}
+                              className={invoice.isOverdue ? 'bg-red-50/40' : 'bg-white'}
+                            >
+                              <td className="max-w-[120px] truncate px-3 py-2 font-medium text-slate-900">
+                                {invoice.invoiceNumber}
+                              </td>
+                              <td className="whitespace-nowrap px-3 py-2 text-slate-600">
+                                {formatDate(invoice.saleDate)}
+                              </td>
+                              <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-800">
+                                {formatCurrency(invoice.totalAmount)}
+                              </td>
+                              <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-emerald-700">
+                                {formatCurrency(invoice.paidAmount)}
+                              </td>
+                              <td className="whitespace-nowrap px-3 py-2 text-right font-medium tabular-nums text-amber-700">
+                                {formatCurrency(invoice.pendingAmount)}
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                <span className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium ${statusBadge[invoice.paymentStatus] || statusBadge.pending}`}>
+                                  {formatPaymentStatus(invoice.paymentStatus, invoice.paidAmount)}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2">
+                                <div className="flex items-center justify-end gap-1">
                                   <ActionIconButton
                                     label="Receive payment"
                                     hidden={!canReceive}
                                     onClick={() => onReceiveSale(invoice)}
                                     className="border-primary-200 text-primary-700 hover:bg-primary-50 hover:text-primary-800"
                                   >
-                                    <FiDollarSign className="h-4 w-4" />
+                                    <FiDollarSign className="h-3.5 w-3.5" />
                                   </ActionIconButton>
                                   <ActionIconButton label="View bill" onClick={() => onViewBill(invoice.id)}>
-                                    <FiEye className="h-4 w-4" />
+                                    <FiEye className="h-3.5 w-3.5" />
                                   </ActionIconButton>
                                   <ActionIconButton label="Print bill" onClick={() => onPrintBill(invoice.id, invoice.invoiceNumber)}>
-                                    <FiPrinter className="h-4 w-4" />
+                                    <FiPrinter className="h-3.5 w-3.5" />
                                   </ActionIconButton>
                                   <ActionIconButton
                                     label="WhatsApp"
                                     onClick={() => onResendInvoice(invoice.id)}
                                     className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
                                   >
-                                    <FiMessageCircle className="h-4 w-4" />
+                                    <FiMessageCircle className="h-3.5 w-3.5" />
                                   </ActionIconButton>
                                 </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )
                 ) : (
-                  <>
-                    <div className="shrink-0 overflow-x-auto border-b border-slate-200 bg-slate-50">
-                      <div className="grid min-w-[800px] grid-cols-[1fr_1.1fr_1fr_0.8fr_1.2fr_1.4fr] px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        <div>Date</div>
-                        <div>Invoice</div>
-                        <div className="text-right">Amount</div>
-                        <div>Method</div>
-                        <div>Reference</div>
-                        <div>Remarks</div>
-                      </div>
-                    </div>
-                    <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto overscroll-contain [scrollbar-gutter:stable]">
-                      {payments.length === 0 ? (
-                        <p className="px-3 py-10 text-center text-sm text-slate-500">No payments recorded yet</p>
-                      ) : (
-                        <div className="min-w-[800px] divide-y divide-slate-100">
-                          {payments.map((payment) => (
-                            <div key={payment.id} className="grid grid-cols-[1fr_1.1fr_1fr_0.8fr_1.2fr_1.4fr] items-center px-3 py-2.5">
-                              <div className="whitespace-nowrap pr-2 text-sm text-slate-600">{formatDate(payment.paymentDate)}</div>
-                              <div className="truncate pr-2 text-sm font-medium text-slate-900">{payment.invoiceNumber || '—'}</div>
-                              <div className="whitespace-nowrap pr-2 text-right text-sm font-medium tabular-nums text-emerald-700">{formatCurrency(payment.amount)}</div>
-                              <div className="whitespace-nowrap pr-2 text-sm uppercase text-slate-700">{payment.paymentMethod}</div>
-                              <div className="truncate pr-2 text-sm text-slate-600">{payment.referenceNumber || '—'}</div>
-                              <div className="truncate text-sm text-slate-500">{payment.remarks || '—'}</div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </>
+                  payments.length === 0 ? (
+                    <p className="px-3 py-8 text-center text-sm text-slate-500">No payments recorded yet</p>
+                  ) : (
+                    <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+                      <thead className="sticky top-0 z-10 bg-slate-50">
+                        <tr className="border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          <th className="whitespace-nowrap px-3 py-2 font-semibold">Date</th>
+                          <th className="whitespace-nowrap px-3 py-2 font-semibold">Invoice</th>
+                          <th className="whitespace-nowrap px-3 py-2 text-right font-semibold">Amount</th>
+                          <th className="whitespace-nowrap px-3 py-2 font-semibold">Method</th>
+                          <th className="whitespace-nowrap px-3 py-2 font-semibold">Reference</th>
+                          <th className="whitespace-nowrap px-3 py-2 font-semibold">Remarks</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {payments.map((payment) => (
+                          <tr key={payment.id} className="bg-white">
+                            <td className="whitespace-nowrap px-3 py-2 text-slate-600">{formatDate(payment.paymentDate)}</td>
+                            <td className="max-w-[120px] truncate px-3 py-2 font-medium text-slate-900">{payment.invoiceNumber || '—'}</td>
+                            <td className="whitespace-nowrap px-3 py-2 text-right font-medium tabular-nums text-emerald-700">{formatCurrency(payment.amount)}</td>
+                            <td className="whitespace-nowrap px-3 py-2 uppercase text-slate-700">{payment.paymentMethod}</td>
+                            <td className="max-w-[120px] truncate px-3 py-2 text-slate-600">{payment.referenceNumber || '—'}</td>
+                            <td className="max-w-[160px] truncate px-3 py-2 text-slate-500">{payment.remarks || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )
                 )}
               </div>
-              <p className="mt-2 shrink-0 text-xs text-slate-400">
-                Scroll inside the list to see full purchase history.
-              </p>
             </div>
           </>
         )}
