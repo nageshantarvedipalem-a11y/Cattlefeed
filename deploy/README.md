@@ -18,8 +18,9 @@ Output goes to `deploy/hostinger-public_html/` — upload contents to Hostinger 
 
 ## CI/CD
 
-- **Frontend:** GitHub Actions → FTP → `public_html` (see `docs/GITHUB_ACTIONS_HOSTINGER.md`)
-- **Backend:** Hostinger Node.js Web App → GitHub auto-deploy (see `docs/HOSTINGER_FULL_DEPLOY.md`)
+Push to `main` → **Deploy Production** builds the frontend, syncs it into `backend/public` (Hostinger yellow-cobra Node redeploys API + UI), and FTPs the custom domain when `DOMAIN_FTP_*` is set.
+
+**One-time:** point `dineshcattlefeed.com` at yellow-cobra in hPanel (or add `DOMAIN_FTP_*`). See `docs/GITHUB_ACTIONS_HOSTINGER.md`.
 
 ## Docs
 

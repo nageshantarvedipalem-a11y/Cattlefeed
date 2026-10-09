@@ -1,17 +1,25 @@
 # =============================================================================
-# Hostinger Shared Hosting — Frontend CI/CD (FTP)
+# Cattle Feed — Production deploy (frontend + backend SPA)
 # =============================================================================
-# Triggers : push to main, manual dispatch
-# Deploys  : frontend/dist/ → FRONTEND site public_html via FTP/FTPS
+# On every push to main:
+#   1. Build React frontend
+#   2. Copy into backend/public and push → Hostinger Node (yellow-cobra) redeploys
+#      API + SPA together from Git
+#   3. FTP upload to dineshcattlefeed.com when DOMAIN_FTP_* secrets are set
+#      (or FTP_* if those credentials are for the custom-domain website)
 #
-# TWO HOSTINGER SITES (do not mix credentials):
-#   Frontend  lightsteelblue-bison-593262.hostingersite.com  ← THIS workflow
-#   Backend   yellow-cobra-125039.hostingersite.com          ← Node.js Git in hPanel (NOT FTP here)
+# ONE-TIME (required for domain auto-updates without domain FTP):
+#   hPanel → assign dineshcattlefeed.com to yellow-cobra Node website.
+#   After that, every git push updates the domain automatically.
 #
-# Secrets  : FTP_* (frontend site only), VITE_API_BASE_URL, SITE_URL, REMOTE_DIR
+# Secrets:
+#   VITE_API_BASE_URL   (required)  yellow-cobra API URL
+#   DOMAIN_FTP_*        (optional)  FTP for dineshcattlefeed.com website
+#   FTP_*               (optional)  fallback FTP (prefer domain site, not lightsteelblue)
+#   SITE_URL            (optional)  default https://dineshcattlefeed.com
 # =============================================================================
 
-name: Deploy Frontend to Hostinger
+name: Deploy Production
 
 on:
   push:
@@ -19,118 +27,170 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Dry run (build only, no FTP upload)'
+        description: 'Build only (no git sync / FTP)'
         required: false
         default: false
         type: boolean
 
 concurrency:
-  group: hostinger-frontend-deploy
+  group: cattlefeed-production-deploy
   cancel-in-progress: true
+
+permissions:
+  contents: write
 
 env:
   NODE_VERSION: '20'
-  WORKING_DIRECTORY: frontend
+  CUSTOM_DOMAIN: https://dineshcattlefeed.com
+  NODE_SITE: https://yellow-cobra-125039.hostingersite.com
 
 jobs:
   build-and-deploy:
-    name: Build & Deploy to Hostinger
+    name: Build, sync Node SPA, FTP domain
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
+    # Avoid infinite loop when this workflow commits backend/public
+    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message || '', '[skip ci]') }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Setup Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Install dependencies
-        working-directory: ${{ env.WORKING_DIRECTORY }}
+      - name: Install frontend dependencies
+        working-directory: frontend
         run: npm ci
 
       - name: Lint frontend
-        working-directory: ${{ env.WORKING_DIRECTORY }}
+        working-directory: frontend
         run: npm run lint
 
-      - name: Build production bundle
-        working-directory: ${{ env.WORKING_DIRECTORY }}
+      - name: Build production frontend
+        working-directory: frontend
         env:
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
           VITE_APP_NAME: Cattle Feed ERP
           VITE_API_PROJECT: cattlefeed
         run: |
           if [ -z "$VITE_API_BASE_URL" ]; then
-            echo "::error::VITE_API_BASE_URL secret is not set."
+            echo "::error::Set GitHub secret VITE_API_BASE_URL (e.g. ${{ env.NODE_SITE }}/api/cattlefeed/v1)"
             exit 1
           fi
           npm run build
-          ls -lah dist/
-
-      - name: Verify dist folder
-        working-directory: ${{ env.WORKING_DIRECTORY }}
-        run: |
           test -f dist/index.html
           test -d dist/assets
-          grep -q 'assets/app-' dist/index.html
-          echo "Built bundle: $(grep -oE 'assets/app-[A-Za-z0-9_-]+\.js' dist/index.html | head -1)"
+          BUNDLE=$(grep -oE 'assets/app-[A-Za-z0-9_-]+\.js' dist/index.html | head -1)
+          echo "BUILT_BUNDLE=$BUNDLE" >> "$GITHUB_ENV"
+          echo "Built: $BUNDLE"
 
-      - name: Validate frontend FTP credentials
+      - name: Sync frontend into backend/public (Node SPA)
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
         run: |
-          SERVER="${{ secrets.FTP_SERVER }}"
-          USER="${{ secrets.FTP_USERNAME }}"
-          if [ -z "$SERVER" ] || [ -z "$USER" ] || [ -z "${{ secrets.FTP_PASSWORD }}" ]; then
-            echo "::error::FTP_SERVER, FTP_USERNAME, and FTP_PASSWORD must be set."
-            exit 1
-          fi
-          if echo "$SERVER$USER" | grep -qi 'yellow-cobra'; then
-            echo "::error::These look like BACKEND (yellow-cobra) FTP credentials."
-            echo "::error::This workflow deploys the FRONTEND site (lightsteelblue) only."
-            exit 1
-          fi
-          echo "Using frontend FTP host (masked by GitHub)"
+          set -euo pipefail
+          rm -rf backend/public/assets backend/public/images
+          mkdir -p backend/public
+          rsync -a --delete \
+            --exclude '.gitkeep' \
+            frontend/dist/ backend/public/
+          # Keep any server-only files if present later
+          echo "Synced frontend/dist → backend/public ($BUILT_BUNDLE)"
+          ls -lah backend/public/ | head -20
 
-      - name: Prepare FTP server path
+      - name: Commit & push SPA for Hostinger Node auto-deploy
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A backend/public
+          if git diff --cached --quiet; then
+            echo "backend/public already up to date — Hostinger Node has current SPA"
+            exit 0
+          fi
+          git commit -m "chore: sync production frontend to backend/public [skip ci]
+
+          Bundle: ${BUILT_BUNDLE}
+          "
+          git push origin HEAD:main
+          echo "Pushed backend/public — Hostinger yellow-cobra will redeploy API + SPA"
+
+      - name: Resolve FTP credentials (prefer domain website)
         id: ftp
-        run: |
-          DIR="${{ secrets.REMOTE_DIR }}"
-          USER="${{ secrets.FTP_USERNAME }}"
-          # Hostinger: FTP login root IS public_html. Always deploy to /, never /public_html/.
-          if [ -z "$DIR" ] || [ "$DIR" = "/public_html" ] || [ "$DIR" = "/public_html/" ] || [ "$DIR" = "./" ] || [ "$DIR" = "." ] || echo "$USER" | grep -q 'hostingersite.com'; then
-            DIR="/"
-          fi
-          case "$DIR" in
-            */) ;;
-            *) DIR="${DIR}/" ;;
-          esac
-          echo "FTP server-dir: $DIR"
-          if echo "${{ secrets.FTP_SERVER }}" | grep -qE '^[0-9.]+$'; then
-            echo "ftp_protocol=ftp" >> "$GITHUB_OUTPUT"
-            echo "Using plain FTP (IP host avoids SSL certificate mismatch)"
-          else
-            echo "ftp_protocol=${{ secrets.FTP_PROTOCOL || 'ftp' }}" >> "$GITHUB_OUTPUT"
-          fi
-          echo "server_dir=$DIR" >> "$GITHUB_OUTPUT"
-
-      - name: Deploy to Hostinger FTP
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
         env:
+          DOMAIN_FTP_SERVER: ${{ secrets.DOMAIN_FTP_SERVER }}
+          DOMAIN_FTP_USERNAME: ${{ secrets.DOMAIN_FTP_USERNAME }}
+          DOMAIN_FTP_PASSWORD: ${{ secrets.DOMAIN_FTP_PASSWORD }}
+          DOMAIN_FTP_PORT: ${{ secrets.DOMAIN_FTP_PORT }}
+          DOMAIN_FTP_PROTOCOL: ${{ secrets.DOMAIN_FTP_PROTOCOL }}
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          FTP_PORT: ${{ secrets.FTP_PORT || 21 }}
-          FTP_PROTOCOL: ${{ steps.ftp.outputs.ftp_protocol }}
+          FTP_PORT: ${{ secrets.FTP_PORT }}
+          FTP_PROTOCOL: ${{ secrets.FTP_PROTOCOL }}
         run: |
           set -euo pipefail
+          # Prefer DOMAIN_FTP_* (dineshcattlefeed.com). Fall back to FTP_*.
+          if [ -n "${DOMAIN_FTP_SERVER:-}" ] && [ -n "${DOMAIN_FTP_USERNAME:-}" ] && [ -n "${DOMAIN_FTP_PASSWORD:-}" ]; then
+            echo "mode=domain" >> "$GITHUB_OUTPUT"
+            PROTOCOL="${DOMAIN_FTP_PROTOCOL:-ftp}"
+            SERVER="$DOMAIN_FTP_SERVER"
+            echo "Using DOMAIN_FTP_* for dineshcattlefeed.com"
+          elif [ -n "${FTP_SERVER:-}" ] && [ -n "${FTP_USERNAME:-}" ] && [ -n "${FTP_PASSWORD:-}" ]; then
+            if echo "${FTP_USERNAME}${FTP_SERVER}" | grep -qi 'yellow-cobra'; then
+              echo "::warning::FTP_* looks like yellow-cobra — skipping FTP (Node Git deploy handles that site)."
+              echo "mode=skip" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "mode=legacy" >> "$GITHUB_OUTPUT"
+            PROTOCOL="${FTP_PROTOCOL:-ftp}"
+            SERVER="$FTP_SERVER"
+            echo "Using FTP_* — replace with DOMAIN_FTP_* from dineshcattlefeed.com if domain stays stale"
+          else
+            echo "mode=skip" >> "$GITHUB_OUTPUT"
+            echo "::warning::No FTP secrets — relying on Hostinger Node Git + domain → yellow-cobra."
+            exit 0
+          fi
+          if echo "$SERVER" | grep -qE '^[0-9.]+$'; then
+            PROTOCOL=ftp
+          fi
+          echo "protocol=$PROTOCOL" >> "$GITHUB_OUTPUT"
+
+      - name: FTP upload frontend to Hostinger
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.dry_run != true) && steps.ftp.outputs.mode != 'skip' && steps.ftp.outputs.mode != '' }}
+        env:
+          FTP_MODE: ${{ steps.ftp.outputs.mode }}
+          FTP_PROTOCOL: ${{ steps.ftp.outputs.protocol || 'ftp' }}
+          DOMAIN_FTP_SERVER: ${{ secrets.DOMAIN_FTP_SERVER }}
+          DOMAIN_FTP_USERNAME: ${{ secrets.DOMAIN_FTP_USERNAME }}
+          DOMAIN_FTP_PASSWORD: ${{ secrets.DOMAIN_FTP_PASSWORD }}
+          DOMAIN_FTP_PORT: ${{ secrets.DOMAIN_FTP_PORT }}
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_PORT: ${{ secrets.FTP_PORT }}
+        run: |
+          set -euo pipefail
+          if [ "$FTP_MODE" = "domain" ]; then
+            FTP_SERVER="$DOMAIN_FTP_SERVER"
+            FTP_USERNAME="$DOMAIN_FTP_USERNAME"
+            FTP_PASSWORD="$DOMAIN_FTP_PASSWORD"
+            FTP_PORT="${DOMAIN_FTP_PORT:-21}"
+          else
+            FTP_PORT="${FTP_PORT:-21}"
+          fi
           sudo apt-get update -qq
           sudo apt-get install -y -qq lftp
-          echo "Deploying frontend/dist in one FTP session (${FTP_PROTOCOL}) to avoid Hostinger per-file timeouts"
           cd frontend/dist
-          echo "Files to upload: $(find . -type f | wc -l | tr -d ' ')"
 
           PROTOCOL_SETTINGS='set ftp:ssl-allow no;'
           OPEN_URL="ftp://${FTP_SERVER}:${FTP_PORT}"
@@ -139,23 +199,13 @@ jobs:
             OPEN_URL="ftps://${FTP_SERVER}:${FTP_PORT}"
           fi
 
-          # Primary FTP root (Hostinger site account), plus optional custom-domain folders.
-          # Set secret CUSTOM_DOMAIN_REMOTE_DIR to the File Manager path for dineshcattlefeed.com
-          # (example: /domains/dineshcattlefeed.com/public_html).
-          TARGETS="/"
-          if [ -n "${{ secrets.CUSTOM_DOMAIN_REMOTE_DIR }}" ]; then
-            TARGETS="$TARGETS ${{ secrets.CUSTOM_DOMAIN_REMOTE_DIR }}"
-          fi
-          # Common Hostinger addon-domain paths (ignored if the FTP user cannot reach them).
-          TARGETS="$TARGETS /domains/dineshcattlefeed.com/public_html /domains/www.dineshcattlefeed.com/public_html"
-
           deploy_to() {
             local target="$1"
             case "$target" in
               */) ;;
               *) target="${target}/" ;;
             esac
-            echo "Uploading to FTP path: ${target}"
+            echo "FTP → ${target}"
             lftp -c "
               ${PROTOCOL_SETTINGS}
               set ftp:passive-mode true;
@@ -171,111 +221,119 @@ jobs:
             "
           }
 
-          primary_ok=0
+          ok=0
           for attempt in 1 2 3 4 5; do
-            echo "FTP primary mirror attempt ${attempt}/5..."
             if deploy_to "/"; then
-              echo "Primary FTP upload succeeded on attempt ${attempt}"
-              primary_ok=1
+              ok=1
               break
             fi
-            echo "FTP attempt ${attempt} failed; waiting before retry..."
-            sleep $((attempt * 15))
+            sleep $((attempt * 12))
           done
-
-          if [ "$primary_ok" != "1" ]; then
-            echo "::error::FTP upload to / failed after 5 attempts"
+          if [ "$ok" != "1" ]; then
+            echo "::error::FTP upload failed"
             exit 1
           fi
 
-          # Best-effort secondary uploads for the custom domain document root.
-          for target in $TARGETS; do
-            [ "$target" = "/" ] && continue
-            if deploy_to "$target"; then
-              echo "Secondary upload succeeded: $target"
-            else
-              echo "::warning::Could not upload to $target (FTP user may not have access to that folder)."
-            fi
+          # Best-effort addon paths (main-account FTP only)
+          for target in /domains/dineshcattlefeed.com/public_html /domains/www.dineshcattlefeed.com/public_html; do
+            deploy_to "$target" || echo "::warning::No access to $target"
           done
 
-      - name: Verify live site updated
+      - name: Verify live hosts
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
         env:
           SITE_URL: ${{ secrets.SITE_URL }}
-        working-directory: ${{ env.WORKING_DIRECTORY }}
+          FTP_MODE: ${{ steps.ftp.outputs.mode }}
         run: |
           set -uo pipefail
-          BUILT=$(grep -oE 'assets/app-[A-Za-z0-9_-]+\.js' dist/index.html | head -1)
+          BUILT="$BUILT_BUNDLE"
           if [ -z "$BUILT" ]; then
-            echo "::error::Could not read bundle name from dist/index.html"
-            exit 1
+            BUILT=$(grep -oE 'assets/app-[A-Za-z0-9_-]+\.js' frontend/dist/index.html | head -1)
           fi
-          echo "Deployed bundle should be: $BUILT"
+          echo "Expecting: $BUILT"
 
-          # FTP often writes to the Hostinger site folder, while the custom domain
-          # document root is separate. Also accept the Node SPA on yellow-cobra.
           {
             [ -n "${SITE_URL:-}" ] && echo "${SITE_URL%/}"
-            echo "https://yellow-cobra-125039.hostingersite.com"
-            echo "https://lightsteelblue-bison-593262.hostingersite.com"
-            echo "https://dineshcattlefeed.com"
+            echo "${CUSTOM_DOMAIN}"
             echo "https://www.dineshcattlefeed.com"
+            echo "${NODE_SITE}"
           } | awk 'NF && !seen[$0]++' > /tmp/verify-sites.txt
 
           site_has_build() {
-            local site="$1" html live js_body js_size
-            html=$(curl -sL --max-time 20 -H "Cache-Control: no-cache" "$site/" || true)
+            local site="$1" html live js_size js_head
+            html=$(curl -sL --max-time 25 -A "CattleFeedDeploy/1.0" -H "Cache-Control: no-cache" "$site/?v=$RANDOM" || true)
             live=$(printf '%s' "$html" | grep -oE 'assets/app-[A-Za-z0-9_-]+\.js' | head -1 || true)
             if [ -z "$live" ]; then
-              echo "  $site -> no app bundle"
+              echo "  $site -> no bundle"
               return 1
             fi
-            js_body=$(curl -sL --max-time 20 "$site/$live" | head -c 20 || true)
-            js_size=$(curl -sL --max-time 20 "$site/$live" | wc -c | tr -d ' ')
+            js_head=$(curl -sL --max-time 25 -A "CattleFeedDeploy/1.0" "$site/$live" | head -c 32 || true)
+            js_size=$(curl -sL --max-time 25 -A "CattleFeedDeploy/1.0" "$site/$live" | wc -c | tr -d ' ')
             echo "  $site -> $live (${js_size} bytes)"
-            [ "$BUILT" = "$live" ] && [ "${js_size:-0}" -gt 10000 ] && ! printf '%s' "$js_body" | grep -qi '<!doctype'
+            [ "$BUILT" = "$live" ] && [ "${js_size:-0}" -gt 10000 ] && ! printf '%s' "$js_head" | grep -qi '<!doctype'
           }
 
-          for attempt in 1 2 3 4 5; do
-            echo "Verify attempt $attempt/5..."
-            sleep 8
-            MATCHED=""
-            CUSTOM_STALE=0
+          NODE_OK=0
+          DOMAIN_OK=0
+          for attempt in 1 2 3 4 5 6 7 8; do
+            echo "Verify attempt $attempt/8..."
+            sleep 10
+            NODE_OK=0
+            DOMAIN_OK=0
             while IFS= read -r site; do
               if site_has_build "$site"; then
-                MATCHED="$site"
-              elif printf '%s' "$site" | grep -qi 'dineshcattlefeed.com'; then
-                CUSTOM_STALE=1
+                if printf '%s' "$site" | grep -qi 'yellow-cobra'; then
+                  NODE_OK=1
+                fi
+                if printf '%s' "$site" | grep -qi 'dineshcattlefeed.com'; then
+                  DOMAIN_OK=1
+                fi
               fi
             done < /tmp/verify-sites.txt
 
-            if [ -n "$MATCHED" ]; then
-              echo "Live build found at: $MATCHED"
-              if [ "$CUSTOM_STALE" = "1" ]; then
-                echo "::error::dineshcattlefeed.com is still on the old bundle."
-                echo "::error::FTP credentials point at lightsteelblue (different server IP than dineshcattlefeed.com)."
-                echo "::error::Fix: hPanel → Websites → dineshcattlefeed.com → FTP Accounts, put those FTP_* secrets in GitHub,"
-                echo "::error::OR File Manager → public_html → upload Desktop/cattlefeed-frontend-upload.zip,"
-                echo "::error::OR Domains → point dineshcattlefeed.com at yellow-cobra-125039 (Node SPA already has $BUILT)."
-                exit 1
-              fi
+            if [ "$DOMAIN_OK" = "1" ]; then
+              echo "SUCCESS: custom domain serves $BUILT"
               exit 0
+            fi
+            if [ "$NODE_OK" = "1" ] && [ "${FTP_MODE:-skip}" = "domain" ]; then
+              echo "Node OK; waiting for domain FTP to propagate..."
+              continue
+            fi
+            if [ "$NODE_OK" = "1" ] && [ "$attempt" -ge 5 ]; then
+              break
             fi
           done
 
-          echo "::error::No live host is serving $BUILT yet."
-          echo "::error::Redeploy yellow-cobra in hPanel if backend/public was just pushed, or fix FTP for dineshcattlefeed.com."
+          if [ "$DOMAIN_OK" = "1" ]; then
+            exit 0
+          fi
+
+          if [ "$NODE_OK" = "1" ]; then
+            echo "::error::yellow-cobra has $BUILT but dineshcattlefeed.com does not."
+            echo "::error::ONE-TIME FIX (then every git push auto-updates the domain):"
+            echo "::error::  hPanel → Websites → yellow-cobra → Domains → add/assign dineshcattlefeed.com"
+            echo "::error::OR set GitHub secrets DOMAIN_FTP_SERVER / DOMAIN_FTP_USERNAME / DOMAIN_FTP_PASSWORD"
+            echo "::error::  from hPanel → Websites → dineshcattlefeed.com → FTP Accounts"
+            exit 1
+          fi
+
+          echo "::error::Neither domain nor yellow-cobra is serving $BUILT yet."
+          echo "::error::Check Hostinger Node Git deploy is connected to this repo, then Redeploy."
           exit 1
 
-      - name: Skip FTP (dry run)
+      - name: Dry run summary
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
-        run: echo "Dry run — skipping FTP upload"
+        run: echo "Dry run — built $BUILT_BUNDLE only"
 
       - name: Deployment summary
         if: always()
         run: |
-          echo "## Deployment Summary" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Item | Value |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Branch | \`${{ github.ref_name }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Commit | \`${{ github.sha }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Trigger | \`${{ github.event_name }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Production deploy"
+            echo "| Item | Value |"
+            echo "|------|-------|"
+            echo "| Bundle | \`${BUILT_BUNDLE:-n/a}\` |"
+            echo "| Commit | \`${{ github.sha }}\` |"
+            echo "| Node SPA | \`backend/public\` → yellow-cobra Git |"
+            echo "| Domain | dineshcattlefeed.com (DOMAIN_FTP_* or point DNS/site at yellow-cobra) |"
+          } >> "$GITHUB_STEP_SUMMARY"
