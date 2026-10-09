@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import productService from '../../services/productService';
+import { catalogLabel } from '../../utils/catalogI18n';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const ProductFormModal = ({ isOpen, onClose, onSuccess, product = null }) => {
+  const { t } = useTranslation();
   const isEdit = Boolean(product);
   const [metaLoading, setMetaLoading] = useState(true);
   const [categories, setCategories] = useState([]);
@@ -41,14 +44,14 @@ const ProductFormModal = ({ isOpen, onClose, onSuccess, product = null }) => {
         setCategories(response.data.data.categories);
         setBrands(response.data.data.brands);
       } catch (error) {
-        toast.error(error.response?.data?.message || 'Failed to load categories and brands');
+        toast.error(error.response?.data?.message || t('products.metaLoadFailed'));
       } finally {
         setMetaLoading(false);
       }
     };
 
     fetchMeta();
-  }, [isOpen]);
+  }, [isOpen, t]);
 
   useEffect(() => {
     if (isOpen) {
@@ -86,16 +89,16 @@ const ProductFormModal = ({ isOpen, onClose, onSuccess, product = null }) => {
 
       if (isEdit) {
         await productService.updateProduct(product.id, payload);
-        toast.success('Product updated successfully');
+        toast.success(t('products.updated'));
       } else {
         await productService.createProduct(payload);
-        toast.success('Product created successfully');
+        toast.success(t('products.created'));
       }
 
       onSuccess();
       onClose();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Operation failed');
+      toast.error(error.response?.data?.message || t('products.deleteFailed'));
     }
   };
 
@@ -111,19 +114,23 @@ const ProductFormModal = ({ isOpen, onClose, onSuccess, product = null }) => {
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
-          <label className="mb-1 block text-sm font-medium text-slate-700">Product Name *</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            {t('products.productName')} *
+          </label>
           <input
-            {...register('name', { required: 'Product name is required' })}
+            {...register('name', { required: t('products.productNameRequired') })}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-            placeholder="Enter product name"
+            placeholder={t('products.enterProductName')}
           />
           {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name.message}</p>}
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">SKU *</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            {t('products.sku')} *
+          </label>
           <input
-            {...register('sku', { required: 'SKU is required' })}
+            {...register('sku', { required: t('products.skuRequired') })}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm uppercase outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
             placeholder="CF-001"
           />
@@ -131,107 +138,129 @@ const ProductFormModal = ({ isOpen, onClose, onSuccess, product = null }) => {
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Barcode</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            {t('products.barcode')}
+          </label>
           <input
             {...register('barcode')}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-            placeholder="Optional barcode"
+            placeholder={t('products.optionalBarcode')}
           />
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Category</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            {t('products.colCategory')}
+          </label>
           <select
             {...register('categoryId')}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
           >
-            <option value="">Select category</option>
+            <option value="">{t('products.selectCategory')}</option>
             {categories.map((category) => (
-              <option key={category.id} value={category.id}>{category.name}</option>
+              <option key={category.id} value={category.id}>
+                {catalogLabel(category.name, 'categories')}
+              </option>
             ))}
           </select>
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Brand</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            {t('products.colBrand')}
+          </label>
           <select
             {...register('brandId')}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
           >
-            <option value="">Select brand</option>
+            <option value="">{t('products.selectBrand')}</option>
             {brands.map((brand) => (
-              <option key={brand.id} value={brand.id}>{brand.name}</option>
+              <option key={brand.id} value={brand.id}>
+                {catalogLabel(brand.name, 'brands')}
+              </option>
             ))}
           </select>
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Purchase Price</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            {t('products.purchasePrice')}
+          </label>
           <input
             type="number"
             step="0.01"
             min="0"
-            {...register('purchasePrice', { min: { value: 0, message: 'Must be 0 or greater' } })}
+            {...register('purchasePrice', { min: { value: 0, message: t('products.mustBeZeroOrGreater') } })}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
           />
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Selling Price</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            {t('products.sellingPrice')}
+          </label>
           <input
             type="number"
             step="0.01"
             min="0"
-            {...register('sellingPrice', { min: { value: 0, message: 'Must be 0 or greater' } })}
+            {...register('sellingPrice', { min: { value: 0, message: t('products.mustBeZeroOrGreater') } })}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
           />
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">GST Rate (%)</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            {t('products.gstRate')}
+          </label>
           <input
             type="number"
             step="0.01"
             min="0"
             max="100"
             {...register('gstRate', {
-              min: { value: 0, message: 'Must be 0 or greater' },
-              max: { value: 100, message: 'Must be 100 or less' },
+              min: { value: 0, message: t('products.mustBeZeroOrGreater') },
+              max: { value: 100, message: t('products.mustBeHundredOrLess') },
             })}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
           />
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Status</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            {t('common.status')}
+          </label>
           <select
             {...register('status')}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
           >
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="discontinued">Discontinued</option>
+            <option value="active">{t('common.active')}</option>
+            <option value="inactive">{t('common.inactive')}</option>
+            <option value="discontinued">{t('common.discontinued')}</option>
           </select>
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Current Stock</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            {t('products.currentStock')}
+          </label>
           <input
             type="number"
             step="0.001"
             min="0"
-            {...register('currentStock', { min: { value: 0, message: 'Must be 0 or greater' } })}
+            {...register('currentStock', { min: { value: 0, message: t('products.mustBeZeroOrGreater') } })}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
           />
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Minimum Stock</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            {t('products.minimumStock')}
+          </label>
           <input
             type="number"
             step="0.001"
             min="0"
-            {...register('minStock', { min: { value: 0, message: 'Must be 0 or greater' } })}
+            {...register('minStock', { min: { value: 0, message: t('products.mustBeZeroOrGreater') } })}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
           />
         </div>
@@ -243,14 +272,14 @@ const ProductFormModal = ({ isOpen, onClose, onSuccess, product = null }) => {
           onClick={onClose}
           className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
         >
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           type="submit"
           disabled={isSubmitting}
           className="flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-70"
         >
-          {isSubmitting ? <LoadingSpinner size="sm" /> : isEdit ? 'Update Product' : 'Create Product'}
+          {isSubmitting ? <LoadingSpinner size="sm" /> : isEdit ? t('products.updateProduct') : t('products.createProduct')}
         </button>
       </div>
     </form>

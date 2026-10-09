@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { FiBook, FiSearch } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import ledgerService from '../../services/ledgerService';
 import { formatCurrency } from '../../utils/format';
+import { catalogLabel } from '../../utils/catalogI18n';
 import Pagination from '../../components/common/Pagination';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 const LedgerPage = () => {
-  const [summaries, setSummaries] = useState([]);
+  const { t } = useTranslation();
+    const [summaries, setSummaries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
@@ -39,7 +42,7 @@ const LedgerPage = () => {
       setSummaries(response.data.data);
       setPagination(response.data.pagination);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to load ledger summaries');
+      toast.error(error.response?.data?.message || t('ledger.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -63,8 +66,8 @@ const LedgerPage = () => {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Customer Ledger</h1>
-        <p className="mt-1 text-sm text-slate-500">Customer-wise balances, pending amounts, and ledger entries</p>
+        <h1 className="text-2xl font-bold text-slate-900">{t('ledger.customerLedgerTitle')}</h1>
+        <p className="mt-1 text-sm text-slate-500">{t('ledger.customerLedgerSubtitle')}</p>
       </div>
 
       <div className="mb-4 relative max-w-md">
@@ -73,7 +76,7 @@ const LedgerPage = () => {
           type="text"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
-          placeholder="Search customer name, phone, village..."
+          placeholder={t('ledger.searchPlaceholderExtended')}
           className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-primary-500"
         />
       </div>
@@ -88,10 +91,10 @@ const LedgerPage = () => {
                 <thead className="bg-slate-50">
                   <tr>
                     {[
-                      { key: 'name', label: 'Customer' },
-                      { key: 'village', label: 'Village' },
-                      { key: 'currentBalance', label: 'Balance' },
-                      { key: 'pendingAmount', label: 'Pending' },
+                      { key: 'name', label: t('common.customer') },
+                      { key: 'village', label: t('common.village') },
+                      { key: 'currentBalance', label: t('common.balance') },
+                      { key: 'pendingAmount', label: t('common.pending') },
                     ].map((col) => (
                       <th
                         key={col.key}
@@ -101,13 +104,13 @@ const LedgerPage = () => {
                         {col.label}{sortIndicator(col.key)}
                       </th>
                     ))}
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-slate-500">Actions</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-slate-500">{t('common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {summaries.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-12 text-center text-sm text-slate-500">No customers found</td>
+                      <td colSpan={5} className="px-4 py-12 text-center text-sm text-slate-500">{t('ledger.noCustomers')}</td>
                     </tr>
                   ) : (
                     summaries.map((item) => (
@@ -116,12 +119,12 @@ const LedgerPage = () => {
                           <div className="flex items-center gap-2">
                             <FiBook className="h-4 w-4 text-slate-400" />
                             <div>
-                              <p className="font-medium text-slate-900">{item.customerName}</p>
+                              <p className="font-medium text-slate-900">{catalogLabel(item.customerName, 'customers')}</p>
                               <p className="text-xs text-slate-500">{item.phone}</p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-sm text-slate-700">{item.village || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-slate-700">{item.village ? catalogLabel(item.village, 'villages') : '—'}</td>
                         <td className={`px-4 py-3 text-sm font-medium ${item.currentBalance > 0 ? 'text-amber-700' : 'text-slate-700'}`}>
                           {formatCurrency(item.currentBalance)}
                         </td>
@@ -131,7 +134,7 @@ const LedgerPage = () => {
                             to={`/ledger/${item.customerId}`}
                             className="text-sm font-medium text-primary-700 hover:text-primary-800"
                           >
-                            View Ledger
+                            {t('ledger.viewLedger')}
                           </Link>
                         </td>
                       </tr>

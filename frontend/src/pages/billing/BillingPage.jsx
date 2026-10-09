@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import usePosBilling from '../../hooks/usePosBilling';
 import StockBatchPanel from '../../components/billing/StockBatchPanel';
 import PosSummaryPanel from '../../components/billing/PosSummaryPanel';
@@ -7,6 +8,7 @@ import QuantityPromptModal from '../../components/billing/QuantityPromptModal';
 import CheckoutFormModal from '../../components/billing/CheckoutFormModal';
 
 const BillingPage = () => {
+  const { t } = useTranslation();
   const pos = usePosBilling();
 
   useEffect(() => {
@@ -36,15 +38,15 @@ const BillingPage = () => {
       <div className="mb-4 shrink-0">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-600">Point of Sale</p>
-            <h1 className="text-xl font-bold text-slate-900">Professional Billing</h1>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-600">{t('billing.subtitle')}</p>
+            <h1 className="text-xl font-bold text-slate-900">{t('billing.title')}</h1>
           </div>
           <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-1 py-1 text-[11px] font-medium shadow-sm">
-            <span className="rounded-lg bg-emerald-600 px-3 py-1.5 text-white">1 · Add Products</span>
+            <span className="rounded-lg bg-emerald-600 px-3 py-1.5 text-white">1 · {t('billing.stepAddProducts')}</span>
             <span className="px-2 text-slate-300">→</span>
-            <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-slate-600">2 · Bill Summary</span>
+            <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-slate-600">2 · {t('billing.stepBillSummary')}</span>
             <span className="px-2 text-slate-300">→</span>
-            <span className="rounded-lg px-3 py-1.5 text-slate-400">3 · Payment</span>
+            <span className="rounded-lg px-3 py-1.5 text-slate-400">3 · {t('billing.stepPayment')}</span>
           </div>
         </div>
       </div>

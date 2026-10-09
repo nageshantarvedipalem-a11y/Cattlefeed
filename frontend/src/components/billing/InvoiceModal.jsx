@@ -1,7 +1,10 @@
 import { FiMessageCircle } from 'react-icons/fi';
+import { useTranslation } from 'react-i18next';
 import { formatCurrency } from '../../utils/format';
+import { catalogLabel } from '../../utils/catalogI18n';
 
 const InvoiceModal = ({ sale, whatsappResult, onClose, onDownload, onPrint, onSendWhatsApp, sendingWhatsApp }) => {
+  const { t } = useTranslation();
   if (!sale) return null;
 
   return (
@@ -16,7 +19,7 @@ const InvoiceModal = ({ sale, whatsappResult, onClose, onDownload, onPrint, onSe
           <div className="mb-4 grid gap-2 text-sm sm:grid-cols-2">
             <div><span className="text-slate-500">Invoice:</span> <strong>{sale.invoiceNumber}</strong></div>
             <div><span className="text-slate-500">Date:</span> {new Date(sale.saleDate).toLocaleString()}</div>
-            <div><span className="text-slate-500">Customer:</span> {sale.customerName || 'Walk-in'}</div>
+            <div><span className="text-slate-500">Customer:</span> {sale.customerName ? catalogLabel(sale.customerName, 'customers') : t('common.walkIn')}</div>
             <div><span className="text-slate-500">Payment:</span> <span className="capitalize">{sale.paymentStatus}</span></div>
           </div>
 

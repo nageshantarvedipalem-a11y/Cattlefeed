@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FiDownload, FiEye, FiSearch } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import billingService from '../../services/billingService';
 import whatsappService from '../../services/whatsappService';
 import { formatCurrency, formatPaymentStatus } from '../../utils/format';
+import { catalogLabel } from '../../utils/catalogI18n';
 import { printInvoicePdf, downloadInvoicePdf } from '../../utils/printInvoice';
 import LoadingSpinner from '../common/LoadingSpinner';
 import InvoiceModal from './InvoiceModal';
@@ -53,6 +55,7 @@ const getDateRange = (period, customFrom, customTo) => {
 };
 
 const PreviousBillsPanel = () => {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [sales, setSales] = useState([]);
   const [page, setPage] = useState(1);
@@ -260,7 +263,7 @@ const PreviousBillsPanel = () => {
                     <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_5rem] items-start gap-x-2">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-slate-900">{sale.invoiceNumber}</p>
-                        <p className="truncate text-xs text-slate-600">{sale.customerName || 'Walk-in'}</p>
+                        <p className="truncate text-xs text-slate-600">{sale.customerName ? catalogLabel(sale.customerName, 'customers') : t('common.walkIn')}</p>
                         <p className="text-[10px] text-slate-400">{formatBillDate(sale.saleDate)}</p>
                       </div>
                       <p className="text-right text-sm font-bold tabular-nums text-slate-900">

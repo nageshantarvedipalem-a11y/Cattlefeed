@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   FiDownload,
   FiPrinter,
@@ -11,6 +12,7 @@ import paymentService from '../../services/paymentService';
 import whatsappService from '../../services/whatsappService';
 import { useAuth } from '../../context/AuthContext';
 import { formatCurrency, formatDate, formatPaymentStatus } from '../../utils/format';
+import { catalogLabel } from '../../utils/catalogI18n';
 import { downloadBlob, getExportFilename } from '../../utils/download';
 import billingService from '../../services/billingService';
 import Pagination from '../../components/common/Pagination';
@@ -19,11 +21,6 @@ import PeriodFilter from '../../components/common/PeriodFilter';
 import usePeriodFilter from '../../hooks/usePeriodFilter';
 import ReceivePaymentModal from '../../components/payments/ReceivePaymentModal';
 import CustomerPendingDetailModal from '../../components/payments/CustomerPendingDetailModal';
-
-const tabs = [
-  { id: 'pending', label: 'Pending Payments' },
-  { id: 'history', label: 'Completed Payments' },
-];
 
 const statusBadge = {
   paid: 'bg-emerald-100 text-emerald-700',
@@ -65,7 +62,13 @@ const groupPendingByCustomer = (sales = []) => {
 };
 
 const PendingPaymentsPage = () => {
+  const { t } = useTranslation();
   const { checkPermission } = useAuth();
+  const tabs = useMemo(() => [
+    { id: 'pending', label: t('payments.pendingPayments') },
+    { id: 'history', label: t('payments.completedPayments') },
+  ], [t]);
+
   const canCreate = checkPermission('payments', 'create');
 
   const [activeTab, setActiveTab] = useState('pending');
@@ -109,7 +112,7 @@ const PendingPaymentsPage = () => {
     if (!isReady) {
       setLoading(false);
       if (!isCustomPending && isInvalidRange) {
-        toast.error('From date cannot be after To date');
+        toast.error(t('common.dateFromAfterTo'));
       }
       return;
     }
@@ -147,7 +150,7 @@ const PendingPaymentsPage = () => {
         setPagination(payload.customerPagination || payload.pagination);
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to load pending payments');
+      toast.error(error.response?.data?.message || t('payments.loadPendingFailed'));
     } finally {
       setLoading(false);
     }
@@ -157,7 +160,7 @@ const PendingPaymentsPage = () => {
     if (!isReady) {
       setLoading(false);
       if (!isCustomPending && isInvalidRange) {
-        toast.error('From date cannot be after To date');
+        toast.error(t('common.dateFromAfterTo'));
       }
       return;
     }
@@ -173,7 +176,7 @@ const PendingPaymentsPage = () => {
       setPayments(response.data.data.payments);
       setPagination(response.data.data.pagination);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to load payment history');
+      toast.error(error.response?.data?.message || t('payments.loadHistoryFailed'));
     } finally {
       setLoading(false);
     }
@@ -220,7 +223,7 @@ const PendingPaymentsPage = () => {
 
   const handleExport = async (format) => {
     if (!isReady) {
-      toast.error(isCustomPending ? 'Select from and to dates for custom range' : 'Invalid date range');
+      toast.error(isCustomPending ? t('common.selectCustomDates') : t('common.invalidDateRange'));
       return;
     }
     try {
@@ -231,9 +234,9 @@ const PendingPaymentsPage = () => {
         overdueOnly: overdueOnly || undefined,
       });
       downloadBlob(response.data, getExportFilename(response, `pending-payments.${format === 'pdf' ? 'pdf' : 'xlsx'}`));
-      toast.success(`Exported as ${format.toUpperCase()}`);
+      toast.success(t('common.exportedAs', { format: format.toUpperCase() }));
     } catch {
-      toast.error('Export failed');
+      toast.error(t('common.exportFailed'));
     }
   };
 
@@ -242,16 +245,16 @@ const PendingPaymentsPage = () => {
       const response = await billingService.downloadInvoice(saleId, 'thermal');
       downloadBlob(response.data, getExportFilename(response, `${invoiceNumber}.pdf`));
     } catch {
-      toast.error('Failed to download bill');
+      toast.error(t('payments.downloadBillFailed'));
     }
   };
 
   const handleResendInvoice = async (saleId) => {
     try {
       await whatsappService.sendInvoice(saleId);
-      toast.success('Invoice resent via WhatsApp');
+      toast.success(t('payments.invoiceResent'));
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to resend WhatsApp invoice');
+      toast.error(error.response?.data?.message || t('payments.resendFailed'));
     }
   };
 
@@ -259,9 +262,15 @@ const PendingPaymentsPage = () => {
     try {
       const response = await billingService.getSale(saleId);
       const sale = response.data.data.sale;
-      window.alert(`${sale.invoiceNumber}\nCustomer: ${sale.customerName || 'Walk-in'}\nTotal: ${formatCurrency(sale.totalAmount)}\nPaid: ${formatCurrency(sale.paidAmount)}\nPending: ${formatCurrency(sale.pendingAmount)}`);
+      window.alert(t('payments.billAlert', {
+        invoice: sale.invoiceNumber,
+        customer: sale.customerName ? catalogLabel(sale.customerName, 'customers') : t('common.walkIn'),
+        total: formatCurrency(sale.totalAmount),
+        paid: formatCurrency(sale.paidAmount),
+        pending: formatCurrency(sale.pendingAmount),
+      }));
     } catch {
-      toast.error('Failed to load bill details');
+      toast.error(t('payments.loadBillFailed'));
     }
   };
 
@@ -270,7 +279,7 @@ const PendingPaymentsPage = () => {
       const response = await paymentService.downloadReceipt(paymentId);
       downloadBlob(response.data, getExportFilename(response, `receipt-${paymentId}.pdf`));
     } catch {
-      toast.error('Failed to download receipt');
+      toast.error(t('payments.downloadReceiptFailed'));
     }
   };
 
@@ -281,21 +290,19 @@ const PendingPaymentsPage = () => {
       <div id="payments-print-area">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Pending Payments</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              One row per customer. Repeat purchases are combined into total, paid, and remaining. Click a customer to see every bill.
-            </p>
+            <h1 className="text-2xl font-bold text-slate-900">{t('payments.title')}</h1>
+            <p className="mt-1 text-sm text-slate-500">{t('payments.pageSubtitle')}</p>
           </div>
           {activeTab === 'pending' && (
             <div className="flex flex-wrap gap-2 print:hidden">
               <button type="button" onClick={() => handleExport('excel')} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">
-                <FiDownload className="h-4 w-4" /> Excel
+                <FiDownload className="h-4 w-4" /> {t('common.excel')}
               </button>
               <button type="button" onClick={() => handleExport('pdf')} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">
-                <FiDownload className="h-4 w-4" /> PDF
+                <FiDownload className="h-4 w-4" /> {t('common.pdf')}
               </button>
               <button type="button" onClick={handlePrint} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">
-                <FiPrinter className="h-4 w-4" /> Print
+                <FiPrinter className="h-4 w-4" /> {t('common.print')}
               </button>
             </div>
           )}
@@ -304,10 +311,10 @@ const PendingPaymentsPage = () => {
         {activeTab === 'pending' && summary && (
           <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { label: 'Pending Customers', value: summary.totalCustomers ?? pendingCustomers.length, format: 'number' },
-              { label: 'Pending Invoices', value: summary.totalInvoices, format: 'number' },
-              { label: 'Total Pending', value: summary.totalPending, format: 'currency' },
-              { label: 'Overdue Amount', value: summary.overdueAmount, format: 'currency', color: 'text-red-700' },
+              { label: t('payments.pendingCustomers'), value: summary.totalCustomers ?? pendingCustomers.length, format: 'number' },
+              { label: t('payments.pendingInvoices'), value: summary.totalInvoices, format: 'number' },
+              { label: t('payments.totalPending'), value: summary.totalPending, format: 'currency' },
+              { label: t('payments.overdueAmount'), value: summary.overdueAmount, format: 'currency', color: 'text-red-700' },
             ].map((card) => (
               <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <p className="text-xs text-slate-500">{card.label}</p>
@@ -343,7 +350,7 @@ const PendingPaymentsPage = () => {
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search customer, phone, invoice..."
+              placeholder={t('payments.searchPlaceholderExtended')}
               className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-4 text-sm outline-none focus:border-primary-500"
             />
           </div>
@@ -362,7 +369,7 @@ const PendingPaymentsPage = () => {
                 checked={overdueOnly}
                 onChange={(e) => { setOverdueOnly(e.target.checked); setPage(1); }}
               />
-              Overdue only
+              {t('payments.overdueOnly')}
             </label>
           )}
         </div>
@@ -376,7 +383,17 @@ const PendingPaymentsPage = () => {
                 <table className="min-w-full divide-y divide-slate-200">
                   <thead className="bg-slate-50">
                     <tr>
-                      {['Customer', 'Phone', 'Bills', 'Total', 'Paid', 'Pending', 'Last Bill', 'Status', 'Actions'].map((h) => (
+                      {[
+                        t('common.customer'),
+                        t('common.phone'),
+                        t('payments.bills'),
+                        t('common.total'),
+                        t('common.paid'),
+                        t('common.pending'),
+                        t('common.lastBill'),
+                        t('common.status'),
+                        t('common.actions'),
+                      ].map((h) => (
                         <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">{h}</th>
                       ))}
                     </tr>
@@ -385,12 +402,12 @@ const PendingPaymentsPage = () => {
                     {isCustomPending ? (
                       <tr>
                         <td colSpan={9} className="px-4 py-12 text-center text-sm text-slate-500">
-                          Select from and to dates for custom range
+                          {t('common.selectCustomDates')}
                         </td>
                       </tr>
                     ) : pendingCustomers.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="px-4 py-12 text-center text-sm text-slate-500">No pending customers found</td>
+                        <td colSpan={9} className="px-4 py-12 text-center text-sm text-slate-500">{t('payments.noPendingCustomers')}</td>
                       </tr>
                     ) : (
                       pendingCustomers.map((customer) => (
@@ -400,9 +417,9 @@ const PendingPaymentsPage = () => {
                           onClick={() => handleOpenCustomer(customer)}
                         >
                           <td className="px-4 py-3">
-                            <p className="text-sm font-medium text-slate-900">{customer.customerName}</p>
+                            <p className="text-sm font-medium text-slate-900">{catalogLabel(customer.customerName, 'customers')}</p>
                             {customer.customerVillage ? (
-                              <p className="text-xs text-slate-500">{customer.customerVillage}</p>
+                              <p className="text-xs text-slate-500">{catalogLabel(customer.customerVillage, 'villages')}</p>
                             ) : null}
                           </td>
                           <td className="px-4 py-3 text-sm text-slate-600">{customer.customerPhone || '—'}</td>
@@ -427,7 +444,7 @@ const PendingPaymentsPage = () => {
                                   }}
                                   className="inline-flex items-center gap-1 text-sm font-medium text-primary-700 hover:text-primary-800"
                                 >
-                                  <FiDollarSign className="h-4 w-4" /> Receive Payment
+                                  <FiDollarSign className="h-4 w-4" /> {t('common.receivePayment')}
                                 </button>
                               )}
                               <button
@@ -438,7 +455,7 @@ const PendingPaymentsPage = () => {
                                 }}
                                 className="inline-flex items-center gap-1 text-sm font-medium text-slate-700 hover:text-slate-900"
                               >
-                                Details <FiChevronRight className="h-4 w-4" />
+                                {t('common.details')} <FiChevronRight className="h-4 w-4" />
                               </button>
                             </div>
                           </td>
@@ -458,7 +475,15 @@ const PendingPaymentsPage = () => {
                 <table className="min-w-full divide-y divide-slate-200">
                   <thead className="bg-slate-50">
                     <tr>
-                      {['Date', 'Customer', 'Invoice', 'Amount', 'Method', 'Reference', 'Actions'].map((h) => (
+                      {[
+                        t('common.date'),
+                        t('common.customer'),
+                        t('common.invoice'),
+                        t('common.amount'),
+                        t('common.method'),
+                        t('common.reference'),
+                        t('common.actions'),
+                      ].map((h) => (
                         <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">{h}</th>
                       ))}
                     </tr>
@@ -467,19 +492,19 @@ const PendingPaymentsPage = () => {
                     {isCustomPending ? (
                       <tr>
                         <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">
-                          Select from and to dates for custom range
+                          {t('common.selectCustomDates')}
                         </td>
                       </tr>
                     ) : payments.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">No payment records found</td>
+                        <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">{t('payments.noPaymentRecords')}</td>
                       </tr>
                     ) : (
                       payments.map((payment) => (
                         <tr key={payment.id} className="hover:bg-slate-50">
                           <td className="px-4 py-3 text-sm">{payment.paymentDate}</td>
                           <td className="px-4 py-3">
-                            <p className="text-sm font-medium text-slate-900">{payment.customerName}</p>
+                            <p className="text-sm font-medium text-slate-900">{catalogLabel(payment.customerName, 'customers')}</p>
                             <p className="text-xs text-slate-500">{payment.customerPhone}</p>
                           </td>
                           <td className="px-4 py-3 text-sm">{payment.invoiceNumber || '—'}</td>
@@ -492,7 +517,7 @@ const PendingPaymentsPage = () => {
                               onClick={() => handlePrintReceipt(payment.id)}
                               className="inline-flex items-center gap-1 text-sm font-medium text-primary-700 hover:text-primary-800"
                             >
-                              <FiPrinter className="h-4 w-4" /> Receipt
+                              <FiPrinter className="h-4 w-4" /> {t('common.receipt')}
                             </button>
                           </td>
                         </tr>

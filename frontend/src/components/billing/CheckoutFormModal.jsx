@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import customerService from '../../services/customerService';
 import { formatCurrency } from '../../utils/format';
+import { catalogLabel } from '../../utils/catalogI18n';
 import { sanitizePhoneInput, validateIndianMobile } from '../../utils/phoneValidation';
 import LoadingSpinner from '../common/LoadingSpinner';
 
@@ -192,10 +193,10 @@ const CheckoutFormModal = ({
                             onClick={() => handleSelectCustomer(row)}
                             className="flex w-full flex-col items-start border-b border-slate-100 px-3 py-2.5 text-left hover:bg-emerald-50 last:border-b-0"
                           >
-                            <span className="text-sm font-medium text-slate-900">{row.name}</span>
+                            <span className="text-sm font-medium text-slate-900">{catalogLabel(row.name, 'customers')}</span>
                             <span className="text-xs text-slate-500">
                               {row.phone}
-                              {row.village ? ` · ${row.village}` : ''}
+                              {row.village ? ` · ${catalogLabel(row.village, 'villages')}` : ''}
                               {Number(row.currentBalance) > 0
                                 ? ` · Pending ${formatCurrency(row.currentBalance)}`
                                 : ''}
@@ -215,11 +216,14 @@ const CheckoutFormModal = ({
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-sm font-semibold text-emerald-900">{customer.name}</p>
+                      <p className="text-sm font-semibold text-emerald-900">{catalogLabel(customer.name, 'customers')}</p>
                       <p className="text-xs text-emerald-800">{customer.phone}</p>
                       {(customer.village || customer.address) && (
                         <p className="mt-1 text-xs text-emerald-700">
-                          {[customer.village, customer.address].filter(Boolean).join(', ')}
+                          {[
+                            customer.village ? catalogLabel(customer.village, 'villages') : null,
+                            customer.address,
+                          ].filter(Boolean).join(', ')}
                         </p>
                       )}
                     </div>

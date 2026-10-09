@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import supplierService from '../../services/supplierService';
 import { formatCurrency } from '../../utils/format';
+import { catalogLabel } from '../../utils/catalogI18n';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const METHOD_OPTIONS = [
@@ -68,7 +69,7 @@ const SupplierPayModal = ({ isOpen, onClose, onSuccess, supplier }) => {
         <div className="border-b border-slate-200 px-6 py-4">
           <h2 className="text-lg font-bold text-red-700">Pay Supplier</h2>
           <p className="text-sm text-slate-500">
-            {supplier.name} — pending {formatCurrency(pending)}
+            {catalogLabel(supplier.name, 'suppliers')} — pending {formatCurrency(pending)}
           </p>
         </div>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 p-6">

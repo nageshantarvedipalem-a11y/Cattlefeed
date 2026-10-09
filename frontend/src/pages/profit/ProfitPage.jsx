@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   CartesianGrid,
   Legend,
@@ -14,6 +15,7 @@ import toast from 'react-hot-toast';
 import profitService from '../../services/profitService';
 import { useAuth } from '../../context/AuthContext';
 import { formatCurrency } from '../../utils/format';
+import { catalogLabel } from '../../utils/catalogI18n';
 import { downloadBlob, getExportFilename } from '../../utils/download';
 import Pagination from '../../components/common/Pagination';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -21,16 +23,16 @@ import PeriodFilter from '../../components/common/PeriodFilter';
 import usePeriodFilter from '../../hooks/usePeriodFilter';
 import DashboardChartCard from '../../components/dashboard/DashboardChartCard';
 
-const profitPeriodOptions = [
-  { value: '', label: 'All Time (12 months chart)' },
-  { value: 'daily', label: 'Today (7-day chart)' },
-  { value: 'monthly', label: 'This Month' },
-  { value: 'yearly', label: 'This Year' },
-  { value: 'custom', label: 'Custom Range' },
-];
-
 const ProfitPage = () => {
-  const { checkPermission } = useAuth();
+  const { t } = useTranslation();
+  const profitPeriodOptions = useMemo(() => [
+    { value: '', label: t('profit.periodAllTime') },
+    { value: 'daily', label: t('profit.periodToday') },
+    { value: 'monthly', label: t('profit.periodThisMonth') },
+    { value: 'yearly', label: t('profit.periodThisYear') },
+    { value: 'custom', label: t('common.customRange') },
+  ], [t]);
+    const { checkPermission } = useAuth();
   const canExport = checkPermission('reports', 'export');
 
   const [loading, setLoading] = useState(true);
@@ -72,7 +74,7 @@ const ProfitPage = () => {
     if (!isReady) {
       setLoading(false);
       if (!isCustomPending && isInvalidRange) {
-        toast.error('From date cannot be after To date');
+        toast.error(t('common.dateFromAfterTo'));
       }
       return;
     }
@@ -91,7 +93,7 @@ const ProfitPage = () => {
       setEntries(data.entries);
       setPagination(data.pagination);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to load profit data');
+      toast.error(error.response?.data?.message || t('profit.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -103,7 +105,7 @@ const ProfitPage = () => {
 
   const handleExport = async (format) => {
     if (!isReady) {
-      toast.error(isCustomPending ? 'Select from and to dates for custom range' : 'Invalid date range');
+      toast.error(isCustomPending ? t('common.selectCustomDates') : t('common.invalidDateRange'));
       return;
     }
     try {
@@ -113,9 +115,9 @@ const ProfitPage = () => {
         ...apiParams,
       });
       downloadBlob(response.data, getExportFilename(response, `profit-report.${format === 'pdf' ? 'pdf' : 'xlsx'}`));
-      toast.success(`Profit report exported as ${format.toUpperCase()}`);
+      toast.success(t('common.profitExportedAs', { format: format.toUpperCase() }));
     } catch {
-      toast.error('Export failed');
+      toast.error(t('common.exportFailed'));
     }
   };
 
@@ -132,22 +134,22 @@ const ProfitPage = () => {
       <div id="profit-print-area">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Profit Analysis</h1>
-            <p className="mt-1 text-sm text-slate-500">Automatic profit from sales: selling price minus purchase cost</p>
+            <h1 className="text-2xl font-bold text-slate-900">{t('profit.title')}</h1>
+            <p className="mt-1 text-sm text-slate-500">{t('profit.pageSubtitle')}</p>
           </div>
           <div className="flex flex-wrap gap-2 print:hidden">
             {canExport && (
               <>
                 <button type="button" onClick={() => handleExport('excel')} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">
-                  <FiDownload className="h-4 w-4" /> Excel
+                  <FiDownload className="h-4 w-4" /> {t('common.excel')}
                 </button>
                 <button type="button" onClick={() => handleExport('pdf')} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">
-                  <FiDownload className="h-4 w-4" /> PDF
+                  <FiDownload className="h-4 w-4" /> {t('common.pdf')}
                 </button>
               </>
             )}
             <button type="button" onClick={handlePrint} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">
-              <FiPrinter className="h-4 w-4" /> Print
+              <FiPrinter className="h-4 w-4" /> {t('common.print')}
             </button>
           </div>
         </div>
@@ -155,10 +157,10 @@ const ProfitPage = () => {
         {summary && (
           <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { label: "Today's Profit", value: summary.today.profit, sub: `${summary.today.saleCount} sales` },
-              { label: 'Monthly Profit', value: summary.monthly.profit, sub: `${summary.monthly.saleCount} sales` },
-              { label: 'Yearly Profit', value: summary.yearly.profit, sub: `${summary.yearly.saleCount} sales` },
-              { label: 'Overall Profit', value: summary.overall.profit, sub: `${summary.overall.saleCount} sales`, highlight: true },
+              { label: t('profit.todaysProfit'), value: summary.today.profit, sub: t('profit.sales', { count: summary.today.saleCount }) },
+              { label: t('profit.monthlyProfit'), value: summary.monthly.profit, sub: t('profit.sales', { count: summary.monthly.saleCount }) },
+              { label: t('profit.yearlyProfit'), value: summary.yearly.profit, sub: t('profit.sales', { count: summary.yearly.saleCount }) },
+              { label: t('profit.overallProfit'), value: summary.overall.profit, sub: t('profit.sales', { count: summary.overall.saleCount }), highlight: true },
             ].map((card) => (
               <div key={card.label} className={`rounded-xl border bg-white p-4 shadow-sm ${card.highlight ? 'border-emerald-200 bg-emerald-50/40' : 'border-slate-200'}`}>
                 <div className="flex items-center gap-2">
@@ -177,9 +179,9 @@ const ProfitPage = () => {
         {filteredTotals && (
           <div className="mb-6 grid gap-4 sm:grid-cols-3">
             {[
-              { label: 'Filtered Revenue', value: filteredTotals.revenue, color: 'text-slate-900' },
-              { label: 'Filtered Cost', value: filteredTotals.cost, color: 'text-red-700' },
-              { label: 'Filtered Profit', value: filteredTotals.profit, color: 'text-emerald-700' },
+              { label: t('profit.filteredRevenue'), value: filteredTotals.revenue, color: 'text-slate-900' },
+              { label: t('profit.filteredCost'), value: filteredTotals.cost, color: 'text-red-700' },
+              { label: t('profit.filteredProfit'), value: filteredTotals.profit, color: 'text-emerald-700' },
             ].map((card) => (
               <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <p className="text-xs text-slate-500">{card.label}</p>
@@ -190,7 +192,7 @@ const ProfitPage = () => {
         )}
 
         <div className="mb-6 print:hidden">
-          <DashboardChartCard title="Profit Trend" chartKey="profit" defaultPeriod="monthly">
+          <DashboardChartCard title={t('profit.profitTrend')} chartKey="profit" defaultPeriod="monthly">
             {(chartData) => (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -202,7 +204,7 @@ const ProfitPage = () => {
                   <Line
                     type="monotone"
                     dataKey="profit"
-                    name="Profit"
+                    name={t('profit.chartProfit')}
                     stroke="#16a34a"
                     strokeWidth={2}
                     dot={{ r: 5, fill: '#16a34a', strokeWidth: 2, stroke: '#fff' }}
@@ -211,7 +213,7 @@ const ProfitPage = () => {
                   <Line
                     type="monotone"
                     dataKey="revenue"
-                    name="Revenue"
+                    name={t('profit.chartRevenue')}
                     stroke="#3b82f6"
                     strokeWidth={2}
                     dot={{ r: 5, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }}
@@ -230,7 +232,7 @@ const ProfitPage = () => {
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search invoice, product, customer..."
+              placeholder={t('profit.searchPlaceholder')}
               className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-4 text-sm outline-none focus:border-primary-500"
             />
           </div>
@@ -254,7 +256,16 @@ const ProfitPage = () => {
                 <table className="min-w-full divide-y divide-slate-200">
                   <thead className="bg-slate-50">
                     <tr>
-                      {['Date', 'Invoice', 'Customer', 'Product', 'Qty', 'Cost', 'Revenue', 'Profit'].map((h) => (
+                      {[
+                        t('common.date'),
+                        t('common.invoice'),
+                        t('common.customer'),
+                        t('common.product'),
+                        t('common.quantity'),
+                        t('profit.cost'),
+                        t('profit.revenue'),
+                        t('nav.profit'),
+                      ].map((h) => (
                         <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">{h}</th>
                       ))}
                     </tr>
@@ -263,20 +274,20 @@ const ProfitPage = () => {
                     {isCustomPending ? (
                       <tr>
                         <td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-500">
-                          Select from and to dates for custom range
+                          {t('common.selectCustomDates')}
                         </td>
                       </tr>
                     ) : entries.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-500">No profit entries for this period</td>
+                        <td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-500">{t('profit.noEntries')}</td>
                       </tr>
                     ) : (
                       entries.map((entry) => (
                         <tr key={entry.id} className="hover:bg-slate-50">
                           <td className="px-4 py-3 text-sm">{new Date(entry.saleDate).toLocaleDateString('en-IN')}</td>
                           <td className="px-4 py-3 text-sm font-medium">{entry.invoiceNumber}</td>
-                          <td className="px-4 py-3 text-sm">{entry.customerName}</td>
-                          <td className="px-4 py-3 text-sm">{entry.productName}</td>
+                          <td className="px-4 py-3 text-sm">{catalogLabel(entry.customerName, 'customers')}</td>
+                          <td className="px-4 py-3 text-sm">{catalogLabel(entry.productName, 'names')}</td>
                           <td className="px-4 py-3 text-sm">{entry.quantity}</td>
                           <td className="px-4 py-3 text-sm text-red-700">{formatCurrency(entry.costAmount)}</td>
                           <td className="px-4 py-3 text-sm">{formatCurrency(entry.totalAmount)}</td>

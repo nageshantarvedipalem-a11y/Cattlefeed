@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import ledgerService from '../../services/ledgerService';
 import { useAuth } from '../../context/AuthContext';
 import { formatCurrency } from '../../utils/format';
+import { catalogLabel } from '../../utils/catalogI18n';
 import { downloadBlob, getExportFilename } from '../../utils/download';
 import Pagination from '../../components/common/Pagination';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -111,8 +112,8 @@ const LedgerDetailPage = () => {
         <div className="mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">{summary.customer.name}</h1>
-              <p className="mt-1 text-sm text-slate-500">{summary.customer.phone} · {summary.customer.village || 'No village'}</p>
+              <h1 className="text-2xl font-bold text-slate-900">{catalogLabel(summary.customer.name, 'customers')}</h1>
+              <p className="mt-1 text-sm text-slate-500">{summary.customer.phone} · {summary.customer.village ? catalogLabel(summary.customer.village, 'villages') : 'No village'}</p>
             </div>
             <div className="flex flex-wrap gap-2 print:hidden">
               {canEdit && (

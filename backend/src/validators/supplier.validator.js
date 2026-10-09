@@ -63,6 +63,7 @@ export const paySupplierValidation = [
   body('amount').isFloat({ gt: 0 }).withMessage('Payment amount must be greater than 0'),
   body('paymentMethod').isIn(['cash', 'upi', 'card', 'bank', 'other']).withMessage('Valid payment method is required'),
   body('paymentDate').optional().isISO8601().toDate(),
+  body('purchaseId').optional({ values: 'falsy' }).isInt({ min: 1 }).toInt(),
   body('referenceNumber').optional({ values: 'falsy' }).trim().isLength({ max: 100 }),
   body('remarks').optional({ values: 'falsy' }).trim(),
 ];

@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import stockService from '../../services/stockService';
 import supplierService from '../../services/supplierService';
 import productService from '../../services/productService';
+import { catalogLabel } from '../../utils/catalogI18n';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const emptyItem = {
@@ -151,7 +152,7 @@ const PurchaseFormModal = ({ isOpen, onClose, onSuccess }) => {
           >
             <option value="">Select supplier</option>
             {suppliers.map((supplier) => (
-              <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+              <option key={supplier.id} value={supplier.id}>{catalogLabel(supplier.name, 'suppliers')}</option>
             ))}
           </select>
           {errors.supplierId && <p className="mt-1 text-xs text-red-600">{errors.supplierId.message}</p>}
@@ -226,7 +227,7 @@ const PurchaseFormModal = ({ isOpen, onClose, onSuccess }) => {
                     <option value="">Select product</option>
                     {products.map((product) => (
                       <option key={product.id} value={product.id}>
-                        {product.name} ({product.sku})
+                        {catalogLabel(product.name, 'names')} ({product.sku})
                       </option>
                     ))}
                   </select>

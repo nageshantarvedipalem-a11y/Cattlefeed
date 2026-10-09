@@ -17,7 +17,12 @@
   --color-sidebar-hover: #334155;
   --color-sidebar-active: #0f766e;
 
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Inter', 'Noto Sans Telugu', system-ui, -apple-system, sans-serif;
+}
+
+html[lang='te'] body,
+body.lang-te {
+  font-family: 'Noto Sans Telugu', 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 * {

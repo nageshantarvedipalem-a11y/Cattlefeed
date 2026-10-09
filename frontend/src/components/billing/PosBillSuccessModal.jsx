@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom';
 import { FiCheckCircle, FiMessageCircle, FiPrinter } from 'react-icons/fi';
+import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { formatCurrency, formatPaymentStatus } from '../../utils/format';
+import { catalogLabel } from '../../utils/catalogI18n';
 import { printInvoicePdf, downloadInvoicePdf } from '../../utils/printInvoice';
 
 const PosBillSuccessModal = ({
@@ -11,6 +13,7 @@ const PosBillSuccessModal = ({
   onResendWhatsApp,
   sendingWhatsApp,
 }) => {
+  const { t } = useTranslation();
   if (!sale) return null;
 
   const handleDownload = async () => {
@@ -49,7 +52,7 @@ const PosBillSuccessModal = ({
         </div>
 
         <div className="space-y-2 px-6 py-4 text-sm">
-          <div className="flex justify-between"><span className="text-slate-500">Customer</span><span>{sale.customerName || 'Walk-in'}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Customer</span><span>{sale.customerName ? catalogLabel(sale.customerName, 'customers') : t('common.walkIn')}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">New Purchase</span><span className="font-semibold">{formatCurrency(sale.totalAmount)}</span></div>
           {hasAllocation && Number(sale.previousPendingBalance) > 0 && (
             <div className="flex justify-between"><span className="text-slate-500">Previous Pending</span><span>{formatCurrency(sale.previousPendingBalance)}</span></div>

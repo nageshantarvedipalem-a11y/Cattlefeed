@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import cashBookService from '../../services/cashBookService';
 import { formatCurrency, formatDate } from '../../utils/format';
@@ -14,6 +15,7 @@ const ReportRow = ({ label, value, valueClassName = 'text-slate-900' }) => (
 );
 
 const CashBookDailyReportModal = ({ isOpen, onClose, initialDate }) => {
+  const { t } = useTranslation();
   const [date, setDate] = useState(initialDate || new Date().toISOString().slice(0, 10));
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState(null);
@@ -64,15 +66,15 @@ const CashBookDailyReportModal = ({ isOpen, onClose, initialDate }) => {
       <div className="flex max-h-[min(78vh,560px)] w-full max-w-md flex-col overflow-hidden rounded-xl bg-white shadow-xl">
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
           <div className="min-w-0">
-            <h2 className="text-base font-bold text-slate-900">Daily Cash Book Report</h2>
+            <h2 className="text-base font-bold text-slate-900">{t('cashbook.dailyReportTitle')}</h2>
             <p className="text-xs text-slate-500">{date ? formatDate(date) : ''}</p>
           </div>
           <div className="flex shrink-0 gap-1.5 print:hidden">
             <button type="button" onClick={() => window.print()} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs hover:bg-slate-50">
-              Print
+              {t('common.print')}
             </button>
             <button type="button" onClick={onClose} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs hover:bg-slate-50">
-              Close
+              {t('common.close')}
             </button>
           </div>
         </div>
@@ -90,20 +92,20 @@ const CashBookDailyReportModal = ({ isOpen, onClose, initialDate }) => {
           ) : summary ? (
             <>
               <div className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm">
-                <ReportRow label="Opening Balance" value={formatCurrency(summary.openingBalance)} />
+                <ReportRow label={t('cashbook.openingBalance')} value={formatCurrency(summary.openingBalance)} />
                 <ReportRow
-                  label="Total Jamalu"
+                  label={t('cashbook.totalJamalu')}
                   value={`+${formatCurrency(summary.totalJama)}`}
                   valueClassName="text-emerald-700"
                 />
                 <ReportRow
-                  label="Total Karchulu"
+                  label={t('cashbook.totalKarchulu')}
                   value={`−${formatCurrency(summary.totalKarchulu)}`}
                   valueClassName="text-red-700"
                 />
                 <div className="mt-1.5 border-t border-slate-200 pt-1.5">
                   <ReportRow
-                    label="Closing Balance"
+                    label={t('cashbook.closingBalance')}
                     value={formatCurrency(summary.closingBalance)}
                     valueClassName="font-bold text-amber-700"
                   />
@@ -114,7 +116,7 @@ const CashBookDailyReportModal = ({ isOpen, onClose, initialDate }) => {
               </div>
 
               <div>
-                <h3 className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-emerald-800">Jamalu</h3>
+                <h3 className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-emerald-800">{t('cashbook.jamalu')}</h3>
                 {jamaRows.length ? (
                   jamaRows.map((item) => {
                     const label = item.party || item.category || '—';
@@ -128,19 +130,19 @@ const CashBookDailyReportModal = ({ isOpen, onClose, initialDate }) => {
                     );
                   })
                 ) : (
-                  <p className="py-1 text-sm text-slate-500">No Jamalu on this date</p>
+                  <p className="py-1 text-sm text-slate-500">{t('cashbook.noJamaluDate')}</p>
                 )}
                 <div className="mt-1 border-t border-slate-100 pt-1">
                   <ReportRow
-                    label="Total Jamalu"
-                    value={formatCurrency(summary.totalJama)}
+                    label={t('cashbook.totalJamalu')}
+                    value={formatCurrency(summary.totalJamalu ?? summary.totalJama)}
                     valueClassName="font-semibold text-emerald-800"
                   />
                 </div>
               </div>
 
               <div>
-                <h3 className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-red-800">Karchulu</h3>
+                <h3 className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-red-800">{t('cashbook.karchulu')}</h3>
                 {karchuluRows.length ? (
                   karchuluRows.map((item) => {
                     const label = item.party || item.category || '—';
@@ -154,11 +156,11 @@ const CashBookDailyReportModal = ({ isOpen, onClose, initialDate }) => {
                     );
                   })
                 ) : (
-                  <p className="py-1 text-sm text-slate-500">No Karchulu on this date</p>
+                  <p className="py-1 text-sm text-slate-500">{t('cashbook.noKarchuluDate')}</p>
                 )}
                 <div className="mt-1 border-t border-slate-100 pt-1">
                   <ReportRow
-                    label="Total Karchulu"
+                    label={t('cashbook.totalKarchulu')}
                     value={formatCurrency(summary.totalKarchulu)}
                     valueClassName="font-semibold text-red-800"
                   />
@@ -167,7 +169,7 @@ const CashBookDailyReportModal = ({ isOpen, onClose, initialDate }) => {
 
               {summary.modeBalances && (
                 <div>
-                  <h3 className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-slate-800">Payment modes</h3>
+                  <h3 className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-slate-800">{t('cashbook.paymentModes')}</h3>
                   {['cash', 'upi', 'bank', 'other'].map((mode) => (
                     <ReportRow
                       key={mode}
@@ -179,7 +181,7 @@ const CashBookDailyReportModal = ({ isOpen, onClose, initialDate }) => {
               )}
             </>
           ) : (
-            <p className="text-sm text-slate-500">No report data</p>
+            <p className="text-sm text-slate-500">{t('common.noData')}</p>
           )}
         </div>
       </div>

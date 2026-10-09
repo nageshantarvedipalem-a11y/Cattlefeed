@@ -229,14 +229,24 @@ export class SupplierService {
     try {
       await connection.beginTransaction();
 
+      const purchaseId = data.purchaseId ? Number(data.purchaseId) : null;
+
       const allocation = await allocateAmountToPendingPurchases(connection, {
         supplierId: Number(supplierId),
         amount,
+        purchaseId,
       });
 
+      if (purchaseId && allocation.updatedPurchases.length === 0) {
+        throw new AppError('Selected purchase has no pending balance, or does not belong to this supplier', 400);
+      }
+
       if (allocation.allocated + 0.01 < amount) {
+        const maxPayable = allocation.allocated.toFixed(2);
         throw new AppError(
-          `Payment amount cannot exceed this supplier's pending balance of ${allocation.allocated.toFixed(2)}`,
+          purchaseId
+            ? `Payment amount cannot exceed this purchase pending balance of ${maxPayable}`
+            : `Payment amount cannot exceed this supplier's pending balance of ${maxPayable}`,
           400
         );
       }

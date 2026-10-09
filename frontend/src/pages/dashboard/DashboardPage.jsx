@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import {
   Bar,
@@ -34,6 +35,7 @@ import toast from 'react-hot-toast';
 import dashboardService from '../../services/dashboardService';
 import { useAuth } from '../../context/AuthContext';
 import { formatCurrency } from '../../utils/format';
+import { catalogLabel } from '../../utils/catalogI18n';
 import {
   formatChartCurrency,
   prepareTimeSeries,
@@ -86,7 +88,8 @@ const SectionHeading = ({ title, subtitle }) => (
 );
 
 const DashboardPage = () => {
-  const { user, loading: authLoading, isAuthenticated } = useAuth();
+  const { t } = useTranslation();
+    const { user, loading: authLoading, isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState(null);
@@ -188,7 +191,8 @@ const DashboardPage = () => {
         key: i,
       }));
 
-  const firstName = user?.fullName?.split(' ')[0] || 'there';
+  const firstNameRaw = user?.fullName?.split(' ')[0];
+  const firstName = firstNameRaw ? catalogLabel(firstNameRaw, 'customers') : 'there';
 
   return (
     <div className={`space-y-6 ${loading ? 'pointer-events-none' : ''}`}>
@@ -653,7 +657,7 @@ const DashboardPage = () => {
                     recentSales.map((sale) => (
                       <tr key={sale.id} className="transition hover:bg-emerald-50/40">
                         <td className="px-4 py-2.5 text-sm font-semibold text-slate-800">{sale.invoiceNumber}</td>
-                        <td className="px-4 py-2.5 text-sm text-slate-600">{sale.customerName}</td>
+                        <td className="px-4 py-2.5 text-sm text-slate-600">{sale.customerName ? catalogLabel(sale.customerName, 'customers') : t('common.walkIn')}</td>
                         <td className="px-4 py-2.5 text-sm font-medium text-primary-800">{formatCurrency(sale.totalAmount)}</td>
                         <td className="px-4 py-2.5">
                           <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize ${statusBadge[sale.paymentStatus]}`}>

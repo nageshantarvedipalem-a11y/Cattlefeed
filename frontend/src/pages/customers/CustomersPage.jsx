@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import {
   FiEdit2,
@@ -13,13 +14,15 @@ import toast from 'react-hot-toast';
 import customerService from '../../services/customerService';
 import { useAuth } from '../../context/AuthContext';
 import { formatCurrency } from '../../utils/format';
+import { catalogLabel } from '../../utils/catalogI18n';
 import Modal from '../../components/common/Modal';
 import Pagination from '../../components/common/Pagination';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import CustomerFormModal from '../../components/customers/CustomerFormModal';
 
 const CustomersPage = () => {
-  const { checkPermission } = useAuth();
+  const { t } = useTranslation();
+    const { checkPermission } = useAuth();
   const [customers, setCustomers] = useState([]);
   const [villages, setVillages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -63,7 +66,7 @@ const CustomersPage = () => {
       setCustomers(response.data.data);
       setPagination(response.data.pagination);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to load customers');
+      toast.error(error.response?.data?.message || t('customers.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -97,22 +100,24 @@ const CustomersPage = () => {
   const handleToggleStatus = async (customer) => {
     try {
       await customerService.updateStatus(customer.id, !customer.isActive);
-      toast.success(`Customer ${customer.isActive ? 'disabled' : 'enabled'} successfully`);
+      toast.success(
+        t(customer.isActive ? 'common.entityDisabled' : 'common.entityEnabled', { entity: t('common.customer') })
+      );
       fetchCustomers();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Status update failed');
+      toast.error(error.response?.data?.message || t('common.statusUpdateFailed'));
     }
   };
 
   const handleDelete = async (customer) => {
-    if (!window.confirm(`Delete customer "${customer.name}"?`)) return;
+    if (!window.confirm(t('customers.deleteConfirm', { name: catalogLabel(customer.name, 'customers') }))) return;
     try {
       await customerService.deleteCustomer(customer.id);
-      toast.success('Customer deleted successfully');
+      toast.success(t('customers.deleted'));
       fetchCustomers();
       fetchVillages();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Delete failed');
+      toast.error(error.response?.data?.message || t('common.deleteFailed'));
     }
   };
 
@@ -122,8 +127,8 @@ const CustomersPage = () => {
     <div>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Customers</h1>
-          <p className="mt-1 text-sm text-slate-500">Manage customer accounts, credit limits, and balances</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('customers.title')}</h1>
+          <p className="mt-1 text-sm text-slate-500">{t('customers.managementSubtitle')}</p>
         </div>
         {canCreate && (
           <button
@@ -132,7 +137,7 @@ const CustomersPage = () => {
             className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-700"
           >
             <FiPlus className="h-4 w-4" />
-            Add Customer
+            {t('customers.addCustomer')}
           </button>
         )}
       </div>
@@ -144,7 +149,7 @@ const CustomersPage = () => {
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search name, phone, village, address..."
+            placeholder={t('customers.searchPlaceholderExtended')}
             className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
           />
         </div>
@@ -154,9 +159,9 @@ const CustomersPage = () => {
           onChange={(e) => { setVillageFilter(e.target.value); setPage(1); }}
           className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-primary-500"
         >
-          <option value="">All Villages</option>
+          <option value="">{t('common.allVillages')}</option>
           {villages.map((v) => (
-            <option key={v} value={v}>{v}</option>
+            <option key={v} value={v}>{catalogLabel(v, 'villages')}</option>
           ))}
         </select>
 
@@ -165,9 +170,9 @@ const CustomersPage = () => {
           onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
           className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-primary-500"
         >
-          <option value="">All Status</option>
-          <option value="true">Active</option>
-          <option value="false">Inactive</option>
+          <option value="">{t('common.allStatus')}</option>
+          <option value="true">{t('common.active')}</option>
+          <option value="false">{t('common.inactive')}</option>
         </select>
       </div>
 
@@ -181,12 +186,12 @@ const CustomersPage = () => {
                 <thead className="bg-slate-50">
                   <tr>
                     {[
-                      { key: 'name', label: 'Name' },
-                      { key: 'phone', label: 'Phone' },
-                      { key: 'village', label: 'Village' },
-                      { key: 'currentBalance', label: 'Balance' },
-                      { key: 'creditLimit', label: 'Credit Limit' },
-                      { key: 'isActive', label: 'Status' },
+                      { key: 'name', label: t('common.name') },
+                      { key: 'phone', label: t('common.phone') },
+                      { key: 'village', label: t('common.village') },
+                      { key: 'currentBalance', label: t('common.balance') },
+                      { key: 'creditLimit', label: t('common.creditLimit') },
+                      { key: 'isActive', label: t('common.status') },
                     ].map((col) => (
                       <th
                         key={col.key}
@@ -196,32 +201,32 @@ const CustomersPage = () => {
                         {col.label}{sortIndicator(col.key)}
                       </th>
                     ))}
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">{t('common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {customers.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">No customers found</td>
+                      <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">{t('customers.noCustomers')}</td>
                     </tr>
                   ) : (
                     customers.map((customer) => (
                       <tr key={customer.id} className="hover:bg-slate-50">
                         <td className="px-4 py-3">
-                          <p className="font-medium text-slate-900">{customer.name}</p>
+                          <p className="font-medium text-slate-900">{catalogLabel(customer.name, 'customers')}</p>
                           {customer.pendingAmount > 0 && (
-                            <p className="text-xs text-amber-600">Pending: {formatCurrency(customer.pendingAmount)}</p>
+                            <p className="text-xs text-amber-600">{t('common.pending')}: {formatCurrency(customer.pendingAmount)}</p>
                           )}
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-700">{customer.phone}</td>
-                        <td className="px-4 py-3 text-sm text-slate-700">{customer.village || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-slate-700">{customer.village ? catalogLabel(customer.village, 'villages') : '—'}</td>
                         <td className="px-4 py-3 text-sm font-medium text-slate-900">{formatCurrency(customer.currentBalance)}</td>
                         <td className="px-4 py-3 text-sm text-slate-700">{formatCurrency(customer.creditLimit)}</td>
                         <td className="px-4 py-3">
                           <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
                             customer.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
                           }`}>
-                            {customer.isActive ? 'Active' : 'Inactive'}
+                            {customer.isActive ? t('common.active') : t('common.inactive')}
                           </span>
                         </td>
                         <td className="px-4 py-3">
@@ -229,7 +234,7 @@ const CustomersPage = () => {
                             <Link
                               to={`/customers/${customer.id}`}
                               className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-primary-700"
-                              title="View details"
+                              title={t('common.viewDetails')}
                             >
                               <FiEye className="h-4 w-4" />
                             </Link>
@@ -239,7 +244,7 @@ const CustomersPage = () => {
                                   type="button"
                                   onClick={() => { setEditingCustomer(customer); setModalOpen(true); }}
                                   className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-primary-700"
-                                  title="Edit"
+                                  title={t('common.edit')}
                                 >
                                   <FiEdit2 className="h-4 w-4" />
                                 </button>
@@ -247,7 +252,7 @@ const CustomersPage = () => {
                                   type="button"
                                   onClick={() => handleToggleStatus(customer)}
                                   className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-amber-600"
-                                  title={customer.isActive ? 'Disable' : 'Enable'}
+                                  title={customer.isActive ? t('common.disable') : t('common.enable')}
                                 >
                                   {customer.isActive ? <FiUserX className="h-4 w-4" /> : <FiUserCheck className="h-4 w-4" />}
                                 </button>
@@ -258,7 +263,7 @@ const CustomersPage = () => {
                                 type="button"
                                 onClick={() => handleDelete(customer)}
                                 className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-600"
-                                title="Delete"
+                                title={t('common.delete')}
                               >
                                 <FiTrash2 className="h-4 w-4" />
                               </button>
@@ -285,7 +290,7 @@ const CustomersPage = () => {
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingCustomer ? 'Edit Customer' : 'Add Customer'}
+        title={editingCustomer ? t('customers.editCustomer') : t('customers.addCustomer')}
         size="lg"
       >
         <CustomerFormModal

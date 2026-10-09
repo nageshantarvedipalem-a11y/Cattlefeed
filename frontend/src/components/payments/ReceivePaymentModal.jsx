@@ -1,13 +1,16 @@
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import paymentService from '../../services/paymentService';
 import { formatCurrency } from '../../utils/format';
+import { catalogLabel } from '../../utils/catalogI18n';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const METHOD_OPTIONS = ['cash', 'upi'];
 
 const ReceivePaymentModal = ({ isOpen, onClose, onSuccess, sale, customer }) => {
+  const { t } = useTranslation();
   const {
     register,
     handleSubmit,
@@ -107,8 +110,8 @@ const ReceivePaymentModal = ({ isOpen, onClose, onSuccess, sale, customer }) => 
           <h2 className="text-lg font-bold text-slate-900">Receive Payment</h2>
           <p className="text-sm text-slate-500">
             {isCustomerPayment
-              ? `${customer.customerName} — ${customer.invoiceCount} pending bill${customer.invoiceCount === 1 ? '' : 's'}`
-              : `${sale.invoiceNumber} — ${sale.customerName}`}
+              ? `${catalogLabel(customer.customerName, 'customers')} — ${customer.invoiceCount} pending bill${customer.invoiceCount === 1 ? '' : 's'}`
+              : `${sale.invoiceNumber} — ${sale.customerName ? catalogLabel(sale.customerName, 'customers') : t('common.walkIn')}`}
           </p>
         </div>
 

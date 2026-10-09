@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import supplierService from '../../services/supplierService';
 import { useAuth } from '../../context/AuthContext';
 import { formatCurrency } from '../../utils/format';
+import { catalogLabel } from '../../utils/catalogI18n';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import SupplierPayModal from '../../components/suppliers/SupplierPayModal';
 
@@ -60,7 +61,7 @@ const SupplierDetailPage = () => {
       <div className="mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">{supplier.name}</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{catalogLabel(supplier.name, 'suppliers')}</h1>
             <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-600">
               {supplier.phone && (
                 <span className="inline-flex items-center gap-1"><FiPhone className="h-4 w-4" />{supplier.phone}</span>

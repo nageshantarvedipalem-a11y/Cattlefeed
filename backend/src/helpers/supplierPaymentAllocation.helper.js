@@ -12,6 +12,7 @@ const resolvePaymentStatus = (paidAmount, totalAmount) => {
 export const allocateAmountToPendingPurchases = async (connection, {
   supplierId,
   amount,
+  purchaseId = null,
 }) => {
   const paymentAmount = Number(amount);
   const empty = { allocated: 0, remaining: paymentAmount, updatedPurchases: [] };
@@ -20,7 +21,14 @@ export const allocateAmountToPendingPurchases = async (connection, {
     return empty;
   }
 
-  const pendingRows = await findSupplierPendingPurchasesForUpdate(connection, supplierId);
+  let pendingRows = await findSupplierPendingPurchasesForUpdate(connection, supplierId);
+
+  // When paying a specific stock-in invoice, apply only to that purchase.
+  if (purchaseId) {
+    const targetId = Number(purchaseId);
+    pendingRows = pendingRows.filter((row) => Number(row.id) === targetId);
+  }
+
   let remaining = paymentAmount;
   const updatedPurchases = [];
 

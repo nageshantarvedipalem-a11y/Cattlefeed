@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FiMessageCircle, FiRefreshCw, FiSave, FiWifi } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import whatsappService from '../../services/whatsappService';
 import { useAuth } from '../../context/AuthContext';
 import Pagination from '../../components/common/Pagination';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { catalogLabel } from '../../utils/catalogI18n';
 
 const statusBadge = {
   sent: 'bg-emerald-100 text-emerald-700',
@@ -20,15 +22,15 @@ const formatLogPhone = (phone) => {
   return phone;
 };
 
-const typeLabels = {
-  invoice: 'Invoice',
-  reminder: 'Reminder',
-  test: 'Test',
-  text: 'Text',
-};
-
 const WhatsAppPage = () => {
-  const { checkPermission } = useAuth();
+  const { t } = useTranslation();
+  const typeLabels = {
+    invoice: t('whatsapp.typeInvoice'),
+    reminder: t('whatsapp.typeReminder'),
+    test: t('whatsapp.typeTest'),
+    text: t('whatsapp.typeText'),
+  };
+    const { checkPermission } = useAuth();
   const canEdit = checkPermission('settings', 'edit');
 
   const [loading, setLoading] = useState(true);
@@ -64,9 +66,9 @@ const WhatsAppPage = () => {
         aisensyReminderCampaign: data.aisensyReminderCampaign || '',
       }));
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to load WhatsApp settings');
+      toast.error(error.response?.data?.message || t('whatsapp.loadFailed'));
     }
-  }, []);
+  }, [t]);
 
   const fetchMessages = useCallback(async () => {
     try {
@@ -74,7 +76,7 @@ const WhatsAppPage = () => {
       setMessages(response.data.data);
       setPagination(response.data.pagination);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to load message log');
+      toast.error(error.response?.data?.message || t('whatsapp.loadLogFailed'));
     }
   }, [page]);
 
@@ -108,9 +110,9 @@ const WhatsAppPage = () => {
       const response = await whatsappService.updateSettings(payload);
       setConfig(response.data.data);
       setForm((prev) => ({ ...prev, apiToken: '', aisensyApiKey: '' }));
-      toast.success('WhatsApp settings saved');
+      toast.success(t('whatsapp.settingsSaved'));
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to save settings');
+      toast.error(error.response?.data?.message || t('whatsapp.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -131,12 +133,12 @@ const WhatsAppPage = () => {
         toast.success(
           data.verifiedName
             ? `Connected: ${data.verifiedName} (${data.displayPhoneNumber || 'verified'})`
-            : 'WhatsApp API connection successful'
+            : t('whatsapp.connectionOk')
         );
       }
       fetchMessages();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Connection test failed');
+      toast.error(error.response?.data?.message || t('whatsapp.connectionTestFailed'));
     } finally {
       setTesting(false);
     }
@@ -149,19 +151,19 @@ const WhatsAppPage = () => {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">WhatsApp Integration</h1>
+        <h1 className="text-2xl font-bold text-slate-900">{t('whatsapp.integrationTitle')}</h1>
         <p className="mt-1 text-slate-600">
-          Send invoice PDFs and payment reminders via Meta Cloud API or AiSensy.
+          {t('whatsapp.integrationSubtitle')}
         </p>
       </div>
 
       {config?.stats && (
         <div className="mb-6 grid gap-4 sm:grid-cols-4">
           {[
-            { label: 'Total Messages', value: config.stats.total },
-            { label: 'Sent', value: config.stats.sent },
-            { label: 'Failed', value: config.stats.failed },
-            { label: 'Today', value: config.stats.today },
+            { label: t('whatsapp.totalMessages'), value: config.stats.total },
+            { label: t('common.sent'), value: config.stats.sent },
+            { label: t('common.failed'), value: config.stats.failed },
+            { label: t('common.today'), value: config.stats.today },
           ].map((card) => (
             <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <p className="text-xs text-slate-500">{card.label}</p>
@@ -174,7 +176,7 @@ const WhatsAppPage = () => {
       <div className="mb-6 grid gap-6 lg:grid-cols-2">
         <form onSubmit={handleSave} className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <FiMessageCircle className="h-4 w-4" /> API Configuration
+            <FiMessageCircle className="h-4 w-4" /> {t('whatsapp.apiConfiguration')}
           </h2>
 
           <div className="space-y-4">
@@ -186,7 +188,7 @@ const WhatsAppPage = () => {
                 disabled={!canEdit}
                 className="h-4 w-4 rounded border-slate-300 text-primary-600"
               />
-              <span className="text-sm text-slate-700">Enable WhatsApp integration</span>
+              <span className="text-sm text-slate-700">{t('whatsapp.enableIntegration')}</span>
             </label>
 
             <label className="flex items-center gap-3">
@@ -197,19 +199,19 @@ const WhatsAppPage = () => {
                 disabled={!canEdit}
                 className="h-4 w-4 rounded border-slate-300 text-primary-600"
               />
-              <span className="text-sm text-slate-700">Auto-send invoice PDF after billing</span>
+              <span className="text-sm text-slate-700">{t('whatsapp.autoSendInvoice')}</span>
             </label>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Provider</label>
+              <label className="mb-1 block text-xs font-medium text-slate-600">{t('whatsapp.provider')}</label>
               <select
                 value={form.provider}
                 onChange={(e) => setForm({ ...form, provider: e.target.value })}
                 disabled={!canEdit}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500 disabled:bg-slate-50"
               >
-                <option value="aisensy">AiSensy (recommended)</option>
-                <option value="meta">Meta WhatsApp Cloud API</option>
+                <option value="aisensy">{t('whatsapp.providerAisensy')}</option>
+                <option value="meta">{t('whatsapp.providerMeta')}</option>
               </select>
             </div>
 
@@ -297,10 +299,10 @@ const WhatsAppPage = () => {
 
             <div className={`rounded-lg p-3 text-xs ${config?.configured ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
               {config?.configured
-                ? `${isAiSensy ? 'AiSensy' : 'Meta Cloud API'} is configured. Invoices can be sent automatically and manually.`
+                ? t('whatsapp.configuredOk', { provider: isAiSensy ? 'AiSensy' : 'Meta Cloud API' })
                 : isAiSensy
-                  ? 'Configure AiSensy API key, Live invoice campaign name, and backend APP_PUBLIC_URL.'
-                  : 'Configure API token and Phone Number ID from Meta WhatsApp Business Platform. Without API, payment reminders fall back to wa.me links.'}
+                  ? t('whatsapp.configureAiSensy')
+                  : t('whatsapp.configureMeta')}
             </div>
           </div>
 
@@ -311,7 +313,7 @@ const WhatsAppPage = () => {
                 disabled={saving}
                 className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
               >
-                <FiSave className="h-4 w-4" /> {saving ? 'Saving...' : 'Save Settings'}
+                <FiSave className="h-4 w-4" /> {saving ? t('common.saving') : t('common.saveSettings')}
               </button>
               <button
                 type="button"
@@ -319,65 +321,59 @@ const WhatsAppPage = () => {
                 disabled={testing}
                 className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
               >
-                <FiWifi className="h-4 w-4" /> {testing ? 'Testing...' : 'Test Connection'}
+                <FiWifi className="h-4 w-4" /> {testing ? t('common.testing') : t('common.testConnection')}
               </button>
             </div>
           )}
         </form>
 
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-sm font-semibold text-slate-700">How it works (AiSensy)</h2>
+          <h2 className="mb-4 text-sm font-semibold text-slate-700">{t('whatsapp.howItWorksTitle')}</h2>
           <ul className="space-y-3 text-sm text-slate-600">
-            <li>Complete <strong>Business Verification (KYC)</strong> in AiSensy — required before messages send.</li>
-            <li>Create an <strong>approved WhatsApp template</strong> with a document/PDF attachment.</li>
-            <li>
-              Template body must use exactly 5 variables:{' '}
-              <strong>{'{{1}}'}</strong> name, <strong>{'{{2}}'}</strong> invoice no,{' '}
-              <strong>{'{{3}}'}</strong> total, <strong>{'{{4}}'}</strong> paid,{' '}
-              <strong>{'{{5}}'}</strong> balance (amounts without ₹ — template adds it).
-            </li>
-            <li>Create a <strong>Live API Campaign</strong> linked to that template and paste its exact name above.</li>
-            <li>Paste your <strong>Project API Key</strong> from AiSensy Developer Hub (shown only once when generated).</li>
-            <li>After each bill, the invoice PDF link is sent to the customer via your AiSensy campaign.</li>
-            <li>
-              <strong>Sent</strong> in this log means AiSensy accepted the message. If the customer does not receive it,
-              open AiSensy → Campaigns and confirm KYC is approved, campaign is <strong>LIVE</strong>, and delivery is not 0%.
-            </li>
-            <li>The customer number must be their personal WhatsApp mobile (10 digits). Messages are sent from your AiSensy business account.</li>
-            <li>Use <strong>Send WhatsApp</strong> on the invoice screen to resend manually.</li>
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+              <li key={n}>{t(`whatsapp.how${n}`)}</li>
+            ))}
           </ul>
         </div>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <h2 className="text-sm font-semibold text-slate-700">Message Log</h2>
+          <h2 className="text-sm font-semibold text-slate-700">{t('whatsapp.messageLog')}</h2>
           <button
             type="button"
             onClick={fetchMessages}
             className="inline-flex items-center gap-1 text-xs font-medium text-primary-700 hover:underline"
           >
-            <FiRefreshCw className="h-3.5 w-3.5" /> Refresh
+            <FiRefreshCw className="h-3.5 w-3.5" /> {t('whatsapp.refresh')}
           </button>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50">
               <tr>
-                {['Date', 'Type', 'Customer', 'Invoice', 'Phone', 'Status', 'Sent By'].map((h) => (
+                {[
+                  t('common.date'),
+                  t('common.type'),
+                  t('common.customer'),
+                  t('common.invoice'),
+                  t('common.phone'),
+                  t('common.status'),
+                  t('common.sentBy'),
+                ].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {messages.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">No messages yet</td></tr>
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">{t('whatsapp.noMessages')}</td></tr>
               ) : (
                 messages.map((msg) => (
                   <tr key={msg.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3">{new Date(msg.createdAt).toLocaleString('en-IN')}</td>
                     <td className="px-4 py-3">{typeLabels[msg.messageType] || msg.messageType}</td>
-                    <td className="px-4 py-3">{msg.customerName || '—'}</td>
+                    <td className="px-4 py-3">{msg.customerName ? catalogLabel(msg.customerName, 'customers') : '—'}</td>
                     <td className="px-4 py-3">{msg.invoiceNumber || '—'}</td>
                     <td className="px-4 py-3">{formatLogPhone(msg.phone)}</td>
                     <td className="px-4 py-3">
@@ -395,7 +391,7 @@ const WhatsAppPage = () => {
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-3">{msg.sentByName || 'System'}</td>
+                    <td className="px-4 py-3">{msg.sentByName || t('common.system')}</td>
                   </tr>
                 ))
               )}

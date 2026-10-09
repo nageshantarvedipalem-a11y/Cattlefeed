@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import {
   FiEdit2,
@@ -14,13 +15,15 @@ import toast from 'react-hot-toast';
 import supplierService from '../../services/supplierService';
 import { useAuth } from '../../context/AuthContext';
 import { formatCurrency } from '../../utils/format';
+import { catalogLabel } from '../../utils/catalogI18n';
 import Modal from '../../components/common/Modal';
 import Pagination from '../../components/common/Pagination';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import SupplierFormModal from '../../components/suppliers/SupplierFormModal';
 
 const SuppliersPage = () => {
-  const { checkPermission } = useAuth();
+  const { t } = useTranslation();
+    const { checkPermission } = useAuth();
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -52,7 +55,7 @@ const SuppliersPage = () => {
       setSuppliers(response.data.data);
       setPagination(response.data.pagination);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to load suppliers');
+      toast.error(error.response?.data?.message || t('suppliers.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -82,24 +85,26 @@ const SuppliersPage = () => {
   const handleToggleStatus = async (supplier) => {
     try {
       await supplierService.updateStatus(supplier.id, !supplier.isActive);
-      toast.success(`Supplier ${supplier.isActive ? 'disabled' : 'enabled'} successfully`);
+      toast.success(
+        t(supplier.isActive ? 'common.entityDisabled' : 'common.entityEnabled', { entity: t('common.supplier') })
+      );
       fetchSuppliers();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Status update failed');
+      toast.error(error.response?.data?.message || t('common.statusUpdateFailed'));
     }
   };
 
   const handleDelete = async (supplier) => {
     const purchaseNote = supplier.totalPurchases > 0
-      ? `\n\nThis supplier has ${supplier.totalPurchases} purchase record(s). Purchase/stock data will be kept; only the supplier profile will be removed.`
+      ? `\n\n${t('suppliers.deleteConfirmPurchaseNote', { count: supplier.totalPurchases })}`
       : '';
-    if (!window.confirm(`Delete supplier "${supplier.name}"?${purchaseNote}`)) return;
+    if (!window.confirm(`${t('suppliers.deleteConfirm', { name: catalogLabel(supplier.name, 'suppliers') })}${purchaseNote}`)) return;
     try {
       await supplierService.deleteSupplier(supplier.id);
-      toast.success('Supplier deleted successfully');
+      toast.success(t('suppliers.deleted'));
       fetchSuppliers();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Delete failed');
+      toast.error(error.response?.data?.message || t('common.deleteFailed'));
     }
   };
 
@@ -109,8 +114,8 @@ const SuppliersPage = () => {
     <div>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Suppliers</h1>
-          <p className="mt-1 text-sm text-slate-500">Manage suppliers for stock-in and purchases</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('suppliers.title')}</h1>
+          <p className="mt-1 text-sm text-slate-500">{t('suppliers.managementSubtitle')}</p>
         </div>
         {canCreate && (
           <button
@@ -119,7 +124,7 @@ const SuppliersPage = () => {
             className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-700"
           >
             <FiPlus className="h-4 w-4" />
-            Add Supplier
+            {t('suppliers.addSupplier')}
           </button>
         )}
       </div>
@@ -131,7 +136,7 @@ const SuppliersPage = () => {
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search name, phone, GST, address..."
+            placeholder={t('suppliers.searchPlaceholder')}
             className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
           />
         </div>
@@ -141,9 +146,9 @@ const SuppliersPage = () => {
           onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
           className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-primary-500"
         >
-          <option value="">All Status</option>
-          <option value="true">Active</option>
-          <option value="false">Inactive</option>
+          <option value="">{t('common.allStatus')}</option>
+          <option value="true">{t('common.active')}</option>
+          <option value="false">{t('common.inactive')}</option>
         </select>
       </div>
 
@@ -157,12 +162,12 @@ const SuppliersPage = () => {
                 <thead className="bg-slate-50">
                   <tr>
                     {[
-                      { key: 'name', label: 'Name' },
-                      { key: 'phone', label: 'Phone' },
-                      { key: 'gstNumber', label: 'GST' },
-                      { key: 'totalPurchases', label: 'Purchases' },
-                      { key: 'openingBalance', label: 'Opening Bal.' },
-                      { key: 'isActive', label: 'Status' },
+                      { key: 'name', label: t('common.name') },
+                      { key: 'phone', label: t('common.phone') },
+                      { key: 'gstNumber', label: t('common.gst') },
+                      { key: 'totalPurchases', label: t('common.purchases') },
+                      { key: 'openingBalance', label: t('common.openingBal') },
+                      { key: 'isActive', label: t('common.status') },
                     ].map((col) => (
                       <th
                         key={col.key}
@@ -172,13 +177,13 @@ const SuppliersPage = () => {
                         {col.label}{sortIndicator(col.key)}
                       </th>
                     ))}
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">{t('common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {suppliers.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">No suppliers found</td>
+                      <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">{t('suppliers.noSuppliers')}</td>
                     </tr>
                   ) : (
                     suppliers.map((supplier) => (
@@ -187,9 +192,9 @@ const SuppliersPage = () => {
                           <div className="flex items-center gap-2">
                             <FiTruck className="h-4 w-4 text-slate-400" />
                             <div>
-                              <p className="font-medium text-slate-900">{supplier.name}</p>
+                              <p className="font-medium text-slate-900">{catalogLabel(supplier.name, 'suppliers')}</p>
                               {supplier.pendingAmount > 0 && (
-                                <p className="text-xs text-amber-600">Pending: {formatCurrency(supplier.pendingAmount)}</p>
+                                <p className="text-xs text-amber-600">{t('common.pending')}: {formatCurrency(supplier.pendingAmount)}</p>
                               )}
                             </div>
                           </div>
@@ -207,7 +212,7 @@ const SuppliersPage = () => {
                           <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
                             supplier.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
                           }`}>
-                            {supplier.isActive ? 'Active' : 'Inactive'}
+                            {supplier.isActive ? t('common.active') : t('common.inactive')}
                           </span>
                         </td>
                         <td className="px-4 py-3">
@@ -215,7 +220,7 @@ const SuppliersPage = () => {
                             <Link
                               to={`/suppliers/${supplier.id}`}
                               className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-primary-700"
-                              title="View details"
+                              title={t('common.viewDetails')}
                             >
                               <FiEye className="h-4 w-4" />
                             </Link>
@@ -225,7 +230,7 @@ const SuppliersPage = () => {
                                   type="button"
                                   onClick={() => { setEditingSupplier(supplier); setModalOpen(true); }}
                                   className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-primary-700"
-                                  title="Edit"
+                                  title={t('common.edit')}
                                 >
                                   <FiEdit2 className="h-4 w-4" />
                                 </button>
@@ -233,7 +238,7 @@ const SuppliersPage = () => {
                                   type="button"
                                   onClick={() => handleToggleStatus(supplier)}
                                   className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-amber-600"
-                                  title={supplier.isActive ? 'Disable' : 'Enable'}
+                                  title={supplier.isActive ? t('common.disable') : t('common.enable')}
                                 >
                                   {supplier.isActive ? <FiUserX className="h-4 w-4" /> : <FiUserCheck className="h-4 w-4" />}
                                 </button>
@@ -244,7 +249,7 @@ const SuppliersPage = () => {
                                 type="button"
                                 onClick={() => handleDelete(supplier)}
                                 className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-600"
-                                title="Delete"
+                                title={t('common.delete')}
                               >
                                 <FiTrash2 className="h-4 w-4" />
                               </button>
@@ -271,7 +276,7 @@ const SuppliersPage = () => {
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingSupplier ? 'Edit Supplier' : 'Add Supplier'}
+        title={editingSupplier ? t('suppliers.editSupplier') : t('suppliers.addSupplier')}
         size="lg"
       >
         <SupplierFormModal

@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import {
   FiArrowRight,
@@ -13,16 +14,17 @@ import { useAuth } from '../../context/AuthContext';
 import { loginRules } from '../../validations/authValidation';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import PasswordInput from '../../components/common/PasswordInput';
-
-const features = [
-  { icon: FiShoppingCart, label: 'Sales & Billing', desc: 'Fast invoicing for feed orders' },
-  { icon: FiLayers, label: 'Stock Control', desc: 'Track bags, pellets & inventory' },
-  { icon: FiPackage, label: 'Purchase Management', desc: 'Supplier & purchase records' },
-  { icon: FiTrendingUp, label: 'Profit & Reports', desc: 'Real-time business insights' },
-];
+import LanguageSwitcher from '../../components/common/LanguageSwitcher';
 
 const LoginPage = () => {
+  const { t } = useTranslation();
   const { login } = useAuth();
+  const features = [
+    { icon: FiShoppingCart, label: t('auth.featureBilling'), desc: t('auth.featureBillingDesc') },
+    { icon: FiLayers, label: t('auth.featureStock'), desc: t('auth.featureStockDesc') },
+    { icon: FiPackage, label: t('auth.featurePurchase'), desc: t('auth.featurePurchaseDesc') },
+    { icon: FiTrendingUp, label: t('auth.featureProfit'), desc: t('auth.featureProfitDesc') },
+  ];
   const navigate = useNavigate();
   const {
     register,
@@ -49,14 +51,10 @@ const LoginPage = () => {
         <div className="relative z-10 flex w-full max-w-xl flex-col items-center px-8 py-12 text-center xl:max-w-2xl xl:px-12">
           <div className="w-full">
             <h1 className="mx-auto max-w-lg text-4xl font-bold leading-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.45)] xl:text-5xl">
-              Smart management for your
-              <span className="mt-1 block bg-gradient-to-r from-amber-200 to-lime-200 bg-clip-text text-transparent drop-shadow-none">
-                cattle feed business
-              </span>
+              {t('auth.heroTitle')}
             </h1>
             <p className="mx-auto mt-5 max-w-md text-base leading-relaxed text-white/95 drop-shadow-[0_1px_4px_rgba(0,0,0,0.5)]">
-              Billing, inventory, ledger, payments and profit — everything you need to run
-              your feed shop from one powerful dashboard.
+              {t('auth.heroSubtitle')}
             </p>
           </div>
 
@@ -76,7 +74,7 @@ const LoginPage = () => {
           </div>
 
           <p className="mt-8 text-xs text-white/80 drop-shadow-[0_1px_3px_rgba(0,0,0,0.4)]">
-            Trusted by feed dealers, distributors & farm suppliers
+            {t('auth.trustedBy')}
           </p>
         </div>
       </div>
@@ -86,27 +84,30 @@ const LoginPage = () => {
         <div className="login-form-pattern absolute inset-0 opacity-60" aria-hidden="true" />
 
         <div className="relative z-10 w-full max-w-md">
+          <div className="mb-4 flex justify-end">
+            <LanguageSwitcher />
+          </div>
           {/* Mobile brand */}
           <div className="mb-8 text-center lg:hidden">
-            <h1 className="text-2xl font-bold text-slate-900">Cattle Feed ERP</h1>
-            <p className="mt-1 text-sm text-amber-800/70">Feed selling & business management</p>
+            <h1 className="text-2xl font-bold text-slate-900">{t('app.name')}</h1>
+            <p className="mt-1 text-sm text-amber-800/70">{t('app.tagline')}</p>
           </div>
 
           <div className="rounded-2xl border border-amber-100/80 bg-white/90 p-8 shadow-xl shadow-amber-900/5 backdrop-blur-sm sm:p-10">
             <div className="mb-8 hidden lg:block">
               <p className="text-xs font-semibold uppercase tracking-widest text-primary-700">
-                Welcome back
+                {t('auth.welcomeBack')}
               </p>
-              <h2 className="mt-1 text-2xl font-bold text-slate-900">Sign in to your account</h2>
+              <h2 className="mt-1 text-2xl font-bold text-slate-900">{t('auth.signInTitle')}</h2>
               <p className="mt-2 text-sm text-slate-500">
-                Manage sales, stock and accounts for your feed business
+                {t('auth.signInSubtitle')}
               </p>
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Username or Email
+                  {t('auth.usernameOrEmail')}
                 </label>
                 <div className="relative">
                   <FiUser className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-amber-600/70" />
@@ -114,7 +115,7 @@ const LoginPage = () => {
                     type="text"
                     {...register('identifier', loginRules.identifier)}
                     className="w-full rounded-xl border border-amber-200/80 bg-amber-50/30 py-3 pl-10 pr-4 text-sm outline-none transition focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-100"
-                    placeholder="Enter username or email"
+                    placeholder={t('auth.usernameOrEmail')}
                     autoComplete="username"
                   />
                 </div>
@@ -125,11 +126,11 @@ const LoginPage = () => {
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Password
+                  {t('auth.password')}
                 </label>
                 <PasswordInput
                   {...register('password', loginRules.password)}
-                  placeholder="Enter password"
+                  placeholder={t('auth.password')}
                   autoComplete="current-password"
                   className="rounded-xl border-amber-200/80 bg-amber-50/30 py-3 focus:border-primary-500 focus:bg-white focus:ring-primary-100"
                 />
@@ -143,7 +144,7 @@ const LoginPage = () => {
                   to="/forgot-password"
                   className="text-sm font-medium text-primary-700 transition hover:text-primary-800"
                 >
-                  Forgot password?
+                  {t('auth.forgotPassword')}
                 </Link>
               </div>
 
@@ -156,7 +157,7 @@ const LoginPage = () => {
                   <LoadingSpinner size="sm" />
                 ) : (
                   <>
-                    Sign In
+                    {t('auth.signIn')}
                     <FiArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
                   </>
                 )}

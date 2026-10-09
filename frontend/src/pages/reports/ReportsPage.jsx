@@ -1,24 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FiDownload, FiPrinter, FiSearch } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import reportService from '../../services/reportService';
 import { useAuth } from '../../context/AuthContext';
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency, formatPaymentStatus } from '../../utils/format';
+import { catalogLabel } from '../../utils/catalogI18n';
 import { downloadBlob, getExportFilename } from '../../utils/download';
 import Pagination from '../../components/common/Pagination';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import PeriodFilter from '../../components/common/PeriodFilter';
 import usePeriodFilter from '../../hooks/usePeriodFilter';
-
-const reportTypes = [
-  { id: 'summary', label: 'Summary' },
-  { id: 'sales', label: 'Sales' },
-  { id: 'purchases', label: 'Purchases' },
-  { id: 'profit', label: 'Profit' },
-  { id: 'customers', label: 'Customers' },
-  { id: 'stock', label: 'Stock' },
-  { id: 'payments', label: 'Payments' },
-];
 
 const statusBadge = {
   paid: 'bg-emerald-100 text-emerald-700',
@@ -27,7 +19,17 @@ const statusBadge = {
 };
 
 const ReportsPage = () => {
+  const { t } = useTranslation();
   const { checkPermission } = useAuth();
+  const reportTypes = useMemo(() => [
+    { id: 'summary', label: t('reports.tabSummary') },
+    { id: 'sales', label: t('reports.tabSales') },
+    { id: 'purchases', label: t('reports.tabPurchases') },
+    { id: 'profit', label: t('reports.tabProfit') },
+    { id: 'customers', label: t('reports.tabCustomers') },
+    { id: 'stock', label: t('reports.tabStock') },
+    { id: 'payments', label: t('reports.tabPayments') },
+  ], [t]);
   const canExport = checkPermission('reports', 'export');
 
   const [reportType, setReportType] = useState('summary');
@@ -70,7 +72,7 @@ const ReportsPage = () => {
     if (!isReady) {
       setLoading(false);
       if (!isCustomPending && isInvalidRange) {
-        toast.error('From date cannot be after To date');
+        toast.error(t('common.dateFromAfterTo'));
       }
       return;
     }
@@ -89,7 +91,7 @@ const ReportsPage = () => {
       setRows(data.rows || []);
       setPagination(data.pagination || { total: 0, totalPages: 1 });
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to load report');
+      toast.error(error.response?.data?.message || t('reports.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -106,7 +108,7 @@ const ReportsPage = () => {
 
   const handleExport = async (format) => {
     if (!isReady) {
-      toast.error(isCustomPending ? 'Select from and to dates for custom range' : 'Invalid date range');
+      toast.error(isCustomPending ? t('common.selectCustomDates') : t('common.invalidDateRange'));
       return;
     }
     try {
@@ -116,9 +118,9 @@ const ReportsPage = () => {
         ...apiParams,
       });
       downloadBlob(response.data, getExportFilename(response, `${reportType}-report.${format === 'pdf' ? 'pdf' : 'xlsx'}`));
-      toast.success(`Report exported as ${format.toUpperCase()}`);
+      toast.success(t('common.reportExportedAs', { format: format.toUpperCase() }));
     } catch {
-      toast.error('Export failed');
+      toast.error(t('common.exportFailed'));
     }
   };
 
@@ -127,14 +129,14 @@ const ReportsPage = () => {
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {[
-          { label: 'Sales', count: summary.sales.count, amount: summary.sales.total, color: 'text-slate-900' },
-          { label: 'Purchases', count: summary.purchases.count, amount: summary.purchases.total, color: 'text-slate-900' },
-          { label: 'Profit', count: null, amount: summary.profit.amount, color: 'text-emerald-700' },
-          { label: 'Payments Received', count: summary.payments.count, amount: summary.payments.total, color: 'text-emerald-700' },
-          { label: 'Cash Net', count: null, amount: summary.cashBook.net, color: summary.cashBook.net >= 0 ? 'text-emerald-700' : 'text-red-700' },
-          { label: 'Outstanding', count: summary.outstanding.pendingInvoices, amount: summary.outstanding.pendingAmount, color: 'text-amber-700' },
-          { label: 'Active Customers', count: summary.customers.active, amount: null, color: 'text-slate-900' },
-          { label: 'Low Stock Items', count: summary.stock.lowStockProducts, amount: null, color: 'text-red-700' },
+          { label: t('reports.tabSales'), count: summary.sales.count, amount: summary.sales.total, color: 'text-slate-900' },
+          { label: t('reports.tabPurchases'), count: summary.purchases.count, amount: summary.purchases.total, color: 'text-slate-900' },
+          { label: t('reports.tabProfit'), count: null, amount: summary.profit.amount, color: 'text-emerald-700' },
+          { label: t('reports.cardPaymentsReceived'), count: summary.payments.count, amount: summary.payments.total, color: 'text-emerald-700' },
+          { label: t('reports.cardCashNet'), count: null, amount: summary.cashBook.net, color: summary.cashBook.net >= 0 ? 'text-emerald-700' : 'text-red-700' },
+          { label: t('reports.cardOutstanding'), count: summary.outstanding.pendingInvoices, amount: summary.outstanding.pendingAmount, color: 'text-amber-700' },
+          { label: t('reports.cardActiveCustomers'), count: summary.customers.active, amount: null, color: 'text-slate-900' },
+          { label: t('reports.cardLowStockItems'), count: summary.stock.lowStockProducts, amount: null, color: 'text-red-700' },
         ].map((card) => (
           <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-xs text-slate-500">{card.label}</p>
@@ -142,7 +144,7 @@ const ReportsPage = () => {
               <p className={`mt-1 text-xl font-bold ${card.color}`}>{formatCurrency(card.amount)}</p>
             )}
             {card.count !== null && (
-              <p className="mt-1 text-sm text-slate-600">{card.count} record{card.count !== 1 ? 's' : ''}</p>
+              <p className="mt-1 text-sm text-slate-600">{card.count} {card.count !== 1 ? t('common.records') : t('common.recordOne')}</p>
             )}
           </div>
         ))}
@@ -153,16 +155,24 @@ const ReportsPage = () => {
   const renderTable = () => {
     if (loading) return <div className="py-16"><LoadingSpinner /></div>;
     if (isCustomPending) {
-      return <p className="py-12 text-center text-sm text-slate-500">Select from and to dates for custom range</p>;
+      return <p className="py-12 text-center text-sm text-slate-500">{t('common.selectCustomDates')}</p>;
     }
-    if (rows.length === 0) return <p className="py-12 text-center text-sm text-slate-500">No records for this report period</p>;
+    if (rows.length === 0) return <p className="py-12 text-center text-sm text-slate-500">{t('common.noRecordsPeriod')}</p>;
 
     switch (reportType) {
       case 'sales':
         return (
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50">
-              <tr>{['Invoice', 'Customer', 'Date', 'Total', 'Paid', 'Pending', 'Status'].map((h) => (
+              <tr>{[
+                t('common.invoice'),
+                t('common.customer'),
+                t('common.date'),
+                t('common.total'),
+                t('common.paid'),
+                t('common.pending'),
+                t('common.status'),
+              ].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">{h}</th>
               ))}</tr>
             </thead>
@@ -170,12 +180,12 @@ const ReportsPage = () => {
               {rows.map((row) => (
                 <tr key={row.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 text-sm font-medium">{row.invoiceNumber}</td>
-                  <td className="px-4 py-3 text-sm">{row.customerName || 'Walk-in'}</td>
+                  <td className="px-4 py-3 text-sm">{row.customerName ? catalogLabel(row.customerName, 'customers') : t('common.walkIn')}</td>
                   <td className="px-4 py-3 text-sm">{new Date(row.saleDate).toLocaleDateString('en-IN')}</td>
                   <td className="px-4 py-3 text-sm">{formatCurrency(row.totalAmount)}</td>
                   <td className="px-4 py-3 text-sm text-emerald-700">{formatCurrency(row.paidAmount)}</td>
                   <td className="px-4 py-3 text-sm text-amber-700">{formatCurrency(row.pendingAmount)}</td>
-                  <td className="px-4 py-3"><span className={`rounded-full px-2 py-0.5 text-xs capitalize ${statusBadge[row.paymentStatus]}`}>{row.paymentStatus}</span></td>
+                  <td className="px-4 py-3"><span className={`rounded-full px-2 py-0.5 text-xs ${statusBadge[row.paymentStatus]}`}>{formatPaymentStatus(row.paymentStatus, row.paidAmount)}</span></td>
                 </tr>
               ))}
             </tbody>
@@ -185,7 +195,14 @@ const ReportsPage = () => {
         return (
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50">
-              <tr>{['Invoice', 'Supplier', 'Date', 'Total', 'Paid', 'Status'].map((h) => (
+              <tr>{[
+                t('common.invoice'),
+                t('common.supplier'),
+                t('common.date'),
+                t('common.total'),
+                t('common.paid'),
+                t('common.status'),
+              ].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">{h}</th>
               ))}</tr>
             </thead>
@@ -193,11 +210,11 @@ const ReportsPage = () => {
               {rows.map((row) => (
                 <tr key={row.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 text-sm font-medium">{row.invoiceNumber}</td>
-                  <td className="px-4 py-3 text-sm">{row.supplierName}</td>
+                  <td className="px-4 py-3 text-sm">{catalogLabel(row.supplierName, 'suppliers')}</td>
                   <td className="px-4 py-3 text-sm">{new Date(row.purchaseDate).toLocaleDateString('en-IN')}</td>
                   <td className="px-4 py-3 text-sm">{formatCurrency(row.totalAmount)}</td>
                   <td className="px-4 py-3 text-sm">{formatCurrency(row.paidAmount)}</td>
-                  <td className="px-4 py-3"><span className={`rounded-full px-2 py-0.5 text-xs capitalize ${statusBadge[row.paymentStatus]}`}>{row.paymentStatus}</span></td>
+                  <td className="px-4 py-3"><span className={`rounded-full px-2 py-0.5 text-xs ${statusBadge[row.paymentStatus]}`}>{formatPaymentStatus(row.paymentStatus, row.paidAmount)}</span></td>
                 </tr>
               ))}
             </tbody>
@@ -209,9 +226,9 @@ const ReportsPage = () => {
             {profitSummary && (
               <div className="grid gap-4 border-b border-slate-200 p-4 sm:grid-cols-3">
                 {[
-                  { label: 'Revenue', value: profitSummary.revenue, color: 'text-slate-900' },
-                  { label: 'Cost', value: profitSummary.cost, color: 'text-red-700' },
-                  { label: 'Profit', value: profitSummary.profit, color: 'text-emerald-700' },
+                  { label: t('profit.revenue'), value: profitSummary.revenue, color: 'text-slate-900' },
+                  { label: t('profit.cost'), value: profitSummary.cost, color: 'text-red-700' },
+                  { label: t('nav.profit'), value: profitSummary.profit, color: 'text-emerald-700' },
                 ].map((c) => (
                   <div key={c.label}><p className="text-xs text-slate-500">{c.label}</p><p className={`font-bold ${c.color}`}>{formatCurrency(c.value)}</p></div>
                 ))}
@@ -219,7 +236,14 @@ const ReportsPage = () => {
             )}
             <table className="min-w-full divide-y divide-slate-200">
               <thead className="bg-slate-50">
-                <tr>{['Date', 'Invoice', 'Product', 'Qty', 'Revenue', 'Profit'].map((h) => (
+                <tr>{[
+                  t('common.date'),
+                  t('common.invoice'),
+                  t('common.product'),
+                  t('common.quantity'),
+                  t('profit.revenue'),
+                  t('nav.profit'),
+                ].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">{h}</th>
                 ))}</tr>
               </thead>
@@ -228,7 +252,7 @@ const ReportsPage = () => {
                   <tr key={row.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3 text-sm">{new Date(row.saleDate).toLocaleDateString('en-IN')}</td>
                     <td className="px-4 py-3 text-sm">{row.invoiceNumber}</td>
-                    <td className="px-4 py-3 text-sm">{row.productName}</td>
+                    <td className="px-4 py-3 text-sm">{catalogLabel(row.productName, 'names')}</td>
                     <td className="px-4 py-3 text-sm">{row.quantity}</td>
                     <td className="px-4 py-3 text-sm">{formatCurrency(row.totalAmount)}</td>
                     <td className="px-4 py-3 text-sm font-medium text-emerald-700">{formatCurrency(row.profitAmount)}</td>
@@ -242,16 +266,23 @@ const ReportsPage = () => {
         return (
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50">
-              <tr>{['Customer', 'Phone', 'Village', 'Balance', 'Period Sales', 'Pending'].map((h) => (
+              <tr>{[
+                t('common.customer'),
+                t('common.phone'),
+                t('common.village'),
+                t('common.balance'),
+                t('common.periodSales'),
+                t('common.pending'),
+              ].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">{h}</th>
               ))}</tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {rows.map((row) => (
                 <tr key={row.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 text-sm font-medium">{row.name}</td>
+                  <td className="px-4 py-3 text-sm font-medium">{catalogLabel(row.name, 'customers')}</td>
                   <td className="px-4 py-3 text-sm">{row.phone}</td>
-                  <td className="px-4 py-3 text-sm">{row.village || '—'}</td>
+                  <td className="px-4 py-3 text-sm">{row.village ? catalogLabel(row.village, 'villages') : '—'}</td>
                   <td className="px-4 py-3 text-sm">{formatCurrency(row.currentBalance)}</td>
                   <td className="px-4 py-3 text-sm">{formatCurrency(row.periodSalesAmount)}</td>
                   <td className="px-4 py-3 text-sm text-amber-700">{formatCurrency(row.pendingAmount)}</td>
@@ -264,7 +295,14 @@ const ReportsPage = () => {
         return (
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50">
-              <tr>{['Date', 'Product', 'Type', 'Qty', 'Balance', 'Reference'].map((h) => (
+              <tr>{[
+                t('common.date'),
+                t('common.product'),
+                t('common.type'),
+                t('common.quantity'),
+                t('common.balance'),
+                t('common.reference'),
+              ].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">{h}</th>
               ))}</tr>
             </thead>
@@ -272,7 +310,7 @@ const ReportsPage = () => {
               {rows.map((row) => (
                 <tr key={row.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 text-sm">{new Date(row.createdAt).toLocaleString('en-IN')}</td>
-                  <td className="px-4 py-3 text-sm">{row.productName}</td>
+                  <td className="px-4 py-3 text-sm">{catalogLabel(row.productName, 'names')}</td>
                   <td className="px-4 py-3 text-sm uppercase">{row.movementType}</td>
                   <td className="px-4 py-3 text-sm">{row.quantity}</td>
                   <td className="px-4 py-3 text-sm">{row.balanceAfter}</td>
@@ -286,7 +324,14 @@ const ReportsPage = () => {
         return (
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50">
-              <tr>{['Date', 'Customer', 'Invoice', 'Amount', 'Method', 'Reference'].map((h) => (
+              <tr>{[
+                t('common.date'),
+                t('common.customer'),
+                t('common.invoice'),
+                t('common.amount'),
+                t('common.method'),
+                t('common.reference'),
+              ].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">{h}</th>
               ))}</tr>
             </thead>
@@ -294,7 +339,7 @@ const ReportsPage = () => {
               {rows.map((row) => (
                 <tr key={row.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 text-sm">{row.paymentDate}</td>
-                  <td className="px-4 py-3 text-sm">{row.customerName}</td>
+                  <td className="px-4 py-3 text-sm">{catalogLabel(row.customerName, 'customers')}</td>
                   <td className="px-4 py-3 text-sm">{row.invoiceNumber || '—'}</td>
                   <td className="px-4 py-3 text-sm font-medium text-emerald-700">{formatCurrency(row.amount)}</td>
                   <td className="px-4 py-3 text-sm uppercase">{row.paymentMethod}</td>
@@ -314,22 +359,22 @@ const ReportsPage = () => {
       <div id="reports-print-area">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Reports</h1>
-            <p className="mt-1 text-sm text-slate-500">Daily, monthly, and yearly business reports with export</p>
+            <h1 className="text-2xl font-bold text-slate-900">{t('reports.title')}</h1>
+            <p className="mt-1 text-sm text-slate-500">{t('reports.pageSubtitle')}</p>
           </div>
           <div className="flex flex-wrap gap-2 print:hidden">
             {canExport && (
               <>
                 <button type="button" onClick={() => handleExport('excel')} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">
-                  <FiDownload className="h-4 w-4" /> Excel
+                  <FiDownload className="h-4 w-4" /> {t('common.excel')}
                 </button>
                 <button type="button" onClick={() => handleExport('pdf')} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">
-                  <FiDownload className="h-4 w-4" /> PDF
+                  <FiDownload className="h-4 w-4" /> {t('common.pdf')}
                 </button>
               </>
             )}
             <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">
-              <FiPrinter className="h-4 w-4" /> Print
+              <FiPrinter className="h-4 w-4" /> {t('common.print')}
             </button>
           </div>
         </div>
@@ -365,7 +410,7 @@ const ReportsPage = () => {
                 type="text"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search..."
+                placeholder={t('common.search')}
                 className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-4 text-sm outline-none focus:border-primary-500"
               />
             </div>

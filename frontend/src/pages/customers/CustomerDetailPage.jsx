@@ -4,6 +4,7 @@ import { FiArrowLeft, FiPhone, FiMapPin } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import customerService from '../../services/customerService';
 import { formatCurrency } from '../../utils/format';
+import { catalogLabel } from '../../utils/catalogI18n';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 const CustomerDetailPage = () => {
@@ -68,11 +69,11 @@ const CustomerDetailPage = () => {
       <div className="mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">{customer.name}</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{catalogLabel(customer.name, 'customers')}</h1>
             <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-600">
               <span className="inline-flex items-center gap-1"><FiPhone className="h-4 w-4" />{customer.phone}</span>
               {customer.village && (
-                <span className="inline-flex items-center gap-1"><FiMapPin className="h-4 w-4" />{customer.village}</span>
+                <span className="inline-flex items-center gap-1"><FiMapPin className="h-4 w-4" />{catalogLabel(customer.village, 'villages')}</span>
               )}
             </div>
             {customer.address && <p className="mt-2 text-sm text-slate-500">{customer.address}</p>}

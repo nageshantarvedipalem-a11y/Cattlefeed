@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { FiDownload, FiEdit2, FiPlus, FiPrinter, FiSearch, FiTrash2 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
@@ -14,30 +15,6 @@ import CashBookEntryModal from '../../components/cashbook/CashBookEntryModal';
 import CashBookOpeningModal from '../../components/cashbook/CashBookOpeningModal';
 import CashBookDailyReportModal from '../../components/cashbook/CashBookDailyReportModal';
 import CashBookMonthlySummaryModal from '../../components/cashbook/CashBookMonthlySummaryModal';
-
-const PERIOD_OPTIONS = [
-  { value: 'daily', label: 'Today' },
-  { value: 'yesterday', label: 'Yesterday' },
-  { value: 'weekly', label: 'This Week' },
-  { value: 'monthly', label: 'This Month' },
-  { value: 'last_month', label: 'Last Month' },
-  { value: 'custom', label: 'Custom Range' },
-];
-
-const COLUMNS = [
-  { key: 'date', label: 'Date', align: 'left', width: '7%' },
-  { key: 'type', label: 'Type', align: 'left', width: '8%' },
-  { key: 'party', label: 'Party', align: 'left', width: '14%' },
-  { key: 'category', label: 'Category', align: 'left', width: '10%' },
-  { key: 'reference', label: 'Reference', align: 'left', width: '8%' },
-  { key: 'description', label: 'Description', align: 'left', width: '11%' },
-  { key: 'method', label: 'Mode', align: 'left', width: '5%' },
-  { key: 'jama', label: 'Jamalu', align: 'right', width: '8%' },
-  { key: 'karchulu', label: 'Karchulu', align: 'right', width: '8%' },
-  { key: 'balance', label: 'Running Balance', align: 'right', width: '10%' },
-  { key: 'source', label: 'Source', align: 'left', width: '6%' },
-  { key: 'actions', label: 'Actions', align: 'left', width: '5%' },
-];
 
 const headCellClass = (align) =>
   `px-2.5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 ${
@@ -57,7 +34,7 @@ const ClipText = ({ children, title, className = '' }) => (
   </span>
 );
 
-const todayLabel = () => new Date().toLocaleDateString('en-IN', {
+const todayLabel = (lng = 'en') => new Date().toLocaleDateString(lng?.startsWith('te') ? 'te-IN' : 'en-IN', {
   weekday: 'long',
   day: '2-digit',
   month: 'short',
@@ -71,10 +48,36 @@ const partyHref = (entry) => {
 };
 
 const CashBookPage = () => {
+  const { t, i18n } = useTranslation();
   const { checkPermission } = useAuth();
   const canCreate = checkPermission('cashbook', 'create');
   const canEdit = checkPermission('cashbook', 'edit');
   const canDelete = checkPermission('cashbook', 'delete');
+
+  const periodOptions = useMemo(() => [
+    { value: 'daily', label: t('common.today') },
+    { value: 'yesterday', label: t('common.yesterday') },
+    { value: 'weekly', label: t('common.thisWeek') },
+    { value: 'monthly', label: t('common.thisMonth') },
+    { value: 'last_month', label: t('common.lastMonth') },
+    { value: 'custom', label: t('common.customRange') },
+  ], [t]);
+
+  const columns = useMemo(() => [
+    { key: 'date', label: t('common.date'), align: 'left', width: '7%' },
+    { key: 'type', label: t('common.type'), align: 'left', width: '8%' },
+    { key: 'party', label: t('common.party'), align: 'left', width: '14%' },
+    { key: 'category', label: t('common.category'), align: 'left', width: '10%' },
+    { key: 'reference', label: t('common.reference'), align: 'left', width: '8%' },
+    { key: 'description', label: t('common.description'), align: 'left', width: '11%' },
+    { key: 'method', label: t('common.method'), align: 'left', width: '5%' },
+    { key: 'jama', label: t('cashbook.jamalu'), align: 'right', width: '8%' },
+    { key: 'karchulu', label: t('cashbook.karchulu'), align: 'right', width: '8%' },
+    { key: 'balance', label: t('cashbook.runningBalance'), align: 'right', width: '10%' },
+    { key: 'source', label: t('common.source'), align: 'left', width: '6%' },
+    { key: 'actions', label: t('common.actions'), align: 'left', width: '5%' },
+  ], [t]);
+
 
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState(null);
@@ -208,9 +211,9 @@ const CashBookPage = () => {
       <div id="cashbook-print-area" className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="mb-4 flex shrink-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Cash Book</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{t('cashbook.title')}</h1>
             <p className="mt-1 text-sm text-slate-500">
-              Daily Jamalu (money in) and Karchulu (money out) — {todayLabel()}
+              {t('cashbook.subtitle', { date: todayLabel(i18n.language) })}
             </p>
           </div>
           <div className="flex flex-wrap gap-2 print:hidden">
@@ -221,38 +224,38 @@ const CashBookPage = () => {
                   onClick={() => openCreate('jama')}
                   className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
                 >
-                  <FiPlus className="h-4 w-4" /> Add Jamalu
+                  <FiPlus className="h-4 w-4" /> {t('cashbook.addJamalu')}
                 </button>
                 <button
                   type="button"
                   onClick={() => openCreate('karchulu')}
                   className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700"
                 >
-                  <FiPlus className="h-4 w-4" /> Add Karchulu
+                  <FiPlus className="h-4 w-4" /> {t('cashbook.addKarchulu')}
                 </button>
                 <button
                   type="button"
                   onClick={() => setOpeningModalOpen(true)}
                   className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
                 >
-                  Set Opening
+                  {t('cashbook.setOpening')}
                 </button>
               </>
             )}
             <button type="button" onClick={() => setDailyReportOpen(true)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">
-              Daily Report
+              {t('cashbook.dailyReport')}
             </button>
             <button type="button" onClick={() => setMonthlyOpen(true)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">
-              Monthly
+              {t('cashbook.monthly')}
             </button>
             <button type="button" onClick={() => handleExport('excel')} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">
-              <FiDownload className="h-4 w-4" /> Excel
+              <FiDownload className="h-4 w-4" /> {t('common.excel')}
             </button>
             <button type="button" onClick={() => handleExport('pdf')} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">
-              <FiDownload className="h-4 w-4" /> PDF
+              <FiDownload className="h-4 w-4" /> {t('common.pdf')}
             </button>
             <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">
-              <FiPrinter className="h-4 w-4" /> Print
+              <FiPrinter className="h-4 w-4" /> {t('common.print')}
             </button>
           </div>
         </div>
@@ -260,10 +263,10 @@ const CashBookPage = () => {
         {summary && (
           <div className="mb-4 grid shrink-0 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { label: 'Opening Balance', value: summary.openingBalance, color: 'text-slate-900' },
-              { label: period === 'daily' ? "Today's Jamalu" : 'Total Jamalu', value: summary.totalJama ?? summary.totalInflow, color: 'text-emerald-700', prefix: '+' },
-              { label: period === 'daily' ? "Today's Karchulu" : 'Total Karchulu', value: summary.totalKarchulu ?? summary.totalOutflow, color: 'text-red-700', prefix: '−' },
-              { label: 'Closing Balance', value: summary.closingBalance, color: 'text-amber-700' },
+              { label: t('cashbook.openingBalance'), value: summary.openingBalance, color: 'text-slate-900' },
+              { label: period === 'daily' ? t('cashbook.todaysJamalu') : t('cashbook.totalJamalu'), value: summary.totalJama ?? summary.totalInflow, color: 'text-emerald-700', prefix: '+' },
+              { label: period === 'daily' ? t('cashbook.todaysKarchulu') : t('cashbook.totalKarchulu'), value: summary.totalKarchulu ?? summary.totalOutflow, color: 'text-red-700', prefix: '−' },
+              { label: t('cashbook.closingBalance'), value: summary.closingBalance, color: 'text-amber-700' },
             ].map((card) => (
               <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <p className="text-xs text-slate-500">{card.label}</p>
@@ -277,11 +280,11 @@ const CashBookPage = () => {
         {summary?.modeBalances && (
           <div className="mb-4 grid shrink-0 gap-3 sm:grid-cols-2 lg:grid-cols-5">
             {[
-              { label: 'Cash Balance', value: summary.modeBalances.cash?.closing },
-              { label: 'UPI Balance', value: summary.modeBalances.upi?.closing },
-              { label: 'Bank Balance', value: summary.modeBalances.bank?.closing },
-              { label: 'Other Balance', value: summary.modeBalances.other?.closing },
-              { label: 'Total Available', value: summary.totalAvailable ?? summary.closingBalance },
+              { label: t('cashbook.cashBalance'), value: summary.modeBalances.cash?.closing },
+              { label: t('cashbook.upiBalance'), value: summary.modeBalances.upi?.closing },
+              { label: t('cashbook.bankBalance'), value: summary.modeBalances.bank?.closing },
+              { label: t('cashbook.otherBalance'), value: summary.modeBalances.other?.closing },
+              { label: t('cashbook.totalAvailable'), value: summary.totalAvailable ?? summary.closingBalance },
             ].map((card) => (
               <div key={card.label} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <p className="text-xs text-slate-500">{card.label}</p>
@@ -292,7 +295,7 @@ const CashBookPage = () => {
         )}
         {summary?.formula && (
           <p className="mb-3 shrink-0 text-xs text-slate-500">
-            Closing = Opening + Jamalu − Karchulu ({formatCurrency(summary.openingBalance)} + {formatCurrency(summary.totalJama ?? 0)} − {formatCurrency(summary.totalKarchulu ?? 0)} = {formatCurrency(summary.closingBalance)})
+            {t('cashbook.formula')} ({formatCurrency(summary.openingBalance)} + {formatCurrency(summary.totalJama ?? 0)} − {formatCurrency(summary.totalKarchulu ?? 0)} = {formatCurrency(summary.closingBalance)})
           </p>
         )}
 
@@ -303,34 +306,34 @@ const CashBookPage = () => {
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search party, invoice, reference, description..."
+              placeholder={t('cashbook.searchPlaceholder')}
               className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-4 text-sm outline-none focus:border-primary-500"
             />
           </div>
           <PeriodFilter
+            options={periodOptions}
             period={period}
             onPeriodChange={(v) => { setPeriod(v); setPage(1); }}
             dateFrom={dateFrom}
             onDateFromChange={(v) => { setDateFrom(v); setPage(1); }}
             dateTo={dateTo}
             onDateToChange={(v) => { setDateTo(v); setPage(1); }}
-            options={PERIOD_OPTIONS}
           />
           <select
             value={bookSide}
             onChange={(e) => { setBookSide(e.target.value); setPage(1); }}
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500"
           >
-            <option value="">All Types</option>
-            <option value="jama">Jamalu</option>
-            <option value="karchulu">Karchulu</option>
+            <option value="">{t('cashbook.allTypes')}</option>
+            <option value="jama">{t('cashbook.jamalu')}</option>
+            <option value="karchulu">{t('cashbook.karchulu')}</option>
           </select>
           <select
             value={paymentMethod}
             onChange={(e) => { setPaymentMethod(e.target.value); setPage(1); }}
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500"
           >
-            <option value="">All Modes</option>
+            <option value="">{t('cashbook.allModes')}</option>
             <option value="cash">Cash</option>
             <option value="upi">UPI</option>
             <option value="bank">Bank</option>
@@ -341,7 +344,7 @@ const CashBookPage = () => {
             onChange={(e) => { setSourceFilter(e.target.value); setPage(1); }}
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500"
           >
-            <option value="">All Sources</option>
+            <option value="">{t('cashbook.allSources')}</option>
             <option value="billing">Billing</option>
             <option value="supplier_payment">Supplier Payment</option>
             <option value="manual">Manual</option>
@@ -352,7 +355,7 @@ const CashBookPage = () => {
             onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-primary-500"
           >
-            <option value="">All Categories</option>
+            <option value="">{t('cashbook.allCategories')}</option>
             {[...(categories.jama || []), ...(categories.karchulu || [])]
               .filter((item, index, list) => list.indexOf(item) === index)
               .map((item) => (
@@ -369,13 +372,13 @@ const CashBookPage = () => {
               <div className="min-h-0 flex-1 overflow-auto">
                 <table className="w-full min-w-[1400px] border-collapse" style={{ tableLayout: 'fixed' }}>
                   <colgroup>
-                    {COLUMNS.map((col) => (
+                    {columns.map((col) => (
                       <col key={col.key} style={{ width: col.width }} />
                     ))}
                   </colgroup>
                   <thead className="sticky top-0 z-10 bg-slate-50 shadow-[inset_0_-1px_0_#e2e8f0]">
                     <tr>
-                      {COLUMNS.map((col) => (
+                      {columns.map((col) => (
                         <th key={col.key} className={headCellClass(col.align)}>{col.label}</th>
                       ))}
                     </tr>
@@ -390,7 +393,7 @@ const CashBookPage = () => {
                     ) : entries.length === 0 ? (
                       <tr>
                         <td colSpan={12} className="px-4 py-12 text-center text-sm text-slate-500">
-                          No cash book entries for this period. Add Jamalu or Karchulu to start the day.
+                          {t('cashbook.empty')}
                         </td>
                       </tr>
                     ) : (
@@ -410,7 +413,7 @@ const CashBookPage = () => {
                               <span className={`inline-flex max-w-full truncate rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                                 isJama ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
                               }`}>
-                                {isJama ? 'JAMALU' : 'KARCHULU'}
+                                {isJama ? t('cashbook.jamalu').toUpperCase() : t('cashbook.karchulu').toUpperCase()}
                               </span>
                             </td>
                             <td className={`${clipCellClass} font-medium text-slate-800`}>

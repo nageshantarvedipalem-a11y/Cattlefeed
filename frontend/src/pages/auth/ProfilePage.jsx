@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import authService from '../../services/authService';
@@ -7,9 +8,11 @@ import { changePasswordRules, profileRules } from '../../validations/authValidat
 import PasswordInput from '../../components/common/PasswordInput';
 import UserAvatar from '../../components/common/UserAvatar';
 import { formatRoleName } from '../../utils/auth';
+import { catalogLabel } from '../../utils/catalogI18n';
 
 const ProfilePage = () => {
-  const { user, updateSession } = useAuth();
+  const { t } = useTranslation();
+    const { user, updateSession } = useAuth();
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
@@ -50,7 +53,7 @@ const ProfilePage = () => {
 
   const handleAvatarUpload = async (file) => {
     if (file.size > 2 * 1024 * 1024) {
-      toast.error('Image must be smaller than 2 MB');
+      toast.error(t('profile.imageTooLarge'));
       return;
     }
 
@@ -61,7 +64,7 @@ const ProfilePage = () => {
       updateSession(token, updatedUser);
       toast.success(response.data.message);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to upload photo');
+      toast.error(error.response?.data?.message || t('profile.uploadPhotoFailed'));
     } finally {
       setUploadingAvatar(false);
     }
@@ -75,7 +78,7 @@ const ProfilePage = () => {
       updateSession(token, updatedUser);
       toast.success(response.data.message);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to update profile');
+      toast.error(error.response?.data?.message || t('profile.updateProfileFailed'));
     } finally {
       setSavingProfile(false);
     }
@@ -83,7 +86,7 @@ const ProfilePage = () => {
 
   const onPasswordSubmit = async (data) => {
     if (data.newPassword !== data.confirmPassword) {
-      toast.error('Passwords do not match');
+      toast.error(t('profile.passwordsNoMatch'));
       return;
     }
 
@@ -97,7 +100,7 @@ const ProfilePage = () => {
       toast.success(response.data.message);
       resetPassword();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Password change failed');
+      toast.error(error.response?.data?.message || t('profile.passwordChangeFailed'));
     } finally {
       setSavingPassword(false);
     }
@@ -106,9 +109,9 @@ const ProfilePage = () => {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col items-center px-2 py-4 sm:px-0">
       <div className="w-full text-center">
-        <h2 className="text-2xl font-bold text-slate-900">My Profile</h2>
+        <h2 className="text-2xl font-bold text-slate-900">{t('profile.title')}</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Update your account details, photo, and password.
+          {t('profile.pageSubtitle')}
         </p>
       </div>
 
@@ -121,16 +124,16 @@ const ProfilePage = () => {
             uploading={uploadingAvatar}
             onUpload={handleAvatarUpload}
           />
-          <p className="mt-4 text-lg font-semibold text-slate-900">{user?.fullName}</p>
+          <p className="mt-4 text-lg font-semibold text-slate-900">{catalogLabel(user?.fullName, 'customers')}</p>
           <p className="text-sm capitalize text-slate-500">{formatRoleName(user?.roleName)}</p>
           <p className="mt-1 text-xs text-slate-400">
-            {uploadingAvatar ? 'Uploading photo...' : 'Click the camera icon to upload a photo'}
+            {uploadingAvatar ? t('profile.uploadingPhoto') : t('profile.uploadPhotoHint')}
           </p>
         </div>
 
         <form onSubmit={handleProfileSubmit(onProfileSubmit)} className="mt-8 space-y-5">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">Full Name</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">{t('common.fullName')}</label>
             <input
               type="text"
               {...registerProfile('fullName', profileRules.fullName)}
@@ -143,7 +146,7 @@ const ProfilePage = () => {
 
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">Username</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">{t('common.username')}</label>
               <input
                 type="text"
                 {...registerProfile('username', profileRules.username)}
@@ -155,7 +158,7 @@ const ProfilePage = () => {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">Email</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">{t('common.email')}</label>
               <input
                 type="email"
                 {...registerProfile('email', profileRules.email)}
@@ -168,7 +171,7 @@ const ProfilePage = () => {
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">Phone</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">{t('common.phone')}</label>
             <input
               type="text"
               {...registerProfile('phone', profileRules.phone)}
@@ -185,7 +188,7 @@ const ProfilePage = () => {
               disabled={savingProfile}
               className="rounded-lg bg-primary-600 px-8 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-70"
             >
-              {savingProfile ? 'Saving...' : 'Save Profile'}
+              {savingProfile ? t('common.saving') : t('profile.saveProfile')}
             </button>
           </div>
         </form>
@@ -196,13 +199,13 @@ const ProfilePage = () => {
         className="mt-6 w-full rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
       >
         <div className="text-center">
-          <h3 className="text-lg font-semibold text-slate-900">Change Password</h3>
-          <p className="mt-1 text-sm text-slate-500">Use a strong password with letters, numbers, and symbols.</p>
+          <h3 className="text-lg font-semibold text-slate-900">{t('common.changePassword')}</h3>
+          <p className="mt-1 text-sm text-slate-500">{t('profile.passwordSectionHint')}</p>
         </div>
 
         <form onSubmit={handlePasswordSubmit(onPasswordSubmit)} className="mt-6 space-y-5">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">Current Password</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">{t('common.currentPassword')}</label>
             <PasswordInput {...registerPassword('currentPassword', changePasswordRules.currentPassword)} />
             {passwordErrors.currentPassword && (
               <p className="mt-1 text-xs text-red-600">{passwordErrors.currentPassword.message}</p>
@@ -210,7 +213,7 @@ const ProfilePage = () => {
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">New Password</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">{t('profile.newPassword')}</label>
             <PasswordInput
               {...registerPassword('newPassword', changePasswordRules.newPassword)}
               autoComplete="new-password"
@@ -219,16 +222,16 @@ const ProfilePage = () => {
               <p className="mt-1 text-xs text-red-600">{passwordErrors.newPassword.message}</p>
             )}
             <p className="mt-1 text-xs text-slate-500">
-              Must include uppercase, lowercase, number, and special character.
+              {t('profile.passwordRulesHint')}
             </p>
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">Confirm New Password</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">{t('profile.confirmPassword')}</label>
             <PasswordInput
               {...registerPassword('confirmPassword', {
                 ...changePasswordRules.confirmPassword,
-                validate: (value) => value === newPassword || 'Passwords do not match',
+                validate: (value) => value === newPassword || t('profile.passwordsNoMatch'),
               })}
               autoComplete="new-password"
             />
@@ -243,7 +246,7 @@ const ProfilePage = () => {
               disabled={savingPassword}
               className="rounded-lg bg-slate-800 px-8 py-2.5 text-sm font-semibold text-white hover:bg-slate-900 disabled:opacity-70"
             >
-              {savingPassword ? 'Updating...' : 'Update Password'}
+              {savingPassword ? t('common.updating') : t('profile.updatePassword')}
             </button>
           </div>
         </form>

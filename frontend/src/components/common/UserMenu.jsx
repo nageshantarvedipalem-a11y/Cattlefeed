@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FiChevronDown, FiKey, FiLogOut, FiUser } from 'react-icons/fi';
+import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import UserAvatar from './UserAvatar';
 import { formatRoleName } from '../../utils/auth';
+import { catalogLabel } from '../../utils/catalogI18n';
 
 const UserMenu = () => {
+  const { t } = useTranslation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -26,12 +29,21 @@ const UserMenu = () => {
   const handleLogout = async () => {
     try {
       await logout();
-      toast.success('Logged out successfully');
+      toast.success(t('common.loggedOut'));
       navigate('/login');
     } catch {
-      toast.error('Logout failed');
+      toast.error(t('common.logoutFailed'));
     }
   };
+
+  const roleKey = String(user?.roleName || '').toLowerCase();
+  const roleLabel = roleKey.includes('owner')
+    ? t('common.owner')
+    : roleKey.includes('admin')
+      ? t('common.admin')
+      : roleKey.includes('staff')
+        ? t('common.staff')
+        : formatRoleName(user?.roleName);
 
   return (
     <div className="relative" ref={menuRef}>
@@ -42,10 +54,8 @@ const UserMenu = () => {
       >
         <UserAvatar user={user} size="sm" />
         <div className="hidden min-w-0 text-left sm:block">
-          <p className="truncate text-xs font-semibold text-slate-800">{user?.fullName}</p>
-          <p className="truncate text-[10px] capitalize text-slate-400">
-            {formatRoleName(user?.roleName)}
-          </p>
+          <p className="truncate text-xs font-semibold text-slate-800">{catalogLabel(user?.fullName, 'customers')}</p>
+          <p className="truncate text-[10px] capitalize text-slate-400">{roleLabel}</p>
         </div>
         <FiChevronDown className={`hidden h-4 w-4 text-slate-400 transition sm:block ${open ? 'rotate-180' : ''}`} />
       </button>
@@ -53,7 +63,7 @@ const UserMenu = () => {
       {open && (
         <div className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
           <div className="border-b border-slate-100 px-4 py-3">
-            <p className="truncate text-sm font-semibold text-slate-800">{user?.fullName}</p>
+            <p className="truncate text-sm font-semibold text-slate-800">{catalogLabel(user?.fullName, 'customers')}</p>
             <p className="truncate text-xs text-slate-500">{user?.email}</p>
           </div>
 
@@ -63,7 +73,7 @@ const UserMenu = () => {
             className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50"
           >
             <FiUser className="h-4 w-4 text-primary-600" />
-            My Profile
+            {t('nav.profile')}
           </Link>
 
           <Link
@@ -72,7 +82,7 @@ const UserMenu = () => {
             className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-emerald-50"
           >
             <FiKey className="h-4 w-4 text-primary-600" />
-            Change Password
+            {t('common.changePassword')}
           </Link>
 
           <button
@@ -81,7 +91,7 @@ const UserMenu = () => {
             className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50"
           >
             <FiLogOut className="h-4 w-4" />
-            Logout
+            {t('nav.logout')}
           </button>
         </div>
       )}

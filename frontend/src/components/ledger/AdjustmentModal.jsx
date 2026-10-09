@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import ledgerService from '../../services/ledgerService';
 import LoadingSpinner from '../common/LoadingSpinner';
+import { catalogLabel } from '../../utils/catalogI18n';
 
 const AdjustmentModal = ({ isOpen, onClose, onSuccess, customerId, customerName }) => {
   const {
@@ -47,7 +48,7 @@ const AdjustmentModal = ({ isOpen, onClose, onSuccess, customerId, customerName 
       <div className="w-full max-w-md rounded-xl bg-white shadow-xl">
         <div className="border-b border-slate-200 px-6 py-4">
           <h2 className="text-lg font-bold text-slate-900">Ledger Adjustment</h2>
-          <p className="text-sm text-slate-500">{customerName}</p>
+          <p className="text-sm text-slate-500">{catalogLabel(customerName, 'customers')}</p>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 p-6">

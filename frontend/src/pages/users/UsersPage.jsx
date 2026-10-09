@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   FiEdit2,
   FiPlus,
@@ -11,13 +12,15 @@ import toast from 'react-hot-toast';
 import userService from '../../services/userService';
 import { useAuth } from '../../context/AuthContext';
 import { formatRoleName } from '../../utils/auth';
+import { catalogLabel } from '../../utils/catalogI18n';
 import { getCached } from '../../utils/apiCache';
 import Modal from '../../components/common/Modal';
 import Pagination from '../../components/common/Pagination';
 import UserFormModal from '../../components/users/UserFormModal';
 
 const UsersPage = () => {
-  const { user: currentUser, checkPermission, loading: authLoading, isAuthenticated } = useAuth();
+  const { t } = useTranslation();
+    const { user: currentUser, checkPermission, loading: authLoading, isAuthenticated } = useAuth();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [fetching, setFetching] = useState(true);
@@ -43,9 +46,9 @@ const UsersPage = () => {
       const response = await userService.getRoles();
       setRoles(response.data.data.roles);
     } catch {
-      toast.error('Failed to load roles');
+      toast.error(t('users.loadRolesFailed'));
     }
-  }, []);
+  }, [t]);
 
   const fetchUsers = useCallback(async () => {
     const params = {
@@ -78,8 +81,8 @@ const UsersPage = () => {
       if (!cached?.data?.data) {
         toast.error(
           error.code === 'ERR_NETWORK'
-            ? 'Cannot reach the server. The API is unavailable — try again shortly.'
-            : error.response?.data?.message || 'Failed to load users'
+            ? t('common.networkError')
+            : error.response?.data?.message || t('users.loadFailed')
         );
       }
     } finally {
@@ -133,22 +136,24 @@ const UsersPage = () => {
   const handleToggleStatus = async (user) => {
     try {
       await userService.updateStatus(user.id, !user.isActive);
-      toast.success(`User ${user.isActive ? 'disabled' : 'enabled'} successfully`);
+      toast.success(
+        t(user.isActive ? 'common.entityDisabled' : 'common.entityEnabled', { entity: t('nav.users') })
+      );
       fetchUsers();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Status update failed');
+      toast.error(error.response?.data?.message || t('common.statusUpdateFailed'));
     }
   };
 
   const handleDelete = async (user) => {
-    if (!window.confirm(`Delete user "${user.username}"? This cannot be undone.`)) return;
+    if (!window.confirm(t('users.deleteConfirm', { name: user.username }))) return;
 
     try {
       await userService.deleteUser(user.id);
-      toast.success('User deleted successfully');
+      toast.success(t('users.deleted'));
       fetchUsers();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Delete failed');
+      toast.error(error.response?.data?.message || t('common.deleteFailed'));
     }
   };
 
@@ -161,8 +166,8 @@ const UsersPage = () => {
     <div>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">User Management</h1>
-          <p className="mt-1 text-sm text-slate-500">Create, edit, and manage system users</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('users.managementTitle')}</h1>
+          <p className="mt-1 text-sm text-slate-500">{t('users.managementSubtitle')}</p>
         </div>
         {canCreate && (
           <button
@@ -171,7 +176,7 @@ const UsersPage = () => {
             className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-700"
           >
             <FiPlus className="h-4 w-4" />
-            Add User
+            {t('users.addUser')}
           </button>
         )}
       </div>
@@ -183,7 +188,7 @@ const UsersPage = () => {
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search by name, username, email, phone..."
+            placeholder={t('users.searchPlaceholder')}
             className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
           />
         </div>
@@ -196,7 +201,7 @@ const UsersPage = () => {
           }}
           className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-primary-500"
         >
-          <option value="">All Roles</option>
+          <option value="">{t('common.allRoles')}</option>
           {roles.map((role) => (
             <option key={role.id} value={role.id}>{role.label}</option>
           ))}
@@ -210,9 +215,9 @@ const UsersPage = () => {
           }}
           className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-primary-500"
         >
-          <option value="">All Status</option>
-          <option value="true">Active</option>
-          <option value="false">Inactive</option>
+          <option value="">{t('common.allStatus')}</option>
+          <option value="true">{t('common.active')}</option>
+          <option value="false">{t('common.inactive')}</option>
         </select>
       </div>
 
@@ -222,12 +227,12 @@ const UsersPage = () => {
             <thead className="bg-slate-50">
               <tr>
                 {[
-                  { key: 'fullName', label: 'Name' },
-                  { key: 'username', label: 'Username' },
-                  { key: 'email', label: 'Email' },
-                  { key: 'roleName', label: 'Role' },
-                  { key: 'isActive', label: 'Status' },
-                  { key: 'lastLoginAt', label: 'Last Login' },
+                  { key: 'fullName', label: t('common.name') },
+                  { key: 'username', label: t('common.username') },
+                  { key: 'email', label: t('common.email') },
+                  { key: 'roleName', label: t('common.role') },
+                  { key: 'isActive', label: t('common.status') },
+                  { key: 'lastLoginAt', label: t('common.lastLogin') },
                 ].map((col) => (
                   <th
                     key={col.key}
@@ -238,7 +243,7 @@ const UsersPage = () => {
                   </th>
                 ))}
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Actions
+                  {t('common.actions')}
                 </th>
               </tr>
             </thead>
@@ -246,20 +251,20 @@ const UsersPage = () => {
               {fetching && users.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-400">
-                    Loading users...
+                    {t('users.loadingUsers')}
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">
-                    No users found
+                    {t('users.noUsersFound')}
                   </td>
                 </tr>
               ) : (
                 users.map((user) => (
                   <tr key={user.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3">
-                      <p className="font-medium text-slate-900">{user.fullName}</p>
+                      <p className="font-medium text-slate-900">{catalogLabel(user.fullName, 'customers')}</p>
                       <p className="text-xs text-slate-500">{user.phone || '—'}</p>
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-700">@{user.username}</td>
@@ -275,13 +280,13 @@ const UsersPage = () => {
                           ? 'bg-emerald-100 text-emerald-700'
                           : 'bg-red-100 text-red-700'
                       }`}>
-                        {user.isActive ? 'Active' : 'Inactive'}
+                        {user.isActive ? t('common.active') : t('common.inactive')}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-500">
                       {user.lastLoginAt
                         ? new Date(user.lastLoginAt).toLocaleString()
-                        : 'Never'}
+                        : t('common.never')}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
@@ -291,7 +296,7 @@ const UsersPage = () => {
                               type="button"
                               onClick={() => handleEdit(user)}
                               className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-primary-700"
-                              title="Edit user"
+                              title={t('users.editUserTitle')}
                             >
                               <FiEdit2 className="h-4 w-4" />
                             </button>
@@ -300,7 +305,7 @@ const UsersPage = () => {
                                 type="button"
                                 onClick={() => handleToggleStatus(user)}
                                 className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-amber-600"
-                                title={user.isActive ? 'Disable user' : 'Enable user'}
+                                title={user.isActive ? t('users.disableUser') : t('users.enableUser')}
                               >
                                 {user.isActive ? (
                                   <FiUserX className="h-4 w-4" />
@@ -316,7 +321,7 @@ const UsersPage = () => {
                             type="button"
                             onClick={() => handleDelete(user)}
                             className="rounded-lg p-2 text-slate-500 hover:bg-red-50 hover:text-red-600"
-                            title="Delete user"
+                            title={t('users.deleteUserTitle')}
                           >
                             <FiTrash2 className="h-4 w-4" />
                           </button>
@@ -342,7 +347,7 @@ const UsersPage = () => {
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingUser ? 'Edit User' : 'Create User'}
+        title={editingUser ? t('users.editUser') : t('users.createUser')}
         size="lg"
       >
         <UserFormModal

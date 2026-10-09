@@ -20,30 +20,33 @@ import {
   FiCalendar,
 } from 'react-icons/fi';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import AppLogo from '../components/common/AppLogo';
 import UserMenu from '../components/common/UserMenu';
+import LanguageSwitcher from '../components/common/LanguageSwitcher';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 
 const navItems = [
-  { to: '/', label: 'Dashboard', icon: FiHome, module: 'dashboard' },
-  { to: '/users', label: 'Users', icon: FiUsers, module: 'users' },
-  { to: '/customers', label: 'Customers', icon: FiUser, module: 'customers' },
-  { to: '/suppliers', label: 'Suppliers', icon: FiTruck, module: 'suppliers' },
-  { to: '/products', label: 'Products', icon: FiPackage, module: 'products' },
-  { to: '/stock', label: 'Stock', icon: FiLayers, module: 'stock' },
-  { to: '/billing', label: 'Billing', icon: FiShoppingCart, module: 'billing' },
-  { to: '/ledger', label: 'Ledger', icon: FiBookOpen, module: 'ledger' },
-  { to: '/cashbook', label: 'Cash Book', icon: FiDollarSign, module: 'cashbook' },
-  { to: '/payments', label: 'Pending Payments', icon: FiCreditCard, module: 'payments' },
-  { to: '/profit', label: 'Profit', icon: FiTrendingUp, module: 'reports' },
-  { to: '/reports', label: 'Reports', icon: FiFileText, module: 'reports' },
-  { to: '/whatsapp', label: 'WhatsApp', icon: FiMessageCircle, module: 'settings' },
-  { to: '/profile', label: 'My Profile', icon: FiUser, module: null },
+  { to: '/', labelKey: 'nav.dashboard', icon: FiHome, module: 'dashboard' },
+  { to: '/users', labelKey: 'nav.users', icon: FiUsers, module: 'users' },
+  { to: '/customers', labelKey: 'nav.customers', icon: FiUser, module: 'customers' },
+  { to: '/suppliers', labelKey: 'nav.suppliers', icon: FiTruck, module: 'suppliers' },
+  { to: '/products', labelKey: 'nav.products', icon: FiPackage, module: 'products' },
+  { to: '/stock', labelKey: 'nav.stock', icon: FiLayers, module: 'stock' },
+  { to: '/billing', labelKey: 'nav.billing', icon: FiShoppingCart, module: 'billing' },
+  { to: '/ledger', labelKey: 'nav.ledger', icon: FiBookOpen, module: 'ledger' },
+  { to: '/cashbook', labelKey: 'nav.cashbook', icon: FiDollarSign, module: 'cashbook' },
+  { to: '/payments', labelKey: 'nav.payments', icon: FiCreditCard, module: 'payments' },
+  { to: '/profit', labelKey: 'nav.profit', icon: FiTrendingUp, module: 'reports' },
+  { to: '/reports', labelKey: 'nav.reports', icon: FiFileText, module: 'reports' },
+  { to: '/whatsapp', labelKey: 'nav.whatsapp', icon: FiMessageCircle, module: 'settings' },
+  { to: '/profile', labelKey: 'nav.profile', icon: FiUser, module: null },
 ];
 
 const Sidebar = ({ expanded = false, onNavigate }) => {
+  const { t, i18n } = useTranslation();
   const { logout, checkPermission } = useAuth();
   const navigate = useNavigate();
 
@@ -55,10 +58,10 @@ const Sidebar = ({ expanded = false, onNavigate }) => {
   const handleLogout = async () => {
     try {
       await logout();
-      toast.success('Logged out successfully');
+      toast.success(t('common.loggedOut'));
       navigate('/login');
     } catch {
-      toast.error('Logout failed');
+      toast.error(t('common.logoutFailed'));
     }
   };
 
@@ -84,38 +87,41 @@ const Sidebar = ({ expanded = false, onNavigate }) => {
         <div className="flex h-[4.25rem] shrink-0 items-center gap-3 border-b border-white/10 px-3">
           <AppLogo size="sm" imageClassName="bg-white ring-slate-200" />
           <div className="sidebar-label min-w-0">
-            <p className="truncate text-sm font-bold leading-tight text-white">Cattle Feed ERP</p>
+            <p className="truncate text-sm font-bold leading-tight text-white">{t('app.name')}</p>
             <p className="truncate text-[10px] font-medium uppercase tracking-wider text-amber-300/80">
-              Feed Business Suite
+              {t('app.tagline')}
             </p>
           </div>
         </div>
 
         <nav className="flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden py-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {visibleNavItems.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              title={label}
-              onClick={onNavigate}
-              className={({ isActive }) => rowClass(isActive)}
-            >
-              <Icon className="h-[1.125rem] w-[1.125rem] shrink-0" />
-              <span className="sidebar-label truncate">{label}</span>
-            </NavLink>
-          ))}
+          {visibleNavItems.map(({ to, labelKey, icon: Icon }) => {
+            const label = t(labelKey);
+            return (
+              <NavLink
+                key={to}
+                to={to}
+                end={to === '/'}
+                title={label}
+                onClick={onNavigate}
+                className={({ isActive }) => rowClass(isActive)}
+              >
+                <Icon className="h-[1.125rem] w-[1.125rem] shrink-0" />
+                <span className="sidebar-label truncate">{label}</span>
+              </NavLink>
+            );
+          })}
         </nav>
 
         <div className="shrink-0 border-t border-white/10 py-3">
           <button
             type="button"
             onClick={handleLogout}
-            title="Logout"
+            title={t('nav.logout')}
             className={rowClass(false, 'text-red-300 hover:bg-red-950/40 hover:text-red-200')}
           >
             <FiLogOut className="h-[1.125rem] w-[1.125rem] shrink-0" />
-            <span className="sidebar-label truncate">Logout</span>
+            <span className="sidebar-label truncate">{t('nav.logout')}</span>
           </button>
         </div>
       </div>
@@ -123,8 +129,8 @@ const Sidebar = ({ expanded = false, onNavigate }) => {
   );
 };
 
-const todayLabel = () =>
-  new Date().toLocaleDateString('en-IN', {
+const todayLabel = (lng) =>
+  new Date().toLocaleDateString(lng?.startsWith('te') ? 'te-IN' : 'en-IN', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -132,9 +138,11 @@ const todayLabel = () =>
   });
 
 const DashboardLayout = () => {
+  const { t, i18n } = useTranslation();
   const { checkPermission } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const canBill = checkPermission('billing', 'view');
+  const dateText = todayLabel(i18n.resolvedLanguage || i18n.language);
 
   return (
     <div className="flex h-full overflow-hidden bg-slate-50">
@@ -161,8 +169,8 @@ const DashboardLayout = () => {
       <div className="dashboard-shell relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <div className="dashboard-shell-pattern pointer-events-none absolute inset-0 opacity-70" aria-hidden="true" />
 
-        <header className="relative z-30 flex shrink-0 items-center justify-between border-b border-emerald-100/80 bg-white/85 px-4 py-3 backdrop-blur-md lg:px-6">
-          <div className="flex items-center gap-3">
+        <header className="relative z-30 flex shrink-0 items-center justify-between gap-2 border-b border-emerald-100/80 bg-white/85 px-3 py-3 backdrop-blur-md sm:px-4 lg:px-6">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
@@ -171,31 +179,32 @@ const DashboardLayout = () => {
               <FiMenu className="h-5 w-5" />
             </button>
             <AppLogo size="xs" className="lg:hidden" />
-            <div className="hidden lg:block">
+            <div className="hidden min-w-0 lg:block">
               <p className="text-[10px] font-bold uppercase tracking-widest text-primary-700">
-                Cattle Feed ERP
+                {t('app.name')}
               </p>
-              <p className="flex items-center gap-1.5 text-sm text-slate-600">
-                <FiCalendar className="h-3.5 w-3.5 text-amber-600" />
-                {todayLabel()}
+              <p className="flex items-center gap-1.5 truncate text-sm text-slate-600">
+                <FiCalendar className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+                {dateText}
               </p>
             </div>
-            <div className="lg:hidden">
-              <p className="flex items-center gap-1.5 text-sm text-slate-600">
-                <FiCalendar className="h-3.5 w-3.5 text-amber-600" />
-                {todayLabel()}
+            <div className="min-w-0 lg:hidden">
+              <p className="flex items-center gap-1.5 truncate text-sm text-slate-600">
+                <FiCalendar className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+                {dateText}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
+            <LanguageSwitcher />
             {canBill && (
               <Link
                 to="/billing"
                 className="hidden items-center gap-1.5 rounded-xl bg-gradient-to-r from-primary-700 to-primary-600 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-primary-900/20 transition hover:from-primary-800 hover:to-primary-700 sm:inline-flex"
               >
                 <FiPlus className="h-3.5 w-3.5" />
-                New Bill
+                {t('nav.newBill')}
               </Link>
             )}
             <UserMenu />

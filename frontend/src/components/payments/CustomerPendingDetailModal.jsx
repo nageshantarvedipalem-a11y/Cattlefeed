@@ -3,6 +3,7 @@ import { FiDollarSign, FiMessageCircle, FiPrinter, FiEye, FiX } from 'react-icon
 import toast from 'react-hot-toast';
 import paymentService from '../../services/paymentService';
 import { formatCurrency, formatDate, formatPaymentStatus } from '../../utils/format';
+import { catalogLabel } from '../../utils/catalogI18n';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const statusBadge = {
@@ -129,11 +130,13 @@ const CustomerPendingDetailModal = ({
     };
   }, [invoices]);
 
-  const displayName = customer?.customerName
-    || invoices[0]?.customerName
-    || 'Customer details';
+  const rawCustomerName = customer?.customerName || invoices[0]?.customerName;
+  const displayName = rawCustomerName || 'Customer details';
   const phone = customer?.customerPhone || invoices[0]?.customerPhone || '';
   const village = customer?.customerVillage || invoices[0]?.customerVillage || '';
+  const displayNameLabel = rawCustomerName
+    ? catalogLabel(rawCustomerName, 'customers')
+    : displayName;
 
   if (!isOpen) return null;
 
@@ -142,9 +145,9 @@ const CustomerPendingDetailModal = ({
       <div className="flex max-h-[min(82vh,640px)] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
           <div className="min-w-0 flex-1 pr-2">
-            <h2 className="truncate text-base font-bold text-slate-900">{displayName}</h2>
+            <h2 className="truncate text-base font-bold text-slate-900">{displayNameLabel}</h2>
             <p className="mt-0.5 truncate text-xs text-slate-500">
-              {[phone, village].filter(Boolean).join(' · ') || 'No phone'}
+              {[phone, village ? catalogLabel(village, 'villages') : ''].filter(Boolean).join(' · ') || 'No phone'}
             </p>
           </div>
           <button
